@@ -1,0 +1,53 @@
+{% extends "tienda/layout.html" %}
+{% block content %}
+<h1 class="page-title">Checkout</h1>
+
+<div class="checkout-layout">
+    <div class="checkout-form">
+        <h3>Tus datos</h3>
+        <form action="/checkout/procesar" method="POST">
+            <div class="field">
+                <label for="nombre">Nombre completo *</label>
+                <input type="text" id="nombre" name="nombre" required>
+            </div>
+            <div class="field">
+                <label for="email">Email *</label>
+                <input type="email" id="email" name="email" required>
+            </div>
+            <div class="field">
+                <label for="telefono">Teléfono</label>
+                <input type="tel" id="telefono" name="telefono">
+            </div>
+            <div class="field">
+                <label for="direccion">Dirección de entrega</label>
+                <input type="text" id="direccion" name="direccion">
+            </div>
+            <button type="submit" class="btn-primary btn-block">
+                Confirmar pedido
+            </button>
+        </form>
+    </div>
+    <div class="checkout-summary">
+        <h3>Resumen</h3>
+        {% for id, item in carrito.items() %}
+        <div class="summary-row">
+            <span>{{ item.nombre[:35] }} × {{ item.cantidad }}</span>
+            <span>{{ peso(item.precio * item.cantidad) }}</span>
+        </div>
+        {% endfor %}
+        <div class="summary-total">
+            <span>Total</span>
+            <strong>{{ peso(total) }}</strong>
+        </div>
+        <div class="delivery-badge" style="margin-top:12px;">🚚 Envío gratis. Llega entre el <strong>lunes</strong> y el <strong>miércoles</strong></div>
+        {% if banco_configurado %}
+        <div class="bank-info">
+            <p class="bank-title">📲 Transferencia bancaria</p>
+            <p>Al confirmar te mostramos los datos para transferir.</p>
+        </div>
+        {% else %}
+        <p class="mp-info">📝 Te contactamos para coordinar el pago.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

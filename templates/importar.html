@@ -1,0 +1,51 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="page-header">
+    <h2>📥 Importar productos</h2>
+</div>
+
+<div class="import-grid">
+    <a href="/importar/whatsapp" class="import-card" style="text-decoration:none;color:inherit;">
+        <div class="icon">💬</div>
+        <h3>Desde WhatsApp</h3>
+        <p>Escanea una exportación de chat y extrae imágenes + descripciones</p>
+    </a>
+    <a href="/importar/escanear" class="import-card" style="text-decoration:none;color:inherit;">
+        <div class="icon">📁</div>
+        <h3>Desde carpeta de imágenes</h3>
+        <p>Escanea imágenes ya guardadas en la carpeta del proveedor</p>
+    </a>
+</div>
+
+{% if candidatos %}
+<div class="card" style="margin-top:16px;">
+    <div class="card-header">Candidatos encontrados ({{ candidatos|length }})</div>
+    {% for c in candidatos %}
+    <div class="candidate">
+        {% if c.archivo %}
+        <img src="/{{ c.archivo }}" alt="">
+        {% endif %}
+        <div class="candidate-info">
+            <h4>{{ c.nombre_sugerido or c.remitente }}</h4>
+            <p>{{ c.descripcion[:100] if c.descripcion else 'Sin descripción' }}</p>
+            <form method="POST" action="/importar/crear" style="margin-top:4px;display:flex;gap:8px;flex-wrap:wrap;">
+                <input type="hidden" name="nombre" value="{{ c.nombre_sugerido or 'Producto' }}">
+                <input type="hidden" name="descripcion" value="{{ c.descripcion }}">
+                <input type="hidden" name="archivo" value="{{ c.archivo }}">
+                <input type="text" name="costo" placeholder="Costo $" class="form-control" style="width:120px;padding:4px 8px;font-size:13px;">
+                <input type="text" name="proveedor" placeholder="Proveedor" class="form-control" style="width:150px;padding:4px 8px;font-size:13px;" value="{{ proveedor or '' }}">
+                <button type="submit" class="btn btn-success btn-sm">+ Agregar</button>
+            </form>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+{% if imagenes_copiadas %}
+<div class="card">
+    <div class="card-header">Imágenes copiadas ({{ imagenes_copiadas|length }})</div>
+    <p style="font-size:14px;color:#64748b;">Las imágenes se copiaron a <code>imagenes/proveedores/{{ proveedor }}/</code></p>
+</div>
+{% endif %}
+{% endblock %}

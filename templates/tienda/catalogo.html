@@ -1,0 +1,25 @@
+{% extends "tienda/layout.html" %}
+{% block content %}
+<h1 class="page-title">Productos</h1>
+{% if not productos %}
+<div class="empty">Próximamente disponibles.</div>
+{% else %}
+<div class="product-grid">
+    {% for p in productos %}
+    <a href="/tienda/{{ p.id }}" class="product-card" data-categoria="{{ (p.categoria or '')|lower }}" data-nombre="{{ p.nombre|lower }}">
+        {% if p.imagen %}
+        <img src="/{{ p.imagen }}" alt="{{ p.nombre }}" loading="lazy">
+        {% else %}
+        <div class="no-img">📷</div>
+        {% endif %}
+        <div class="info">
+            <h3>{{ p.nombre[:50] }}</h3>
+            <div class="price">$ {{ "{:,.0f}".format(p.precio_venta).replace(",",".") }}</div>
+            {% if p.categoria %}<div class="cat-label">{{ p.categoria }}</div>{% endif %}
+            <div class="shipping-badge">Envío gratis</div>
+        </div>
+    </a>
+    {% endfor %}
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,47 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="page-header">
+    <h2>📋 Pedidos ({{ pedidos|length }})</h2>
+    <div class="btn-group">
+        <a href="/pedidos?estado=pendiente" class="btn btn-outline btn-sm">Pendientes</a>
+        <a href="/pedidos?estado=pagado" class="btn btn-outline btn-sm">Pagados</a>
+        <a href="/pedidos" class="btn btn-outline btn-sm">Todos</a>
+    </div>
+</div>
+
+<div class="card">
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Cliente</th>
+                    <th>Email</th>
+                    <th>Total</th>
+                    <th>Items</th>
+                    <th>Estado</th>
+                    <th>Fecha</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for ped in pedidos %}
+                <tr>
+                    <td>{{ ped.id }}</td>
+                    <td>{{ ped.cliente_nombre }}</td>
+                    <td>{{ ped.cliente_email }}</td>
+                    <td class="precio">$ {{ "{:,.0f}".format(ped.total).replace(",",".") }}</td>
+                    <td>{{ ped.total_items }}</td>
+                    <td><span class="badge badge-{{ ped.estado }}">{{ ped.estado }}</span></td>
+                    <td>{{ ped.created_at[:10] }}</td>
+                    <td><a href="/pedidos/{{ ped.id }}" class="btn btn-outline btn-sm">Ver</a></td>
+                </tr>
+                {% endfor %}
+                {% if not pedidos %}
+                <tr><td colspan="8" style="text-align:center;padding:32px;color:#94a3b8;">No hay pedidos.</td></tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

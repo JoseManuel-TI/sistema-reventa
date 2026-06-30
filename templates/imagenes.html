@@ -1,0 +1,36 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="page-header">
+    <h2>🖼️ Imágenes sin vincular ({{ orfanas|length }})</h2>
+</div>
+
+<div class="card">
+    <p style="color:#64748b;margin-bottom:16px;font-size:14px;">
+        Estas imágenes están en el servidor pero no vinculadas a ningún producto.
+        Asignalas al producto correspondiente para que aparezcan en la tienda.
+    </p>
+    {% if not orfanas %}
+    <p style="text-align:center;padding:24px;color:#94a3b8;">No hay imágenes sin vincular.</p>
+    {% else %}
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;">
+        {% for img in orfanas %}
+        <div style="background:#fff;border:1px solid #f1f5f9;border-radius:8px;overflow:hidden;">
+            <img src="/{{ img.archivo }}" style="width:100%;height:140px;object-fit:cover;background:#f1f5f9;">
+            <div style="padding:8px;">
+                <div style="font-size:11px;color:#94a3b8;margin-bottom:6px;word-break:break-all;">{{ img.archivo.split('/')[-1][:30] }}...</div>
+                <form action="/imagenes/vincular/{{ img.archivo }}" method="POST">
+                    <select name="producto_id" class="form-control" style="font-size:12px;padding:4px 6px;margin-bottom:4px;">
+                        <option value="">— Asignar a —</option>
+                        {% for pid, pname in productos.items() %}
+                        <option value="{{ pid }}">{{ pname[:30] }}</option>
+                        {% endfor %}
+                    </select>
+                    <button type="submit" class="btn btn-primary btn-sm" style="width:100%;justify-content:center;">Vincular</button>
+                </form>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

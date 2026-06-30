@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{ titulo or store_name }} · {{ store_name }}</title>
+<style>:root{--primary:{{ tienda_color }};--primary-dark:{{ tienda_color }};}</style>
+<link rel="stylesheet" href="/static/tienda.css">
+</head>
+<body>
+<header class="topbar">
+    <a href="/tienda" class="logo"><span class="logo-icon">🛒</span>{{ tienda_logo }}</a>
+    <form class="search-bar" action="/tienda" method="GET" onsubmit="return false;">
+        <input type="text" name="q" placeholder="Buscar productos..." id="search-input" autocomplete="off">
+        <button type="button" onclick="buscarProductos()">🔍</button>
+    </form>
+    <nav>
+        <a href="/tienda">Productos</a>
+        <a href="/carrito" class="cart-link">
+            🛒
+            {% if cant_carrito > 0 %}
+            <span class="cart-badge">{{ cant_carrito }}</span>
+            {% endif %}
+        </a>
+    </nav>
+</header>
+
+<div class="cat-bar">
+    <a href="/tienda">Todas las categorías</a>
+</div>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+{% if messages %}
+<div class="flash-box">
+    {% for category, message in messages %}
+    <div class="flash flash-{{ category }}">{{ message }}</div>
+    {% endfor %}
+</div>
+{% endif %}
+{% endwith %}
+
+<main class="main-content">
+    {% block content %}{% endblock %}
+</main>
+
+<footer class="footer">
+    <p>{{ store_name }} &middot; <a href="{{ wa_link }}" target="_blank">Contacto WhatsApp</a></p>
+</footer>
+
+<script>
+var CATEGORY_SYNONYMS = {
+    'celulares': ['celular','celulares','telefono','telefonos','telefonia','smartphone','movil','móvil','smartphones'],
+    'audio': ['audio','auricular','auriculares','audifono','parlante','parlantes','bocina','altavoz','airpods','earphones','headphones','buds','cascos','jbl'],
+    'computacion': ['computacion','computadora','notebook','laptop','pc','computador','computadoras','notebooks'],
+    'tv': ['tv','televisor','television','televisores','smart tv','led','oled','pantalla'],
+    'consolas': ['consola','consolas','playstation','xbox','ps5','videojuego','juegos','gaming'],
+    'hogar': ['hogar','cocina','electrodomestico','sillon','silla','mesa','mueble','cava','cafetera','pava','estufa'],
+    'deportes': ['deporte','deportes','bicicleta','gimnasio','fitness','bici'],
+    'proyectores': ['proyector','proyectores','proyector gamer','proyectores'],
+    'electronica': ['electronica','electrónico','electronico','electrónicos'],
+    'indumentaria': ['indumentaria','ropa','remera','vestimenta','remeras','calzado'],
+    'test': []
+};
+
+function _normalize(s) {
+    return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+}
+
+function _categoriasParaQuery(q) {
+    var cats = [];
+    for (var cat in CATEGORY_SYNONYMS) {
+        if (_normalize(cat) === q || CATEGORY_SYNONYMS[cat].some(function(s) {
+            return _normalize(s) === q || _normalize(s).includes(q) || q.includes(_normalize(s));
+        })) {
+            cats.push(cat);
+        }
+    }
+    return cats;
+}
+
+function buscarProductos() {
+    var q = _normalize(document.getElementById('search-input').value);
+    var cards = document.querySelectorAll('.product-card');
+    if (!cards.length) return;
+    if (!q) { cards.forEach(function(c) { c.style.display = ''; }); return; }
+
+    var catsMatch = _categoriasParaQuery(q);
+
+    cards.forEach(function(c) {
+        var texto = _normalize(c.textContent || '');
+        var cardCat = _normalize(c.getAttribute('data-categoria') || '');
+
+        var porTexto = texto.includes(q);
+        var porCategoria = catsMatch.some(function(cat) { return cat === cardCat; });
+
+        c.style.display = (porTexto || porCategoria) ? '' : 'none';
+    });
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    var inp = document.getElementById('search-input');
+    if (inp) {
+        inp.addEventListener('input', buscarProductos);
+        var params = new URLSearchParams(window.location.search);
+        if (params.get('q')) inp.value = params.get('q');
+        if (inp.value) buscarProductos();
+    }
+});
+</script>
+</body>
+</html>

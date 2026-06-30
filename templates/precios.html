@@ -1,0 +1,32 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="page-header">
+    <h2>Calculadora de Precios</h2>
+</div>
+
+<div class="card" style="max-width:400px;">
+    <form method="POST">
+        <div class="form-group">
+            <label for="costo">Costo ($)</label>
+            <input type="number" id="costo" name="costo" class="form-control" step="0.01" value="{{ datos.costo if datos else '' }}" required>
+        </div>
+        <div class="form-group">
+            <label for="margen_deseado">Margen de ganancia (%)</label>
+            <input type="number" id="margen_deseado" name="margen_deseado" class="form-control" step="0.1" value="{{ datos.margen_deseado if datos else 35 }}">
+        </div>
+        <button type="submit" class="btn btn-primary">Calcular precio</button>
+    </form>
+
+    {% if resultado %}
+    <div class="price-result">
+        <div class="label">Precio final</div>
+        <div class="final">$ {{ "{:,.2f}".format(resultado.precio_final).replace(",",".") }}</div>
+        <div class="breakdown">
+            <div><span>Costo</span><span>$ {{ "{:,.2f}".format(resultado.costo).replace(",",".") }}</span></div>
+            <div><span>Ganancia</span><span>$ {{ "{:,.2f}".format(resultado.ganancia).replace(",",".") }}</span></div>
+            <div><span>Margen s/costo</span><span>{{ '{:.1f}%'.format(resultado.margen_porcentaje) }}</span></div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,66 @@
+{% extends "tienda/layout.html" %}
+{% block content %}
+<div class="product-detail">
+    <div class="gallery-section">
+        <div class="gallery-main">
+            {% if imagenes %}
+            <img id="main-image" src="/{{ imagenes[0].archivo }}" alt="{{ p.nombre }}">
+            {% else %}
+            <div class="no-img big">📷</div>
+            {% endif %}
+        </div>
+        {% if imagenes and imagenes|length > 1 %}
+        <div class="gallery-thumbs">
+            {% for img in imagenes %}
+            <button class="thumb {% if loop.first %}active{% endif %}"
+                    onclick="document.getElementById('main-image').src='/{{ img.archivo }}';document.querySelectorAll('.thumb').forEach(t=>t.classList.remove('active'));this.classList.add('active');">
+                <img src="/{{ img.archivo }}" alt="">
+            </button>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="detail-info">
+        <h1>{{ p.nombre }}</h1>
+        <div class="big-price">$ {{ "{:,.0f}".format(p.precio_venta).replace(",",".") }}</div>
+        <div class="price-shipping">Envío gratis</div>
+
+        {% if p.stock and p.stock > 0 %}
+        <p class="stock ok">Stock disponible</p>
+        {% else %}
+        <p class="stock low">Consultar disponibilidad</p>
+        {% endif %}
+
+        <form action="/carrito/agregar/{{ p.id }}" method="POST" class="buy-form">
+            <div class="qty-picker">
+                <button type="button" onclick="this.parentNode.querySelector('input').stepDown();">−</button>
+                <input type="number" name="cantidad" value="1" min="1" max="{{ p.stock or 99 }}" id="qty-input">
+                <button type="button" onclick="this.parentNode.querySelector('input').stepUp();">+</button>
+            </div>
+            <button type="submit" class="btn-buy">Agregar al carrito</button>
+            <button type="submit" class="btn-buy-now" formaction="/comprar-ahora/{{ p.id }}">Comprar ahora</button>
+        </form>
+
+        <div class="delivery-badge">🚚 Llega entre el <strong>lunes</strong> y el <strong>miércoles</strong></div>
+
+        {% if p.descripcion %}
+        <div class="desc-section">
+            <h3>Descripción</h3>
+            <p>{{ p.descripcion }}</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+
+<script>
+document.querySelectorAll('.qty-picker button').forEach(b => {
+    b.addEventListener('click', () => {
+        const input = b.parentNode.querySelector('input');
+        const ev = new Event('change', {bubbles:true});
+        input.dispatchEvent(ev);
+    });
+});
+</script>
+{% endblock %}

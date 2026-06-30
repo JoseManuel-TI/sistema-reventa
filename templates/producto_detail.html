@@ -1,0 +1,76 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="page-header">
+    <h2>{{ p.nombre }}</h2>
+    <div class="btn-group">
+        <a href="/productos/{{ p.id }}/editar" class="btn btn-primary">✏️ Editar</a>
+        <a href="/precios/producto/{{ p.id }}" class="btn btn-outline">💰 Calcular precio</a>
+        <form method="POST" action="/productos/{{ p.id }}/eliminar" style="display:inline;" onsubmit="return confirm('¿Eliminar {{ p.nombre }}?')">
+            <button type="submit" class="btn btn-danger">🗑️ Eliminar</button>
+        </form>
+    </div>
+</div>
+
+<div class="prod-header">
+    {% if p.imagen_principal %}
+    <img src="/{{ p.imagen_principal }}" class="prod-img">
+    {% else %}
+    <div class="prod-img-placeholder">Sin imagen</div>
+    {% endif %}
+    <div class="prod-info">
+        <p class="desc">{{ p.descripcion or 'Sin descripción' }}</p>
+        <dl class="prod-meta">
+            <dt>Proveedor</dt>
+            <dd>{{ p.proveedor_nombre or '-' }}</dd>
+            <dt>Costo</dt>
+            <dd>$ {{ "{:,.2f}".format(p.costo).replace(",",".") }}</dd>
+            <dt>Precio venta</dt>
+            <dd style="color:#10b981;font-size:20px;">{{ '$ ' + "{:,.2f}".format(p.precio_venta).replace(",",".") if p.precio_venta else 'Sin definir' }}</dd>
+            <dt>Margen</dt>
+            <dd>{{ '{:.1f}%'.format(p.margen_porcentaje) if p.margen_porcentaje else '-' }}</dd>
+            <dt>Categoría</dt>
+            <dd>{{ p.categoria or '-' }}</dd>
+            <dt>Stock</dt>
+            <dd>{{ p.stock or 0 }} uds</dd>
+            {# <dt>IVA</dt>
+            <dd>{{ p.iva_porcentaje or 21 }}%</dd> #}
+            <dt>En tienda pública</dt>
+            <dd>
+                {% if p.publicar %}
+                ✅ Publicado
+                <form method="POST" action="/productos/{{ p.id }}/toggle-publicar" style="display:inline;">
+                    <button type="submit" class="btn btn-outline btn-sm" style="margin-left:8px;">Ocultar</button>
+                </form>
+                {% else %}
+                ❌ No publicado
+                <form method="POST" action="/productos/{{ p.id }}/toggle-publicar" style="display:inline;">
+                    <button type="submit" class="btn btn-primary btn-sm" style="margin-left:8px;">Publicar</button>
+                </form>
+                {% endif %}
+            </dd>
+        </dl>
+        <div class="prod-actions btn-group">
+            <a href="/exportar/ml" class="btn btn-success btn-sm">📤 Publicar en ML</a>
+            <a href="/exportar/instagram" class="btn btn-outline btn-sm">📸 Post Instagram</a>
+        </div>
+    </div>
+</div>
+
+{% if p.imagenes %}
+<hr>
+<h3>Imágenes ({{ p.imagenes|length }})</h3>
+<div class="imagenes-grid" style="display:flex;flex-wrap:wrap;gap:12px;margin-top:12px;">
+    {% for img in p.imagenes %}
+    <div class="imagen-card" style="border:1px solid #e5e7eb;border-radius:8px;padding:8px;text-align:center;width:160px;">
+        <a href="/{{ img.archivo }}" target="_blank">
+            <img src="/{{ img.archivo }}" style="width:140px;height:140px;object-fit:cover;border-radius:4px;display:block;">
+        </a>
+        <div style="margin-top:6px;font-size:11px;color:#6b7280;word-break:break-all;">{{ img.archivo.split('/')[-1] }}</div>
+        <form method="POST" action="/imagenes/{{ img.id }}/eliminar" style="margin-top:6px;" onsubmit="return confirm('¿Eliminar esta imagen?')">
+            <button type="submit" class="btn btn-danger btn-sm">🗑️</button>
+        </form>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+{% endblock %}

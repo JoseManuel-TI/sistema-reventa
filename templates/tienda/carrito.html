@@ -1,0 +1,43 @@
+{% extends "tienda/layout.html" %}
+{% block content %}
+<h1 class="page-title">Carrito</h1>
+{% if not carrito %}
+<div class="empty">
+    <p>El carrito está vacío.</p>
+    <a href="/tienda" class="btn-primary">Ver productos</a>
+</div>
+{% else %}
+<div class="cart-items">
+    {% for id, item in carrito.items() %}
+    <div class="cart-row">
+        {% if item.imagen %}
+        <img src="/{{ item.imagen }}" alt="" class="cart-img">
+        {% else %}
+        <div class="cart-img no-img">📷</div>
+        {% endif %}
+        <div class="cart-info">
+            <a href="/tienda/{{ id }}"><h4>{{ item.nombre }}</h4></a>
+            <div class="cart-price">{{ peso(item.precio) }}</div>
+        </div>
+        <form action="/carrito/actualizar/{{ id }}" method="POST" class="cart-qty">
+            <input type="number" name="cantidad" value="{{ item.cantidad }}" min="1" max="{{ item.stock or 99 }}"
+                   onchange="this.form.submit()">
+        </form>
+        <div class="cart-subtotal">{{ peso(item.precio * item.cantidad) }}</div>
+        <form action="/carrito/eliminar/{{ id }}" method="POST">
+            <button class="btn-remove" title="Eliminar">✕</button>
+        </form>
+    </div>
+    {% endfor %}
+</div>
+<div class="delivery-badge" style="margin:12px 0;">🚚 Envío gratis. Llega entre el <strong>lunes</strong> y el <strong>miércoles</strong></div>
+
+<div class="cart-footer">
+    <div class="cart-total">Total: <strong>{{ peso(total) }}</strong></div>
+    <div class="cart-actions">
+        <a href="/tienda" class="btn-outline">Seguir comprando</a>
+        <a href="/checkout" class="btn-primary">Iniciar pedido</a>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

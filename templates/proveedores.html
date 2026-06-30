@@ -1,0 +1,37 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="page-header">
+    <h2>🏭 Proveedores</h2>
+    <a href="/proveedores/nuevo" class="btn btn-primary">+ Nuevo</a>
+</div>
+
+<div class="card">
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr><th>ID</th><th>Nombre</th><th>Contacto</th><th>Notas</th><th>Productos</th><th></th></tr>
+            </thead>
+            <tbody>
+                {% for prv in proveedores %}
+                <tr>
+                    <td>{{ prv.id }}</td>
+                    <td><strong>{{ prv.nombre }}</strong></td>
+                    <td>{{ prv.contacto or '-' }}</td>
+                    <td>{{ prv.notas or '-' }}</td>
+                    <td><span class="badge badge-stock">{{ prv.cantidad_productos }} prod.</span></td>
+                    <td>
+                        <div class="btn-group">
+                            <a href="/proveedores/{{ prv.id }}/editar" class="btn btn-outline btn-sm">Editar</a>
+                            <a href="/productos?proveedor={{ prv.id }}" class="btn btn-outline btn-sm">Ver productos</a>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+                {% if not proveedores %}
+                <tr><td colspan="6" style="text-align:center;padding:32px;color:#94a3b8;">No hay proveedores. <a href="/proveedores/nuevo">Agregá el primero</a></td></tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

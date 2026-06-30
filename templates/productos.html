@@ -1,0 +1,143 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="page-header">
+    <h2>📦 Productos <span id="prod-count">{{ productos|length }}</span></h2>
+    <div class="btn-group">
+        <a href="/productos/nuevo" class="btn btn-primary">+ Nuevo</a>
+    </div>
+</div>
+
+<div class="search-bar-admin">
+    <input type="text" id="search-prod" placeholder="Buscar por nombre, categoría, proveedor..." autocomplete="off">
+    <select id="filter-cat">
+        <option value="">Todas las categorías</option>
+        {% for c in categorias %}
+        <option value="{{ c|lower }}">{{ c }}</option>
+        {% endfor %}
+    </select>
+    <button class="btn btn-outline btn-sm" onclick="document.getElementById('search-prod').value='';document.getElementById('filter-cat').value='';filtrarProductos();">Limpiar</button>
+</div>
+
+<div class="card">
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Nombre</th>
+                    <th>Categoría</th>
+                    <th>En tienda</th>
+                    <th>Proveedor</th>
+                    <th>Costo</th>
+                    <th>Precio venta</th>
+                    <th>Stock</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody id="prod-tbody">
+                {% for p in productos %}
+                <tr data-categoria="{{ (p.categoria or '')|lower }}" data-nombre="{{ p.nombre|lower }}" data-proveedor="{{ (p.proveedor_nombre or '')|lower }}">
+                    <td>{{ p.id }}</td>
+                    <td><a href="/productos/{{ p.id }}" style="font-weight:500;">{{ p.nombre }}</a></td>
+                    <td>{% if p.categoria %}<span class="badge badge-cat">{{ p.categoria }}</span>{% else %}—{% endif %}</td>
+                    <td>{% if p.publicar %}✅{% else %}—{% endif %}</td>
+                    <td>{{ p.proveedor_nombre or '-' }}</td>
+                    <td class="precio">$ {{ "{:,.0f}".format(p.costo).replace(",",".") if p.costo else '-' }}</td>
+                    <td class="precio">$ {{ "{:,.0f}".format(p.precio_venta).replace(",",".") if p.precio_venta else '-' }}</td>
+                    <td><span class="badge badge-stock">{{ p.stock or 0 }} uds</span></td>
+                    <td>
+                        <div class="btn-group">
+                            <a href="/productos/{{ p.id }}/editar" class="btn btn-outline btn-sm">Editar</a>
+                            <a href="/precios/producto/{{ p.id }}" class="btn btn-outline btn-sm">Precio</a>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+                {% if not productos %}
+                <tr id="empty-row"><td colspan="9" style="text-align:center;padding:32px;color:#94a3b8;">No hay productos. <a href="/productos/nuevo">Agregá el primero</a></td></tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+var CATEGORY_SYNONYMS = {
+    'celulares': ['celular','celulares','telefono','telefonos','telefonia','smartphone','movil','móvil','smartphones'],
+    'audio': ['audio','auricular','auriculares','audifono','parlante','parlantes','bocina','altavoz','airpods','earphones','headphones','buds','cascos','jbl'],
+    'computacion': ['computacion','computadora','notebook','laptop','pc','computador','computadoras','notebooks'],
+    'tv': ['tv','televisor','television','televisores','smart tv','led','oled','pantalla'],
+    'consolas': ['consola','consolas','playstation','xbox','ps5','videojuego','juegos','gaming'],
+    'hogar': ['hogar','cocina','electrodomestico','sillon','silla','mesa','mueble','cava','cafetera','pava','estufa'],
+    'deportes': ['deporte','deportes','bicicleta','gimnasio','fitness','bici'],
+    'proyectores': ['proyector','proyectores','proyector gamer','proyectores'],
+    'electronica': ['electronica','electrónico','electronico','electrónicos'],
+    'indumentaria': ['indumentaria','ropa','remera','vestimenta','remeras','calzado'],
+    'test': []
+};
+
+function _n(s) { return (s || '').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase(); }
+
+function _catsParaQuery(q) {
+    var r = [];
+    for (var c in CATEGORY_SYNONYMS) {
+        if (_n(c) === q || CATEGORY_SYNONYMS[c].some(function(s) {
+            return _n(s) === q || _n(s).includes(q) || q.includes(_n(s));
+        })) r.push(c);
+    }
+    return r;
+}
+
+function filtrarProductos() {
+    var q = _n(document.getElementById('search-prod').value);
+    var fcat = document.getElementById('filter-cat').value;
+    var rows = document.querySelectorAll('#prod-tbody tr');
+    var visibles = 0;
+    var catsMatch = q ? _catsParaQuery(q) : [];
+
+    rows.forEach(function(r) {
+        if (r.id === 'empty-row') return;
+        var texto = _n(r.textContent || '');
+        var cardCat = _n(r.getAttribute('data-categoria') || '');
+        var prov = _n(r.getAttribute('data-proveedor') || '');
+
+        var porTexto = !q || texto.includes(q) || prov.includes(q);
+        var porCategoria = q && catsMatch.some(function(c) { return c === cardCat; });
+        var porFiltro = !fcat || cardCat === fcat;
+
+        var ok = (porTexto || porCategoria) && porFiltro;
+        r.style.display = ok ? '' : 'none';
+        if (ok) visibles++;
+    });
+
+    var e = document.getElementById('empty-row');
+    if (visibles > 0 && e && e.querySelector('td').textContent.includes('Sin resultados')) {
+        e.remove(); e = null;
+    }
+    if (!e && visibles === 0 && rows.length > 0) {
+        var tbody = document.getElementById('prod-tbody');
+        var tr = document.createElement('tr');
+        tr.id = 'empty-row';
+        tr.innerHTML = '<td colspan="9" style="text-align:center;padding:32px;color:#94a3b8;">Sin resultados para esta búsqueda.</td>';
+        tbody.appendChild(tr); e = tr;
+    }
+    if (e) e.style.display = visibles === 0 ? '' : 'none';
+    document.getElementById('prod-count').textContent = visibles;
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    var inp = document.getElementById('search-prod');
+    var sel = document.getElementById('filter-cat');
+    if (inp) inp.addEventListener('input', filtrarProductos);
+    if (sel) sel.addEventListener('change', filtrarProductos);
+});
+</script>
+
+<style>
+.search-bar-admin{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap}
+.search-bar-admin input{flex:1;min-width:180px;padding:8px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:14px;outline:none}
+.search-bar-admin input:focus{border-color:#3b82f6;box-shadow:0 0 0 2px rgba(59,130,246,0.15)}
+.search-bar-admin select{padding:8px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:14px;background:#fff;cursor:pointer;outline:none}
+.badge-cat{display:inline-block;padding:2px 8px;border-radius:4px;background:#eff6ff;color:#1d4ed8;font-size:12px;font-weight:500}
+</style>
+{% endblock %}

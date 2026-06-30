@@ -1,0 +1,69 @@
+{% extends "tienda/layout.html" %}
+{% block content %}
+<div class="gracias">
+    <div class="gracias-icon">✅</div>
+    <h1>
+        {% if pedido.estado == "pagado" %}
+        ¡Pago recibido!
+        {% else %}
+        Pedido registrado
+        {% endif %}
+    </h1>
+    <p class="gracias-id">Pedido #{{ pedido.id }}</p>
+
+    <div class="gracias-details">
+        <p><strong>Nombre:</strong> {{ pedido.cliente_nombre }}</p>
+        <p><strong>Email:</strong> {{ pedido.cliente_email }}</p>
+        {% if pedido.cliente_telefono %}
+        <p><strong>Teléfono:</strong> {{ pedido.cliente_telefono }}</p>
+        {% endif %}
+        {% if pedido.cliente_direccion %}
+        <p><strong>Dirección:</strong> {{ pedido.cliente_direccion }}</p>
+        {% endif %}
+    </div>
+
+    <table class="gracias-table">
+        <thead>
+            <tr><th>Producto</th><th>Cant</th><th>Subtotal</th></tr>
+        </thead>
+        <tbody>
+            {% for item in pedido.line_items %}
+            <tr>
+                <td>{{ item.nombre }}</td>
+                <td>{{ item.cantidad }}</td>
+                <td>{{ peso(item.subtotal) }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+        <tfoot>
+            <tr><td colspan="2"><strong>Total</strong></td><td><strong>{{ peso(pedido.total) }}</strong></td></tr>
+        </tfoot>
+    </table>
+
+    {% if pedido.estado == "pagado" %}
+    <p class="gracias-msg">✅ Pago confirmado. Procesamos tu pedido automáticamente y te enviamos el seguimiento por email.</p>
+    {% elif banco_configurado %}
+    <div class="bank-info" style="text-align:left;">
+        <p class="bank-title">📲 Transferí el total a esta cuenta:</p>
+        <table class="bank-table">
+            {% if banco %}<tr><td>Banco</td><td>{{ banco }}</td></tr>{% endif %}
+            {% if banco_titular %}<tr><td>Titular</td><td>{{ banco_titular }}</td></tr>{% endif %}
+            {% if banco_tipo %}<tr><td>Tipo</td><td>{{ banco_tipo }}</td></tr>{% endif %}
+            {% if banco_cbu %}<tr><td>CBU</td><td class="bank-cbu">{{ banco_cbu }}</td></tr>{% endif %}
+            {% if banco_alias %}<tr><td>Alias</td><td class="bank-alias">{{ banco_alias }}</td></tr>{% endif %}
+        </table>
+        <p style="font-size:13px;color:#64748b;margin-top:8px;">Una vez hecha la transferencia, envianos el comprobante por WhatsApp así confirmamos el pago.</p>
+    </div>
+    {% else %}
+    <p class="gracias-msg">📝 Pedido registrado. Te contactamos para coordinar el pago.</p>
+    {% endif %}
+
+    {% if not pedido.estado == "pagado" %}
+    <div class="delivery-badge" style="display:block;text-align:center;margin-bottom:16px;">
+        🚚 Envío gratis. Llega entre el <strong>lunes</strong> y el <strong>miércoles</strong> después de la confirmación del pago.
+    </div>
+    {% endif %}
+
+    <a href="/tienda" class="btn-primary">Seguir viendo productos</a>
+</div>
+{% endblock %}

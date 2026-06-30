@@ -1,0 +1,70 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="page-header">
+    <h2>📊 Dashboard</h2>
+    <a href="/productos/nuevo" class="btn btn-primary">+ Nuevo Producto</a>
+</div>
+
+<div class="stats">
+    <div class="stat-card">
+        <div class="label">Productos activos</div>
+        <div class="value blue">{{ stats.productos_activos }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="label">Proveedores</div>
+        <div class="value">{{ stats.proveedores }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="label">Inversión total</div>
+        <div class="value orange">$ {{ "{:,.0f}".format(stats.inversion_total).replace(",",".") }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="label">Venta potencial</div>
+        <div class="value green">$ {{ "{:,.0f}".format(stats.venta_potencial).replace(",",".") }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="label">Ganancia estimada</div>
+        <div class="value green">$ {{ "{:,.0f}".format(stats.ganancia_estimada).replace(",",".") }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="label">Sin precio asignado</div>
+        <div class="value">{{ stats.sin_precio }}</div>
+    </div>
+</div>
+
+{% if stats.ultimos_productos %}
+<div class="card">
+    <div class="card-header">Últimos productos agregados</div>
+    <div class="prod-grid">
+        {% for p in stats.ultimos_productos %}
+        <a href="/productos/{{ p.id }}" class="item" style="text-decoration:none;color:inherit;">
+            {% if p.imagen %}
+            <img src="/{{ p.imagen }}" alt="{{ p.nombre }}">
+            {% else %}
+            <div style="width:100%;height:200px;background:#f1f5f9;display:flex;align-items:center;justify-content:center;color:#94a3b8;">Sin imagen</div>
+            {% endif %}
+            <div class="info">
+                <h4>{{ p.nombre }}</h4>
+                {% if p.precio_venta %}
+                <div class="precio">$ {{ "{:,.0f}".format(p.precio_venta).replace(",",".") }}</div>
+                {% else %}
+                <div class="precio" style="color:#f59e0b;font-size:13px;">Sin precio</div>
+                {% endif %}
+                <div style="font-size:12px;color:#94a3b8;">{{ p.proveedor_nombre }}</div>
+            </div>
+        </a>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<div class="card">
+    <div class="card-header">Acciones rápidas</div>
+    <div class="btn-group" style="flex-wrap:wrap;">
+        <a href="/importar" class="btn btn-success">📥 Importar de WhatsApp</a>
+        <a href="/exportar/ml" class="btn btn-primary">📤 Exportar a ML</a>
+        <a href="/exportar/catalogo" class="btn btn-outline">📤 Catálogo Web</a>
+        <a href="/exportar/instagram" class="btn btn-outline">📤 Posts Instagram</a>
+    </div>
+</div>
+{% endblock %}

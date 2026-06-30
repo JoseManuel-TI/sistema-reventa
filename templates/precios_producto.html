@@ -1,0 +1,39 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="page-header">
+    <h2>Precio sugerido: {{ p.nombre }}</h2>
+    <a href="/productos/{{ p.id }}" class="btn btn-outline">← Volver</a>
+</div>
+
+<div class="card" style="max-width:400px;">
+    <div style="margin-bottom:16px;">
+        <strong>Costo actual:</strong> $ {{ "{:,.2f}".format(p.costo).replace(",",".") }}<br>
+        <strong>Precio actual:</strong> {{ '$ ' + "{:,.2f}".format(p.precio_venta).replace(",",".") if p.precio_venta else 'Sin definir' }}
+    </div>
+
+    <form method="POST">
+        <div class="form-group">
+            <label for="margen_deseado">Margen de ganancia (%)</label>
+            <input type="number" id="margen_deseado" name="margen_deseado" class="form-control" step="0.1" value="{{ datos.margen_deseado if datos else 35 }}">
+        </div>
+        <button type="submit" class="btn btn-primary">Calcular</button>
+    </form>
+
+    {% if resultado %}
+    <div class="price-result">
+        <div class="label">Precio sugerido</div>
+        <div class="final">$ {{ "{:,.2f}".format(resultado.precio_final).replace(",",".") }}</div>
+        <div class="breakdown">
+            <div><span>Costo</span><span>$ {{ "{:,.2f}".format(resultado.costo).replace(",",".") }}</span></div>
+            <div><span>Ganancia</span><span>$ {{ "{:,.2f}".format(resultado.ganancia).replace(",",".") }}</span></div>
+            <div><span>Margen s/costo</span><span>{{ '{:.1f}%'.format(resultado.margen_porcentaje) }}</span></div>
+        </div>
+        <form method="POST" action="/precios/producto/{{ p.id }}/guardar" style="margin-top:12px;">
+            <input type="hidden" name="precio_venta" value="{{ resultado.precio_final }}">
+            <input type="hidden" name="margen_porcentaje" value="{{ resultado.margen_porcentaje }}">
+            <button type="submit" class="btn btn-success">Guardar este precio</button>
+        </form>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

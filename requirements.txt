@@ -1,0 +1,7 @@
+# Sin dependencias externas
+# Todo usa la biblioteca estándar de Python:
+# - sqlite3 (base de datos)
+# - argparse (CLI)
+# - csv, json (exportaciones)
+# - re (parser WhatsApp)
+# - shutil, os (manejo de archivos)

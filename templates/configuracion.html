@@ -1,0 +1,89 @@
+{% extends "layout.html" %}
+{% block content %}
+<h1>⚙️ Configuración</h1>
+
+<form method="POST" class="form">
+    <fieldset>
+        <legend>Datos bancarios para transferencia</legend>
+        <label>
+            Banco
+            <input type="text" name="BANCO" value="{{ cfg.BANCO }}" placeholder="Ej: Banco Provincia">
+        </label>
+        <label>
+            Titular de la cuenta
+            <input type="text" name="BANCO_TITULAR" value="{{ cfg.BANCO_TITULAR }}" placeholder="Nombre y apellido / Razón social">
+        </label>
+        <label>
+            Tipo de cuenta
+            <select name="BANCO_TIPO">
+                <option value="Caja de Ahorro" {% if cfg.BANCO_TIPO == "Caja de Ahorro" %}selected{% endif %}>Caja de Ahorro</option>
+                <option value="Cuenta Corriente" {% if cfg.BANCO_TIPO == "Cuenta Corriente" %}selected{% endif %}>Cuenta Corriente</option>
+            </select>
+        </label>
+        <label>
+            CBU
+            <input type="text" name="BANCO_CBU" value="{{ cfg.BANCO_CBU }}" placeholder="0000000000000000000000" maxlength="22" style="font-family:monospace;">
+            <small>22 dígitos</small>
+        </label>
+        <label>
+            Alias
+            <input type="text" name="BANCO_ALIAS" value="{{ cfg.BANCO_ALIAS }}" placeholder="alias.ejemplo.cbu">
+            <small>Alternativa al CBU para transferir</small>
+        </label>
+    </fieldset>
+
+    <fieldset>
+        <legend>Tienda pública</legend>
+        <label>
+            Nombre de la tienda
+            <input type="text" name="TIENDA_NOMBRE" value="{{ cfg.TIENDA_NOMBRE }}" placeholder="Mi Tienda">
+        </label>
+        <label>
+            Logo / Marca (texto)
+            <input type="text" name="TIENDA_LOGO" value="{{ cfg.TIENDA_LOGO }}" placeholder="Dejalo vacío para usar el nombre de la tienda">
+            <small>Texto del logo en el header. Si se deja vacío, usa el nombre de la tienda.</small>
+        </label>
+        <label>
+            Descripción corta
+            <input type="text" name="TIENDA_DESCRIPCION" value="{{ cfg.TIENDA_DESCRIPCION }}" placeholder="Ej: Importados directo de fábrica">
+            <small>Frase que aparece al lado del logo.</small>
+        </label>
+        <label>
+            Color principal
+            <input type="color" name="TIENDA_COLOR" value="{{ cfg.TIENDA_COLOR }}" style="width:60px;height:36px;padding:2px;cursor:pointer;">
+            <small>Color de botones, enlaces y acentos.</small>
+        </label>
+        <label>
+            Link de WhatsApp
+            <input type="text" name="TIENDA_WA" value="{{ cfg.TIENDA_WA }}" placeholder="https://wa.me/541112345678">
+            <small>Ej: <code>https://wa.me/5491112345678</code> (con código de país)</small>
+        </label>
+        <label>
+            Mensaje de entrega
+            <input type="text" name="DELIVERY_INFO" value="{{ cfg.DELIVERY_INFO }}" placeholder="Se entrega dentro de las 24 hs hábiles posteriores a la confirmación del pago.">
+            <small>Texto que se muestra en la tienda pública sobre tiempos de entrega.</small>
+        </label>
+    </fieldset>
+
+    <div class="form-actions">
+        <button type="submit" class="btn btn-primary">Guardar configuración</button>
+    </div>
+    <p style="color:#888;font-size:0.85em;margin-top:12px;">
+        ⚠️ Los cambios requieren reiniciar el servidor para aplicarse.
+    </p>
+</form>
+
+<div class="card" style="margin-top:24px;">
+    <h3>Estado actual</h3>
+    <table class="table">
+        <tr><td>Banco</td><td>{{ cfg.BANCO or "—" }}</td></tr>
+        <tr><td>Titular</td><td>{{ cfg.BANCO_TITULAR or "—" }}</td></tr>
+        <tr><td>CBU</td><td style="font-family:monospace">{{ cfg.BANCO_CBU or "—" }}</td></tr>
+        <tr><td>Alias</td><td>{{ cfg.BANCO_ALIAS or "—" }}</td></tr>
+        <tr><td>Nombre tienda</td><td>{{ cfg.TIENDA_NOMBRE }}</td></tr>
+        <tr><td>Logo</td><td>{{ cfg.TIENDA_LOGO or cfg.TIENDA_NOMBRE }}</td></tr>
+        <tr><td>Color</td><td><span style="display:inline-block;width:20px;height:20px;border-radius:4px;background:{{ cfg.TIENDA_COLOR }};vertical-align:middle;border:1px solid #d1d5db"></span> {{ cfg.TIENDA_COLOR }}</td></tr>
+        <tr><td>WhatsApp</td><td><a href="{{ cfg.TIENDA_WA }}" target="_blank">{{ cfg.TIENDA_WA or "—" }}</a></td></tr>
+    </table>
+</div>
+{% endblock %}
