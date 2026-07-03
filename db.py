@@ -37,6 +37,7 @@ def init_db():
             categoria TEXT,
             stock INTEGER DEFAULT 0,
             activo INTEGER DEFAULT 1,
+            publicar INTEGER DEFAULT 0,
             created_at TEXT DEFAULT (datetime('now','localtime')),
             updated_at TEXT DEFAULT (datetime('now','localtime'))
         );
@@ -73,6 +74,12 @@ def init_db():
         );
     """)
     conn.commit()
+    # Migrations for existing databases
+    try:
+        conn.execute("ALTER TABLE productos ADD COLUMN publicar INTEGER DEFAULT 0")
+        conn.commit()
+    except Exception:
+        pass  # Column already exists
     conn.close()
 
 
