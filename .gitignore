@@ -5,5 +5,7 @@ __pycache__/
 *.db-shm
 *.db-wal
 data/whatsapp_export/
+data/config.json
+data/import_state.json
 exports/
 .env
