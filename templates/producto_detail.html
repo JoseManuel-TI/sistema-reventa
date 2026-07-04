@@ -24,6 +24,10 @@
             <dd>{{ p.proveedor_nombre or '-' }}</dd>
             <dt>Costo</dt>
             <dd>$ {{ "{:,.2f}".format(p.costo).replace(",",".") }}</dd>
+            {% if p.costo_usd %}
+            <dt>Costo USD</dt>
+            <dd>USD {{ "{:,.2f}".format(p.costo_usd).replace(",",".") }}</dd>
+            {% endif %}
             <dt>Precio venta</dt>
             <dd style="color:#10b981;font-size:20px;">{{ '$ ' + "{:,.2f}".format(p.precio_venta).replace(",",".") if p.precio_venta else 'Sin definir' }}</dd>
             <dt>Margen</dt>

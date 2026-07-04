@@ -38,6 +38,7 @@ def init_db():
             stock INTEGER DEFAULT 0,
             activo INTEGER DEFAULT 1,
             publicar INTEGER DEFAULT 0,
+            costo_usd REAL DEFAULT 0,
             created_at TEXT DEFAULT (datetime('now','localtime')),
             updated_at TEXT DEFAULT (datetime('now','localtime'))
         );
@@ -75,11 +76,12 @@ def init_db():
     """)
     conn.commit()
     # Migrations for existing databases
-    try:
-        conn.execute("ALTER TABLE productos ADD COLUMN publicar INTEGER DEFAULT 0")
-        conn.commit()
-    except Exception:
-        pass  # Column already exists
+    for col in ["publicar", "costo_usd"]:
+        try:
+            conn.execute(f"ALTER TABLE productos ADD COLUMN {col} {'REAL DEFAULT 0' if col == 'costo_usd' else 'INTEGER DEFAULT 0'}")
+            conn.commit()
+        except Exception:
+            pass
     conn.close()
 
 
@@ -179,7 +181,8 @@ def get_producto(producto_id):
 
 def update_producto(producto_id, **kwargs):
     allowed = {"nombre", "descripcion", "costo", "precio_venta", "margen_porcentaje",
-               "iva_porcentaje", "categoria", "stock", "activo", "proveedor_id", "publicar"}
+               "iva_porcentaje", "categoria", "stock", "activo", "proveedor_id", "publicar",
+               "costo_usd"}
     updates = {k: v for k, v in kwargs.items() if k in allowed and v is not None}
     if not updates:
         return False

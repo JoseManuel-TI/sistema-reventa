@@ -1,9 +1,19 @@
 """
 Calculadora de precios — markup simple sobre costo.
 Precio final = costo * (1 + margen/100)
+Precio desde USD = costo_usd * dolar_blue * (1 + margen/100)
 """
 
 from dataclasses import dataclass
+
+import config
+
+
+def get_dolar_blue():
+    try:
+        return float(config.get("DOLAR_BLUE"))
+    except (ValueError, TypeError):
+        return 1300
 
 
 @dataclass
@@ -38,6 +48,17 @@ def calcular_precio_final(params: ParametrosPrecio) -> dict:
         },
     }
     return desglose
+
+
+def calcular_precio_desde_usd(costo_usd: float, margen: float = 35) -> dict:
+    dolar = get_dolar_blue()
+    costo_ars = round(costo_usd * dolar, 2)
+    params = ParametrosPrecio(costo=costo_ars, margen_deseado=margen)
+    resultado = calcular_precio_final(params)
+    resultado["costo_usd"] = costo_usd
+    resultado["dolar_blue"] = dolar
+    resultado["costo_ars"] = costo_ars
+    return resultado
 
 
 def calcular_precio_venta_rapido(costo: float, margen: float = 35) -> float:

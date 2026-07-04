@@ -17,6 +17,7 @@ DEFAULTS = {
     "TIENDA_WA": "#",
     "SESSION_SECRET": "",
     "ADMIN_PASSWORD": "",
+    "DOLAR_BLUE": "1300",
     "DELIVERY_INFO": "Se entrega dentro de las 24 hs hábiles posteriores a la confirmación del pago.",
 }
 

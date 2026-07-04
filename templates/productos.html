@@ -29,6 +29,7 @@
                     <th>En tienda</th>
                     <th>Proveedor</th>
                     <th>Costo</th>
+                    <th>USD</th>
                     <th>Precio venta</th>
                     <th>Stock</th>
                     <th></th>
@@ -43,6 +44,7 @@
                     <td>{% if p.publicar %}✅{% else %}—{% endif %}</td>
                     <td>{{ p.proveedor_nombre or '-' }}</td>
                     <td class="precio">$ {{ "{:,.0f}".format(p.costo).replace(",",".") if p.costo else '-' }}</td>
+                    <td class="precio">{% if p.costo_usd %}USD {{ "{:,.0f}".format(p.costo_usd).replace(",",".") }}{% else %}—{% endif %}</td>
                     <td class="precio">$ {{ "{:,.0f}".format(p.precio_venta).replace(",",".") if p.precio_venta else '-' }}</td>
                     <td><span class="badge badge-stock">{{ p.stock or 0 }} uds</span></td>
                     <td>

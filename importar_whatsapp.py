@@ -116,6 +116,57 @@ def _extraer_precio(texto):
     return None
 
 
+def _extraer_precio_usd(texto):
+    """Extrae precio en USD de un texto. Busca formatos como USD 20, U$D 20, usd 20."""
+    texto_limpio = texto.replace("*", "").replace("_", "").strip()
+    texto_limpio = re.sub(r"[\u200e\u200f]", "", texto_limpio)
+
+    # USD 20, U$D 20, usd 20, USD20
+    m = re.search(r'(?:USD|U\$S?|usd)\s*:?\s*([\d]{1,3}(?:[.,][\d]{3})*(?:[.,]\d+)?)', texto_limpio, re.IGNORECASE)
+    if m:
+        val = m.group(1).replace(".", "").replace(",", ".")
+        try:
+            return float(val)
+        except ValueError:
+            pass
+
+    return None
+
+
+def _es_combo(nombre, descripcion):
+    """Detecta si un producto es un combo/kit/pack/lote."""
+    texto = f"{nombre} {descripcion}".lower()
+    patrones = [
+        r'\bcombo\b', r'\bkit\b', r'\bpack\b', r'\blote\b',
+        r'\bpromo\b', r'\b x \d+\b', r'\bmultipack\b',
+        r'^\d+\s*(unid|u|und|unidades)\s', r'\bx\d+\s*(unid|u|und)?\s*$',
+        r'\bpaquete\s*(de\s*)?\d+\b', r'\b(2|3|4|5|6|10)\s*(en\s*)?1\b',
+    ]
+    for p in patrones:
+        if re.search(p, texto):
+            return True
+    return False
+
+
+def _es_duplicado(nombre):
+    """Verifica si ya existe un producto con nombre similar."""
+    import db
+    existentes = db.get_productos()
+    # Normalizar nombre candidato
+    import unicodedata
+    def norm(s):
+        s = unicodedata.normalize('NFKD', s).encode('ascii', 'ignore').decode('ascii').lower().strip()
+        return re.sub(r'[^\w\s]', '', s)
+    nom_norm = norm(nombre)
+    for e in existentes:
+        if norm(e["nombre"]) == nom_norm:
+            return True, e["id"]
+        # Check if candidate name is substring of existing or vice versa
+        if len(nom_norm) > 8 and (nom_norm in norm(e["nombre"]) or norm(e["nombre"]) in nom_norm):
+            return True, e["id"]
+    return False, None
+
+
 def _buscar_imagenes_en_txt(ruta_txt, carpeta_media):
     """
     Busca las imágenes mencionadas en el TXT y extrae las
@@ -378,10 +429,25 @@ def auto_crear_productos(resultado, margen=35):
             saltados.append({"candidato": c, "motivo": "Sin nombre"})
             continue
 
+        # Skip combos
+        if _es_combo(nombre, c.get("descripcion", "")):
+            saltados.append({"candidato": c, "motivo": f"Es combo/kit: {nombre}"})
+            continue
+
+        # Skip duplicates
+        dup, dup_id = _es_duplicado(nombre)
+        if dup:
+            saltados.append({"candidato": c, "motivo": f"Ya existe (ID {dup_id}): {nombre}"})
+            continue
+
         costo = c.get("precio")
         if not costo or costo <= 0:
             saltados.append({"candidato": c, "motivo": f"Sin precio de costo ({nombre})"})
             continue
+
+        # Extract USD price
+        texto_crudo = c.get("descripcion", "") or ""
+        costo_usd = _extraer_precio_usd(texto_crudo) or 0
 
         try:
             # Create product
@@ -393,16 +459,25 @@ def auto_crear_productos(resultado, margen=35):
                 stock=1,
             )
 
-            # Calculate final price with desired margin
-            params = pcalc.ParametrosPrecio(
-                costo=costo,
-                margen_deseado=margen,
-            )
-            resultado_precio = pcalc.calcular_precio_final(params)
-            if "error" not in resultado_precio:
+            # Set USD price if found
+            if costo_usd:
+                db.update_producto(pid, costo_usd=costo_usd)
+                # Calculate final price from USD
+                resultado_precio = pcalc.calcular_precio_desde_usd(costo_usd, margen)
                 db.update_producto(pid,
                                    precio_venta=resultado_precio["precio_final"],
                                    margen_porcentaje=resultado_precio["margen_porcentaje"])
+            else:
+                # Fallback: calculate from ARS cost
+                params = pcalc.ParametrosPrecio(
+                    costo=costo,
+                    margen_deseado=margen,
+                )
+                resultado_precio = pcalc.calcular_precio_final(params)
+                if "error" not in resultado_precio:
+                    db.update_producto(pid,
+                                       precio_venta=resultado_precio["precio_final"],
+                                       margen_porcentaje=resultado_precio["margen_porcentaje"])
 
             # Link image
             img_path = c.get("imagen_copiada")
@@ -414,6 +489,7 @@ def auto_crear_productos(resultado, margen=35):
                 "id": pid,
                 "nombre": nombre,
                 "costo": costo,
+                "costo_usd": costo_usd,
                 "precio_venta": resultado_precio.get("precio_final", 0),
                 "imagen": bool(img_path),
             })

@@ -637,6 +637,7 @@ def configuracion():
             "TIENDA_COLOR": request.form.get("TIENDA_COLOR", "#2563eb").strip(),
             "TIENDA_DESCRIPCION": request.form.get("TIENDA_DESCRIPCION", "").strip(),
             "TIENDA_WA": request.form.get("TIENDA_WA", "#").strip(),
+            "DOLAR_BLUE": request.form.get("DOLAR_BLUE", "1300").strip(),
             "DELIVERY_INFO": request.form.get("DELIVERY_INFO", "").strip(),
         })
         flash("Configuración guardada. Reinciá el servidor para aplicar cambios.", "success")
