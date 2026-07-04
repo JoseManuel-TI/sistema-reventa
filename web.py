@@ -53,6 +53,10 @@ def inject_globals():
 
 @app.route("/")
 def index():
+    return redirect(url_for("tienda.catalogo"))
+
+@app.route("/dashboard")
+def dashboard():
     productos = db.get_productos()
     proveedores = db.get_proveedores()
     inversion_total = sum(p["costo"] * max(p["stock"], 1) for p in productos if p.get("costo"))
@@ -77,7 +81,7 @@ def index():
         "sin_precio": sin_precio,
         "ultimos_productos": ultimos,
     }
-    return render_template("index.html", stats=stats, **_ruta("/"))
+    return render_template("index.html", stats=stats, **_ruta("/dashboard"))
 
 
 # ─── Productos ────────────────────────────────────────────────────

@@ -11,7 +11,7 @@
     <aside class="sidebar">
         <h1><span>🛒</span> ClickYa</h1>
         <nav>
-            <a href="/" class="{{ 'active' if ruta == '/' else '' }}">📊 Dashboard</a>
+            <a href="/dashboard" class="{{ 'active' if ruta == '/dashboard' else '' }}">📊 Dashboard</a>
             <a href="/productos" class="{{ 'active' if ruta.startswith('/productos') else '' }}">📦 Productos</a>
             <a href="/proveedores" class="{{ 'active' if ruta.startswith('/proveedores') else '' }}">🏭 Proveedores</a>
             <a href="/precios" class="{{ 'active' if ruta == '/precios' else '' }}">💰 Precios</a>
@@ -21,6 +21,7 @@
             <hr style="border:none;border-top:1px solid rgba(255,255,255,0.1);margin:8px 20px;">
             <hr style="border:none;border-top:1px solid rgba(255,255,255,0.1);margin:8px 20px;">
             <a href="/configuracion" class="{{ 'active' if ruta == '/configuracion' else '' }}">⚙️ Configuración</a>
+            <a href="/tienda" target="_blank" style="color: var(--success, #059669)">🛍️ Ver tienda</a>
             <a href="/tienda" style="color:#60a5fa;">🛒 Ver tienda pública</a>
             <a href="/exportar/ml" class="{{ 'active' if ruta == '/exportar/ml' else '' }}">📤 Exportar ML</a>
             <a href="/exportar/catalogo" class="{{ 'active' if ruta == '/exportar/catalogo' else '' }}">📤 Exportar Catálogo</a>
