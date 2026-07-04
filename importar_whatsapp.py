@@ -117,11 +117,20 @@ def _extraer_precio(texto):
 
 
 def _extraer_precio_usd(texto):
-    """Extrae precio en USD de un texto. Busca formatos como USD 20, U$D 20, usd 20."""
+    """Extrae precio en USD de un texto. Busca formatos como USD 20, 20 USD, U$D 20, usd 20."""
     texto_limpio = texto.replace("*", "").replace("_", "").strip()
     texto_limpio = re.sub(r"[\u200e\u200f]", "", texto_limpio)
 
-    # USD 20, U$D 20, usd 20, USD20
+    # Formato: "120 USD" (número antes de USD)
+    m = re.search(r'([\d]{1,3}(?:[.,][\d]{3})*(?:[.,]\d+)?)\s*(?:USD|U\$S?|usd|dolar|dólar)', texto_limpio, re.IGNORECASE)
+    if m:
+        val = m.group(1).replace(".", "").replace(",", ".")
+        try:
+            return float(val)
+        except ValueError:
+            pass
+
+    # Formato: "USD 20" (USD antes del número)
     m = re.search(r'(?:USD|U\$S?|usd)\s*:?\s*([\d]{1,3}(?:[.,][\d]{3})*(?:[.,]\d+)?)', texto_limpio, re.IGNORECASE)
     if m:
         val = m.group(1).replace(".", "").replace(",", ".")
@@ -134,17 +143,28 @@ def _extraer_precio_usd(texto):
 
 
 def _es_combo(nombre, descripcion):
-    """Detecta si un producto es un combo/kit/pack/lote."""
-    texto = f"{nombre} {descripcion}".lower()
-    patrones = [
-        r'\bcombo\b', r'\bkit\b', r'\bpack\b', r'\blote\b',
-        r'\bpromo\b', r'\b x \d+\b', r'\bmultipack\b',
-        r'^\d+\s*(unid|u|und|unidades)\s', r'\bx\d+\s*(unid|u|und)?\s*$',
-        r'\bpaquete\s*(de\s*)?\d+\b', r'\b(2|3|4|5|6|10)\s*(en\s*)?1\b',
-    ]
-    for p in patrones:
-        if re.search(p, texto):
-            return True
+    """Detecta si un producto es un combo/kit/pack de multiples items."""
+    texto = f"{nombre[:60]}".lower()
+    texto_completo = f"{descripcion[:500]}".lower() if descripcion else ""
+
+    if re.search(r'^(combo|kit|pack|lote)\b', texto):
+        return True
+    if re.search(r'\b(combo|multipack)\b', texto):
+        return True
+    if re.search(r'\b(2|3|4|5|6|10)\s*(en\s*)?1\b', texto):
+        return True
+    if re.search(r'\b(incluye|incluido)\s+\d+\s+', texto):
+        return True
+    # Multiple items: "1 Celular X + 1 Tablet Y", "2 Adaptadores 2 Charger"
+    if re.search(r'^\d+\s+\w+\s+.*\d+\s+\w+', texto):
+        return True
+    # Also: "Manguera 15 Mts 1 Set..." (word + number + word + number)
+    if re.search(r'\w+\s+\d+\s+\w+\s+\d+\s+\w+', texto):
+        return True
+    if re.search(r'\b(total|precio\s+por\s+cantidad)\b', texto) and re.search(r'\b(unidades?|c/u)\b', texto):
+        return True
+    if re.search(r'\d+\s+unidad(es)?\s+\d+', texto):
+        return True
     return False
 
 
@@ -171,12 +191,12 @@ def _buscar_imagenes_en_txt(ruta_txt, carpeta_media):
     """
     Busca las imágenes mencionadas en el TXT y extrae las
     descripciones del mismo mensaje (imagen + texto adjunto).
-    Detecta: (archivo adjunto), .jpg, .png, <Media omitted>, IMG-*
+    Soporta formatos Android (IMG-*, (archivo adjunto)) e iPhone (imagen omitida, PHOTO-*).
     """
     mensajes = _parsear_whatsapp_texto(ruta_txt)
     candidatos = []
     patron_imagen = re.compile(
-        r"(\(archivo adjunto\)|<multimedia omitido>|<Media omitted>|\.(jpg|jpeg|png|webp)|IMG-\d+)",
+        r"(\(archivo adjunto\)|<multimedia omitido>|<Media omitted>|\.(jpg|jpeg|png|webp)|IMG-\d+|imagen omitida)",
         re.IGNORECASE,
     )
     remitentes_principales = [
@@ -184,14 +204,40 @@ def _buscar_imagenes_en_txt(ruta_txt, carpeta_media):
         "mayorista", "fabrica", "oficial",
     ]
 
+    # Scan media folder for image files (PHOTO-*, IMG-*, etc.)
+    imagenes_en_carpeta = []
+    if carpeta_media and os.path.isdir(carpeta_media):
+        imagenes_en_carpeta = sorted([
+            f for f in os.listdir(carpeta_media)
+            if f.lower().endswith((".jpg", ".jpeg", ".png", ".webp"))
+            and os.path.isfile(os.path.join(carpeta_media, f))
+        ])
+
+    img_idx = 0
     for i, msg in enumerate(mensajes):
         texto = msg["texto"]
         es_imagen = bool(patron_imagen.search(texto))
         if not es_imagen:
             continue
 
-        # Extraer nombre real del archivo de imagen
-        nombre_archivo = _extraer_nombre_archivo_imagen(texto)
+        remitente_lower = msg["remitente"].lower()
+        es_principal = any(r in remitente_lower for r in remitentes_principales)
+
+        # Solo procesar mensajes del vendedor principal
+        if not es_principal:
+            continue
+
+        # iPhone export: "imagen omitida" with PHOTO-* files
+        es_iphone = "imagen omitida" in texto.lower()
+
+        # Extraer nombre real del archivo de imagen (Android) o usar secuencial (iPhone)
+        nombre_archivo = None
+        if es_iphone:
+            if img_idx < len(imagenes_en_carpeta):
+                nombre_archivo = imagenes_en_carpeta[img_idx]
+                img_idx += 1
+        else:
+            nombre_archivo = _extraer_nombre_archivo_imagen(texto)
 
         # Limpiar el texto: sacar nombre de archivo y "(archivo adjunto)"
         descripcion = re.sub(
@@ -201,7 +247,8 @@ def _buscar_imagenes_en_txt(ruta_txt, carpeta_media):
         descripcion = re.sub(
             r"<multimedia omitido>\s*", "", descripcion, flags=re.IGNORECASE,
         )
-        descripcion = descripcion.strip().strip("*").strip()
+        descripcion = descripcion.replace("imagen omitida", "").strip()
+        descripcion = descripcion.strip("* \t\u200e\u200f").strip()
 
         # Si después de limpiar no queda texto, buscar alrededor
         if not descripcion:
@@ -244,71 +291,188 @@ def _buscar_imagenes_en_txt(ruta_txt, carpeta_media):
 
 
 def _extraer_nombre_producto(descripcion):
-    """Extrae el nombre del producto de la descripción.
-
-    Busca la línea con más contenido descriptivo (evita marketing,
-    precios, y líneas con solo emojis/símbolos).
-    """
+    """Extrae el nombre del producto de la descripción buscando marcas y modelos."""
     if not descripcion:
         return "Producto"
 
+    # Split by * (bold markers) or newlines
+    partes = re.split(r'[\n*]+', descripcion)
+    
+    # Known brands to look for
+    brands = r'(samsung|xiaomi|redmi|poco|apple|jbl|lg|tcl|bgh|gadnic|nuvoh|hisense|noga|winco|phonix|siera|noblex|philco|atvio|hyundai|telefunken|pioneer|embassy|saho|force\s*by\s*gadnic|daihatsu|lamborghini|cecotec|ken\s*brown|n[oó]made|enova|hynurik|kalley|supreme|geek\s*bar|vapear|sprint|hal[oó]gena|stromberg|pro\s*bass|akro|karseell|elfbar|canon|atma|lusqtoff)'
+    
+    mejor_candidata = ""
+    mejor_puntaje = -1
+    
+    for p in partes:
+        p = p.strip("* \t\u200e\u200f\r\n").strip()
+        if not p or len(p) < 4:
+            continue
+        
+        limpio = re.sub(r'[^\w\s/\-,.()]', ' ', p)
+        limpio = re.sub(r'\s+', ' ', limpio).strip()
+        if not limpio or len(limpio) < 4:
+            continue
+        
+        p_lower = limpio.lower()
+        
+        if re.match(r'^[\d\s.$%,/()]+$', limpio.replace('pesos', '').replace('usd', '')):
+            continue
+        
+        brand_match = re.search(brands, p_lower)
+        
+        puntaje = len(limpio)
+        if brand_match:
+            puntaje += 20
+        if re.search(r'\b(tv|smart|celular|notebook|parlante|auricular|proyector|cafetera|estufa|freidora|monopat[ní]n|bicicleta|tablet|microondas|aire\s*aacondicionado|inflador|lavarropas|sill[oa]n|cocina|m[áa]quina|c[áa]mara|impresora|pava|volante)\b', p_lower, re.IGNORECASE):
+            puntaje += 10
+        
+        if puntaje > mejor_puntaje:
+            mejor_puntaje = puntaje
+            mejor_candidata = limpio
+    
+    if mejor_candidata:
+        return _limpiar_nombre(mejor_candidata)
+    
+    for p in partes:
+        p = p.strip("* \t\u200e\u200f").strip()
+        if re.search(brands, p.lower()):
+            limpio = re.sub(r'[^\w\s/\-,.()]', ' ', p)
+            limpio = re.sub(r'\s+', ' ', limpio).strip()
+            return _limpiar_nombre(limpio)
+    
+    return "Producto"
+
+
+def _limpiar_nombre(nombre):
+    """Limpia el nombre del producto para mostrar en catálogo, sin texto marketing."""
     import unicodedata
+    n = unicodedata.normalize('NFKD', nombre).encode('ascii', 'ignore').decode('ascii').strip()
+    n = re.sub(r'\(.*?\)', ' ', n)
+    n = re.sub(r'[^\w\s/\-]', ' ', n)
+    n = re.sub(r'\s+', ' ', n).strip()
 
-    def _tiene_letras(t):
-        return any(c.isalpha() for c in t)
+    prefijos = [
+        r'^ultimas?\s+unidades?\s+', r'^ultima?\s+unidad\s+',
+        r'^no\s+reingresan\s+', r'^promo\s+\w+\s+',
+        r'^reingres[oa]\s+', r'^super\s+(reba|liquidacion|promocion|oferta|precio)\s+',
+        r'^(gran\s+)?liquidacion\s+', r'^preventa\s+',
+        r'^aprovech[ae]\s+', r'^solo\s+',
+        r'^nuevos?\s+ingresos?\s+', r'^nuevo\s+',
+        r'^ideal\s+(para\s+)?', r'^equipa\s+', r'^arma\s+', r'^renova\s+',
+        r'^disponibles?\s+', r'^sale\s+',
+        r'^pocas?\s+unidades\s+', r'^d[ei]l?\s+',
+        r'^rebaja\s+(de\s+)?precios?\s+', r'^por\s+', r'^solo\s+por\s+',
+        r'^porque\s+', r'^emprendedor\s+', r'^et\s+', r'^dummy\s+',
+        r'^hot\s+sale\s+', r'^mundial\s+', r'^unica\s+unidad\s+',
+        r'^en\s+stock\s+', r'^con\s+env[ií]o\s+gratis\s*',
+        r'^stock\s+limitado\s*', r'^consult[aá]\s+', r'^ped[ií]',
+        r'^hac[eé]\s+tu\s+pedido\s*', r'^env[ií]os?\s*',
+        r'^bajaron\s+los\s+precios\s+',
+        r'^añade\s+un\s+comentario\s+',
+        r'^cada\s+unidad\s+[\d\s.,]+\s+',
+        r'^ultimos\s+d[ií]as?\s+con\s+este\s+',
+        r'^escrib[ei]me?\s+(al|por)\s+(el\s+)?privado\s+',
+        r'^hacemos\s+env[ií]os?\s+',
+        r'^s[aá]bado\s+',
+        r'^eleg[ií]\s+(los\s+)?equipos?\s+',
+        r'^al\s+costo\s+',
+        r'^(el\s+)?producto\s+mas\s+pedido\s+',
+        r'^el\s+hogar\s+',
+        r'^jardin\s+eventos\s+',
+        r'^cada\s+unidad\s+[\d\s.,]+\s+',
+    ]
+    for _ in range(3):
+        for p in prefijos:
+            n = re.sub(p, '', n, flags=re.IGNORECASE).strip()
 
-    def _es_linea_comercial(t):
-        """Detecta líneas que son puro marketing o precios."""
-        bajos = t.lower().strip()
-        patrones_comerciales = [
-            r'^[\d\s.$%/+\-*|:;\u200e\u200f\(\)\[\]]+$',
-            r'^precio', r'^unidad', r'^unidades', r'^envío',
-            r'^consultar', r'^aprovecha', r'^stockeate',
-            r'^promo', r'^especial', r'^ideal para',
-            r'^\*[\d\s.$%]+\*$',
-        ]
-        for p in patrones_comerciales:
-            if re.search(p, bajos):
-                return True
-        # Más de 60% de caracteres no-letra → probablemente no es nombre
-        if len(t) > 5:
-            letras = sum(1 for c in t if c.isalpha())
-            if letras / len(t) < 0.3:
-                return True
+    n = re.sub(r'(precios?\s+(especiales?\s+)?(mayoristas?)?'
+               r'|por\s+unidad|no\s+reingresan|de\s+ultimas?\s+unidades'
+               r'|rebaja\s+de\s+precios|por\s+tiempo\s+limitado'
+               r'|calidad\s+y\s+precio|vivi\s+una\s+experiencia'
+               r'|facilidades\s+de\s+pago|retiro\s+por|consultanos|escribinos'
+               r'|oportunidad\s+unica\s+(para\s+)?(stockearte)?'
+               r'|precio\s+especial|precio\s+por\s+(unidad|cantidad)'
+               r'|promo\s+(semanal|especial)|te\s+lo\s+llevas'
+               r'|pocas?\s+unidades\s+\d+\s+unidad'
+               r'|ultimas?\s+disponibles?'
+               r'|precios\s+mayoristas?\s+\d+\s+unidad'
+               r'|el\s+regalo\s+perfecto|la\s+mejor\s+opcion'
+               r'|hace\s+tu\s+pedido|disfruta\s+cafe'
+               r'|solo\s+\d+\s+unidades|pro\s+bass'
+               r'|precios\s+mayorist|calidad\s+premium'
+               r'|excelente\s+salida|stockeate|stockear'
+               r'|aprovecha|aproveche|renova\s+tu'
+               r'|convierta|converti'
+               r'|ideal\s+(para\s+)?(eventos|locales|disfrutar|uso|dejar)'
+               r'|disfruta\s+tus|todo\s+lo\s+que\s+necesitas'
+               r'|la\s+mejor\s+experiencia|unica\s+unidad\s+disponible'
+               r'|copa\s+del\s+mundo|regalar\s+este\s+domingo'
+               r'|precio\s+promo|precio\s+especial)'
+               r'\s+.*$', '', n, flags=re.IGNORECASE)
+    
+    for pat in [
+        r'\b(precios?\s+(especiales?\s+)?(mayoristas?)?|precio\s+(especial|promo)|consultanos|escribinos|envio\s+gratis|ultimas\s+unidades|disponibles?|no\s+reingresan'
+        r'|precios?\s+por\s+cantidad|con\s+detalle\s+en\s+pantalla|podes\s+elegir\s+el\s+que\s+quieras'
+        r'|cod\s+av\d+|de\s+almacenamiento)\s*(.*)?$',
+    ]:
+        n = re.sub(pat, ' ', n, flags=re.IGNORECASE).strip()
+    # Strip everything after "precios", "promo", "especial" when followed by text
+    n = re.sub(r'\s+(precios?\s+especial(es)?\s+.*|promo\s+\w+\s+.*)$', ' ', n, flags=re.IGNORECASE).strip()
+    # Strip trailing numbers that are clearly prices (have $, USD, or long number sequences)
+    n = re.sub(r'\s+\$?[\d]{4,}[\s\d.$%/]*\s*$', ' ', n).strip()
+    n = re.sub(r'\s+[\d]{2,3}([.,]\d+)?\s*(usd|dolares?)\s*$', ' ', n, flags=re.IGNORECASE).strip()
+    n = re.sub(r'\s+usd\s+\$?[\d\s.,]+\s*$', ' ', n, flags=re.IGNORECASE).strip()
+    n = re.sub(r'^\d[\d\s.$%/]*\s+', ' ', n).strip()
+    n = re.sub(r'\$[\d\s.,]+(\s*usd)?', ' ', n, flags=re.IGNORECASE)
+    n = re.sub(r'[\d]{2,3}([.,]\d+)?\s*(usd|dolares?)', ' ', n, flags=re.IGNORECASE)
+    n = re.sub(r'(usd|dolares?)\s*[\d\s.,]+', ' ', n, flags=re.IGNORECASE)
+    n = re.sub(r's/\s+', ' / ', n)
+    n = re.sub(r'\s+', ' ', n).strip().rstrip(',').strip()
+
+    palabras = n.split()
+    result = []
+    for w in palabras:
+        if w.lower() in ('de', 'del', 'la', 'el', 'los', 'las', 'con', 'sin', 'y', 'e', 'o', 'a', 'en', 'un', 'una', 'por', 'para', 'al', 'su'):
+            result.append(w.lower())
+        elif w.lower() in ('tv', 'hd', 'full', 'gb', 'ram', 'usb', 'mtb', 'mp', 'wi-fi', 'wifi'):
+            result.append(w.upper())
+        elif w.lower().startswith('4k'):
+            result.append('4K')
+        else:
+            result.append(w[0].upper() + w[1:] if len(w) > 1 else w.upper())
+    n = ' '.join(result)
+    return n[:80] if n else nombre[:80].strip()
+
+
+def _es_nombre_valido(nombre):
+    """Verifica si el nombre extraído corresponde realmente a un producto."""
+    if not nombre or len(nombre) < 5:
         return False
-
-    # Normalizar saltos de línea y asteriscos
-    lineas = descripcion.replace("\r", "").split("\n")
-    candidatas = []
-    for linea in lineas:
-        limpia = linea.strip("* \t\u200e\u200f").strip()
-        if not limpia or len(limpia) < 4:
-            continue
-        # Quitar emojis para evaluar el contenido real
-        solo_texto = ''.join(c for c in limpia if c.isascii() and (c.isalnum() or c in ' /-.,()'))
-        solo_texto = solo_texto.strip()
-        if not _tiene_letras(solo_texto):
-            continue
-        if _es_linea_comercial(solo_texto):
-            continue
-        # Puntaje: más letras = mejor nombre
-        letras = sum(1 for c in solo_texto if c.isalpha())
-        candidatas.append((letras, limpia))
-
-    if not candidatas:
-        # Fallback: primer texto con letras
-        for linea in lineas:
-            limpia = linea.strip("* \t\u200e\u200f").strip()
-            if _tiene_letras(limpia):
-                candidatas.append((0, limpia))
-                break
-
-    candidatas.sort(key=lambda x: -x[0])
-    mejor = candidatas[0][1] if candidatas else "Producto"
-    # Limpiar emojis/símbolos sobrantes
-    mejor = re.sub(r'[^\w\s/\-,.()áéíóúñÁÉÍÓÚÑ]', '', mejor).strip()
-    mejor = re.sub(r'\s+', ' ', mejor).strip()
-    return mejor[:80] if mejor else "Producto"
+    genericos = [
+        'a todo el pais', 'envio', 'consultar', 'escribinos',
+        'pedilo', 'hace tu pedido', 'melo por privado', 'hablame',
+        'regalar', 'diseno moderno', 'capacidad', 'cada unidad',
+        'ultimos dias', 'sabado', 'elegi los equipos', 'hacemos envios',
+        'precio especial', 'disponibles', 'stock limitado',
+        'aprovecha', 'aproveche', 'preventa', 'tu cine en casa',
+        'el hogar', 'jardin eventos', 'al costo', 'producto mas pedido',
+        'superando los', 'incluye ', 'incluido',
+        'pedi el tuyo', 'ferias y camping', 'taller o reventa',
+        'parlantes surtidos', 'cafetera prensa francesa',
+    ]
+    nl = nombre.lower()
+    for g in genericos:
+        if g in nl:
+            return False
+    if re.match(r'^[\d\s.,/()]+$', nombre):
+        return False
+    if nombre.strip() in ('y', 'e', 'o', 'a', 'con', 'de', 'del', 'por', 'para', 'solo', 'ahora', 'este', 'esta'):
+        return False
+    words = nombre.split()
+    if len(words) <= 1 and len(words[0]) < 5:
+        return False
+    return True
 
 
 def _coincidir_imagenes(candidatos, imagenes_copiadas):
@@ -427,6 +591,11 @@ def auto_crear_productos(resultado, margen=35):
         nombre = c["nombre_sugerido"]
         if not nombre or nombre == "Producto":
             saltados.append({"candidato": c, "motivo": "Sin nombre"})
+            continue
+
+        # Skip invalid/generic names
+        if not _es_nombre_valido(nombre):
+            saltados.append({"candidato": c, "motivo": f"Nombre inválido: {nombre}"})
             continue
 
         # Skip combos
