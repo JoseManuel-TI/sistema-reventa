@@ -16,6 +16,7 @@ DEFAULTS = {
     "TIENDA_DESCRIPCION": "",
     "TIENDA_WA": "#",
     "SESSION_SECRET": "",
+    "ADMIN_PASSWORD": "",
     "DELIVERY_INFO": "Se entrega dentro de las 24 hs hábiles posteriores a la confirmación del pago.",
 }
 

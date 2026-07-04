@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ClickYa — Acceso</title>
+<link rel="stylesheet" href="/static/style.css">
+<style>
+body { display: flex; align-items: center; justify-content: center; min-height: 100vh; background: #f1f5f9; margin: 0; font-family: system-ui, sans-serif; }
+.login-box { background: #fff; padding: 2rem; border-radius: 12px; box-shadow: 0 4px 24px rgba(0,0,0,0.08); width: 100%; max-width: 360px; text-align: center; }
+.login-box h1 { font-size: 1.5rem; margin-bottom: .25rem; }
+.login-box p { color: #64748b; margin-bottom: 1.5rem; }
+.login-box input { width: 100%; padding: .75rem; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 1rem; box-sizing: border-box; }
+.login-box button { width: 100%; padding: .75rem; background: #2563eb; color: #fff; border: none; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; margin-top: 1rem; }
+.login-box button:hover { background: #1d4ed8; }
+.alert { background: #fef2f2; color: #dc2626; padding: .5rem 1rem; border-radius: 8px; margin-bottom: 1rem; font-size: .875rem; }
+</style>
+</head>
+<body>
+<div class="login-box">
+  <h1>🛒 ClickYa</h1>
+  <p>Acceso al panel de administración</p>
+  {% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+  {% for category, message in messages %}
+  <div class="alert">{{ message }}</div>
+  {% endfor %}
+  {% endif %}
+  {% endwith %}
+  <form method="POST">
+    <input type="password" name="password" placeholder="Contraseña" autofocus required>
+    <button type="submit">Ingresar</button>
+  </form>
+</div>
+</body>
+</html>

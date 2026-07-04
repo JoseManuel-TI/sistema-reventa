@@ -18,7 +18,7 @@ import exportar
 from tienda import tienda
 from flask import (
     Flask, render_template, request, redirect, url_for,
-    flash, send_from_directory,
+    flash, send_from_directory, session,
 )
 
 BASE_DIR = os.path.dirname(__file__)
@@ -29,6 +29,36 @@ app.register_blueprint(tienda)
 
 IMAGENES_DIR = os.path.join(BASE_DIR, "imagenes")
 EXPORTS_DIR = os.path.join(BASE_DIR, "exports")
+
+
+# ─── Auth ─────────────────────────────────────────────────────────
+
+def login_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not session.get("admin"):
+            return redirect(url_for("login", next=request.path))
+        return f(*args, **kwargs)
+    return decorated
+
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if request.method == "POST":
+        password = request.form.get("password", "")
+        admin_pass = config.get("ADMIN_PASSWORD")
+        if admin_pass and password == admin_pass:
+            session["admin"] = True
+            next_page = request.args.get("next") or url_for("dashboard")
+            return redirect(next_page)
+        flash("Contraseña incorrecta.", "error")
+    return render_template("login.html", **_ruta("/login"))
+
+
+@app.route("/logout")
+def logout():
+    session.pop("admin", None)
+    return redirect(url_for("tienda.catalogo"))
 
 
 # ─── Helpers ──────────────────────────────────────────────────────
@@ -56,6 +86,7 @@ def index():
     return redirect(url_for("tienda.catalogo"))
 
 @app.route("/dashboard")
+@login_required
 def dashboard():
     productos = db.get_productos()
     proveedores = db.get_proveedores()
@@ -87,6 +118,7 @@ def dashboard():
 # ─── Productos ────────────────────────────────────────────────────
 
 @app.route("/productos")
+@login_required
 def productos_listar():
     proveedor_id = request.args.get("proveedor", type=int)
     categoria = request.args.get("categoria")
@@ -96,6 +128,7 @@ def productos_listar():
 
 
 @app.route("/productos/nuevo", methods=["GET", "POST"])
+@login_required
 def productos_nuevo():
     proveedores = db.get_proveedores()
     if not proveedores:
@@ -144,6 +177,7 @@ def productos_nuevo():
 
 
 @app.route("/productos/<int:id>")
+@login_required
 def productos_detalle(id):
     p = db.get_producto(id)
     if not p:
@@ -156,6 +190,7 @@ def productos_detalle(id):
 
 
 @app.route("/productos/<int:id>/editar", methods=["GET", "POST"])
+@login_required
 def productos_editar(id):
     p = db.get_producto(id)
     if not p:
@@ -199,6 +234,7 @@ def productos_editar(id):
 
 
 @app.route("/productos/<int:id>/eliminar", methods=["POST"])
+@login_required
 def productos_eliminar(id):
     db.delete_producto(id)
     flash("Producto eliminado.", "success")
@@ -206,6 +242,7 @@ def productos_eliminar(id):
 
 
 @app.route("/productos/<int:id>/toggle-publicar", methods=["POST"])
+@login_required
 def productos_toggle_publicar(id):
     p = db.get_producto(id)
     if p:
@@ -218,6 +255,7 @@ def productos_toggle_publicar(id):
 # ─── Imágenes (admin) ─────────────────────────────────────────────
 
 @app.route("/imagenes/<int:id>/eliminar", methods=["POST"])
+@login_required
 def imagen_eliminar(id):
     conn = db.get_connection()
     img = conn.execute("SELECT * FROM imagenes WHERE id=?", (id,)).fetchone()
@@ -240,6 +278,7 @@ def imagen_eliminar(id):
 # ─── Proveedores ──────────────────────────────────────────────────
 
 @app.route("/proveedores")
+@login_required
 def proveedores_listar():
     proveedores = db.get_proveedores()
     for prv in proveedores:
@@ -249,6 +288,7 @@ def proveedores_listar():
 
 
 @app.route("/proveedores/nuevo", methods=["GET", "POST"])
+@login_required
 def proveedores_nuevo():
     if request.method == "POST":
         nombre = request.form["nombre"].strip()
@@ -263,6 +303,7 @@ def proveedores_nuevo():
 
 
 @app.route("/proveedores/<int:id>/editar", methods=["GET", "POST"])
+@login_required
 def proveedores_editar(id):
     proveedores = db.get_proveedores()
     proveedor = next((p for p in proveedores if p["id"] == id), None)
@@ -281,6 +322,7 @@ def proveedores_editar(id):
 # ─── Precios ──────────────────────────────────────────────────────
 
 @app.route("/precios", methods=["GET", "POST"])
+@login_required
 def precios():
     datos = None
     resultado = None
@@ -295,6 +337,7 @@ def precios():
 
 
 @app.route("/precios/producto/<int:id>", methods=["GET", "POST"])
+@login_required
 def precios_producto(id):
     p = db.get_producto(id)
     if not p:
@@ -314,6 +357,7 @@ def precios_producto(id):
 
 
 @app.route("/precios/producto/<int:id>/guardar", methods=["POST"])
+@login_required
 def precios_producto_guardar(id):
     precio = float(request.form["precio_venta"])
     margen = float(request.form["margen_porcentaje"])
@@ -325,12 +369,14 @@ def precios_producto_guardar(id):
 # ─── Importar ─────────────────────────────────────────────────────
 
 @app.route("/importar")
+@login_required
 def importar():
     return render_template("importar.html", candidatos=[], imagenes_copiadas=[],
                            proveedor="", **_ruta("/importar"))
 
 
 @app.route("/importar/whatsapp")
+@login_required
 def importar_whatsapp_route():
     proveedor = request.args.get("proveedor", "")
 
@@ -372,6 +418,7 @@ def importar_whatsapp_route():
 
 
 @app.route("/importar/escanear")
+@login_required
 def importar_escanear_route():
     proveedor = request.args.get("proveedor", "")
     if not proveedor:
@@ -404,6 +451,7 @@ def importar_escanear_route():
 
 
 @app.route("/importar/crear", methods=["POST"])
+@login_required
 def importar_crear():
     nombre = request.form["nombre"].strip()[:60]
     descripcion = request.form.get("descripcion", "").strip()
@@ -449,11 +497,12 @@ def importar_crear():
 # ─── Exportar ─────────────────────────────────────────────────────
 
 @app.route("/exportar/<formato>")
+@login_required
 def exportar_ruta(formato):
     productos = db.get_productos()
     if not productos:
         flash("No hay productos para exportar.", "error")
-        return redirect(url_for("index"))
+        return redirect(url_for("dashboard"))
 
     try:
         if formato == "ml":
@@ -470,11 +519,11 @@ def exportar_ruta(formato):
             flash(f"JSON exportado: {os.path.basename(ruta)}", "success")
         else:
             flash("Formato no soportado.", "error")
-            return redirect(url_for("index"))
+            return redirect(url_for("dashboard"))
     except Exception as e:
         flash(f"Error al exportar: {e}", "error")
 
-    return redirect(url_for("index"))
+    return redirect(url_for("dashboard"))
 
 
 # ─── Imágenes (admin) ─────────────────────────────────────────────
@@ -507,6 +556,7 @@ def _imagenes_orfanas():
 
 
 @app.route("/imagenes")
+@login_required
 def imagenes_listar():
     orfanas = _imagenes_orfanas()
     productos = {p["id"]: p["nombre"] for p in db.get_productos(activos=False)}
@@ -515,6 +565,7 @@ def imagenes_listar():
 
 
 @app.route("/imagenes/vincular/<path:archivo>", methods=["POST"])
+@login_required
 def imagenes_vincular(archivo):
     producto_id = request.form.get("producto_id")
     if not producto_id:
@@ -528,6 +579,7 @@ def imagenes_vincular(archivo):
 # ─── Pedidos (admin) ─────────────────────────────────────────────
 
 @app.route("/pedidos")
+@login_required
 def pedidos_listar():
     estado = request.args.get("estado")
     pedidos = db.get_pedidos(estado=estado)
@@ -539,6 +591,7 @@ def pedidos_listar():
 
 
 @app.route("/pedidos/<int:id>")
+@login_required
 def pedidos_detalle(id):
     pedido = db.get_pedido(id)
     if not pedido:
@@ -549,6 +602,7 @@ def pedidos_detalle(id):
 
 
 @app.route("/pedidos/<int:id>/estado", methods=["POST"])
+@login_required
 def pedidos_estado(id):
     estado = request.form.get("estado", "").strip()
     if estado in ("pendiente", "pagado", "enviado", "entregado", "cancelado"):
@@ -569,6 +623,7 @@ def servir_imagen(filename):
 # ─── Configuración ─────────────────────────────────────────────────
 
 @app.route("/configuracion", methods=["GET", "POST"])
+@login_required
 def configuracion():
     if request.method == "POST":
         config.set_many({
