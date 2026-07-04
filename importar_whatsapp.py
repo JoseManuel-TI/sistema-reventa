@@ -35,15 +35,20 @@ def _parsear_whatsapp_texto(ruta_txt):
     """
     Parsea archivo de exportación de WhatsApp.
     Formatos soportados:
-        [14/1/2024 10:30:45] Juan: texto         (Android viejo)
-        13/6/2026, 15:14 - Juan: texto            (Android nuevo / iPhone)
+        [13/6/26, 3:23:25 p. m.] Nombre: texto   (iPhone export)
+        [14/1/2024 10:30:45] Juan: texto         (Android / iPhone sin AM/PM)
+        13/6/2026, 15:14 - Juan: texto           (Android nuevo)
     Retorna lista de dicts con: timestamp, remitente, texto
     """
+    # AM/PM marker: \u202f (thin space) + [ap] + . + \u202f + m + .
+    ampm = '\u202f[ap]\\.\u202fm\\.'
+    # Modern format: no brackets, separated by " - "
     patron_moderno = re.compile(
-        r"\u200e?(\d{1,2}/\d{1,2}/\d{2,4},\s*\d{1,2}:\d{2}(?::\d{2})?(?: [ap]\. m\.)?)\s*-\s*([^:]+):\s*(.*)"
+        rf"\u200e?(\d{{1,2}}/\d{{1,2}}/\d{{2,4}},\s*\d{{1,2}}:\d{{2}}(?::\d{{2}})?(?:{ampm})?)\s*-\s*([^:]+?)\s*:\s*(.*)"
     )
+    # Old format / iPhone export: [timestamp] with brackets
     patron_antiguo = re.compile(
-        r"\u200e?\[(\d{1,2}/\d{1,2}/\d{2,4},\s*\d{1,2}:\d{2}(?::\d{2})?(?: [ap]\. m\.)?)\]\s*([^:]+):\s*(.*)"
+        rf"\u200e?\[(\d{{1,2}}/\d{{1,2}}/\d{{2,4}},\s*\d{{1,2}}:\d{{2}}(?::\d{{2}})?(?:{ampm})?)\]\s*([^:]+?)\s*:\s*(.*)"
     )
     mensajes = []
     with open(ruta_txt, encoding="utf-8", errors="replace") as f:
@@ -204,16 +209,19 @@ def _buscar_imagenes_en_txt(ruta_txt, carpeta_media):
         "mayorista", "fabrica", "oficial",
     ]
 
-    # Scan media folder for image files (PHOTO-*, IMG-*, etc.)
-    imagenes_en_carpeta = []
+    # Scan ALL media files sorted alphabetically (this matches the order they
+    # appear in the chat export). Extract PHOTO files in their correct sequence.
+    photos_in_order = []
     if carpeta_media and os.path.isdir(carpeta_media):
-        imagenes_en_carpeta = sorted([
-            f for f in os.listdir(carpeta_media)
-            if f.lower().endswith((".jpg", ".jpeg", ".png", ".webp"))
-            and os.path.isfile(os.path.join(carpeta_media, f))
+        all_media = sorted([
+            f for f in os.listdir(carpeta_media) if os.path.isfile(os.path.join(carpeta_media, f))
         ])
+        for f in all_media:
+            if f.lower().endswith((".jpg", ".jpeg", ".png", ".webp")):
+                photos_in_order.append(f)
 
-    img_idx = 0
+    photo_idx = 0
+
     for i, msg in enumerate(mensajes):
         texto = msg["texto"]
         es_imagen = bool(patron_imagen.search(texto))
@@ -227,17 +235,8 @@ def _buscar_imagenes_en_txt(ruta_txt, carpeta_media):
         if not es_principal:
             continue
 
-        # iPhone export: "imagen omitida" with PHOTO-* files
+        # iPhone export: "imagen omitida" - assign PHOTO files by media sequence order
         es_iphone = "imagen omitida" in texto.lower()
-
-        # Extraer nombre real del archivo de imagen (Android) o usar secuencial (iPhone)
-        nombre_archivo = None
-        if es_iphone:
-            if img_idx < len(imagenes_en_carpeta):
-                nombre_archivo = imagenes_en_carpeta[img_idx]
-                img_idx += 1
-        else:
-            nombre_archivo = _extraer_nombre_archivo_imagen(texto)
 
         # Limpiar el texto: sacar nombre de archivo y "(archivo adjunto)"
         descripcion = re.sub(
@@ -266,13 +265,28 @@ def _buscar_imagenes_en_txt(ruta_txt, carpeta_media):
                 ):
                     descripcion = txt
 
-        # Extraer precio de la descripción o del texto completo
+        # Extract suggested name FIRST to decide if we should consume a photo
         texto_completo = descripcion or texto
         texto_crudo = msg["texto"]
-        precio = _extraer_precio(texto_crudo) or _extraer_precio(texto_completo)
-
-        # Nombre sugerido: primera línea o frase relevante
         nombre_sugerido = _extraer_nombre_producto(texto_completo) if texto_completo else "Producto"
+
+        # Only assign image if this message is likely a valid product
+        # (skip combos and invalid names so images aren't wasted on filtered items)
+        nombre_archivo = None
+        es_valido = (
+            _es_nombre_valido(nombre_sugerido)
+            and not _es_combo(nombre_sugerido, texto_completo)
+        )
+
+        if es_iphone and es_valido and photos_in_order:
+            if photo_idx < len(photos_in_order):
+                nombre_archivo = photos_in_order[photo_idx]
+                photo_idx += 1
+        elif not es_iphone:
+            nombre_archivo = _extraer_nombre_archivo_imagen(texto)
+
+        # Extract price
+        precio = _extraer_precio(texto_crudo) or _extraer_precio(texto_completo)
 
         remitente_lower = msg["remitente"].lower()
         es_principal = any(r in remitente_lower for r in remitentes_principales)
