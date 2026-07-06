@@ -140,6 +140,8 @@ def productos_nuevo():
         descripcion = request.form.get("descripcion", "").strip()
         proveedor_id = int(request.form["proveedor_id"])
         costo = float(request.form["costo"].replace(",", "."))
+        costo_usd = request.form.get("costo_usd")
+        costo_usd = float(costo_usd.replace(",", ".")) if costo_usd else None
         precio_venta = request.form.get("precio_venta")
         precio_venta = float(precio_venta.replace(",", ".")) if precio_venta else None
         categoria = request.form.get("categoria", "").strip()
@@ -153,6 +155,18 @@ def productos_nuevo():
             categoria=categoria, stock=stock, iva_porcentaje=iva,
             publicar=publicar,
         )
+        if costo_usd is not None:
+            db.update_producto(pid, costo_usd=costo_usd)
+            # Si se ingresó costo_usd pero no un precio_venta manual, calculamos el precio de venta sugerido usando el costo convertido y margen del 35%
+            if not precio_venta:
+                calc = pcalc.calcular_precio_desde_usd(costo_usd, margen=35)
+                precio_venta = calc["precio_final"]
+                # Además actualizamos el costo en ARS que corresponde a ese costo_usd convertido al dolar_blue actual
+                db.update_producto(pid, costo=calc["costo_ars"])
+        elif costo and not precio_venta:
+            # Si hay costo en ARS pero no precio_venta manual, calculamos usando markup del 35%
+            precio_venta = pcalc.calcular_precio_venta_rapido(costo, margen=35)
+
         if precio_venta:
             db.update_producto(pid, precio_venta=precio_venta)
 
@@ -202,12 +216,25 @@ def productos_editar(id):
 
     if request.method == "POST":
         nombre = request.form["nombre"].strip()
+        costo_usd = request.form.get("costo_usd")
+        costo_usd = float(costo_usd.replace(",", ".")) if costo_usd else None
+        # Si viene un costo_usd y no se ingresó precio de venta manual, calculamos el precio de venta sugerido
+        if costo_usd is not None and not precio_venta:
+            calc = pcalc.calcular_precio_desde_usd(costo_usd, margen=35)
+            precio_venta = calc["precio_final"]
+            # También actualizamos el costo en ARS según la conversión
+            costo = calc["costo_ars"]
+        elif costo and not precio_venta:
+            # Si hay costo en ARS pero no precio de venta manual, calculamos usando markup del 35%
+            precio_venta = pcalc.calcular_precio_venta_rapido(costo, margen=35)
+
         db.update_producto(id,
             nombre=nombre,
             descripcion=request.form.get("descripcion", "").strip(),
             proveedor_id=int(request.form["proveedor_id"]),
-            costo=float(request.form["costo"].replace(",", ".")),
-            precio_venta=float(request.form["precio_venta"].replace(",", ".")) if request.form.get("precio_venta") else None,
+            costo=costo,
+            costo_usd=costo_usd,
+            precio_venta=precio_venta,
             categoria=request.form.get("categoria", "").strip(),
             stock=int(request.form.get("stock", 0)),
             iva_porcentaje=float(request.form.get("iva_porcentaje", 21)),

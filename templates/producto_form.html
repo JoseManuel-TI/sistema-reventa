@@ -32,6 +32,10 @@
                 <input type="number" id="costo" name="costo" class="form-control" step="0.01" value="{{ producto.costo if producto else '' }}" required>
             </div>
             <div class="form-group">
+                <label for="costo_usd">Costo (USD)</label>
+                <input type="number" id="costo_usd" name="costo_usd" class="form-control" step="0.01" value="{{ producto.costo_usd if producto and producto.costo_usd else '' }}">
+            </div>
+            <div class="form-group">
                 <label for="precio_venta">Precio de venta ($) <span class="form-hint">dejar vacío para calcular después</span></label>
                 <input type="number" id="precio_venta" name="precio_venta" class="form-control" step="0.01" value="{{ producto.precio_venta if producto and producto.precio_venta else '' }}">
             </div>

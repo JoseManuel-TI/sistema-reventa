@@ -10,10 +10,27 @@ import config
 
 
 def get_dolar_blue():
+    # Intentamos obtener la cotización en tiempo real desde la API libre de dolarapi.com
+    import urllib.request
+    import json
+    try:
+        url = "https://dolarapi.com/v1/dolares/blue"
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req, timeout=5) as response:
+            data = json.loads(response.read().decode())
+            cotizacion = float(data.get("venta"))
+            if cotizacion > 0:
+                # Actualizamos de forma silenciosa la configuración persistente
+                config.set("DOLAR_BLUE", cotizacion)
+                return cotizacion
+    except Exception:
+        pass
+
+    # Fallback a la configuración guardada o por defecto de seguridad
     try:
         return float(config.get("DOLAR_BLUE"))
     except (ValueError, TypeError):
-        return 1300
+        return 1510
 
 
 @dataclass
