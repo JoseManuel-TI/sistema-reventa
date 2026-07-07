@@ -148,28 +148,53 @@ def _extraer_precio_usd(texto):
 
 
 def _es_combo(nombre, descripcion):
-    """Detecta si un producto es un combo/kit/pack de multiples items."""
-    texto = f"{nombre[:60]}".lower()
+    """Detecta si un producto es un combo/kit/pack/promo de multiples items."""
+    texto = f"{nombre[:120]}".lower()
     texto_completo = f"{descripcion[:500]}".lower() if descripcion else ""
 
-    if re.search(r'^(combo|kit|pack|lote)\b', texto):
+    # Explicit combo/kit/pack/promo in NAME
+    if re.search(r'^(combo|kit|pack|lote|promo)\b', texto):
         return True
-    if re.search(r'\b(combo|multipack)\b', texto):
+    if re.search(r'\b(combo|multipack|lote|pack)\b', texto):
         return True
-    if re.search(r'\b(2|3|4|5|6|10)\s*(en\s*)?1\b', texto):
+
+    # Multiple brand names in the NAME (indicates multiple products)
+    # Group sub-brands under parent brand to avoid false positives
+    brand_groups = {'xiaomi': 'xiaomi', 'redmi': 'xiaomi', 'poco': 'xiaomi',
+                    'samsung': 'samsung', 'jbl': 'jbl', 'lg': 'lg',
+                    'gadnic': 'gadnic', 'nuvoh': 'nuvoh', 'hisense': 'hisense',
+                    'noga': 'noga', 'telefunken': 'telefunken', 'enova': 'enova'}
+    brands_in_name = re.findall(
+        r'\b(samsung|xiaomi|redmi|poco|jbl|lg|gadnic|nuvoh|hisense|noga|telefunken|enova)\b', texto
+    )
+    unique_parents = set(brand_groups.get(b, b) for b in brands_in_name)
+    if len(unique_parents) >= 2:
         return True
-    if re.search(r'\b(incluye|incluido)\s+\d+\s+', texto):
+
+    # Explicit "+" or "y" conjunction between quantified items in the NAME
+    # e.g., "1 Celular + 1 Tablet"
+    if re.search(r'\d+\s+\w+.*[+].*\d+\s+\w+', texto):
         return True
-    # Multiple items: "1 Celular X + 1 Tablet Y", "2 Adaptadores 2 Charger"
-    if re.search(r'^\d+\s+\w+\s+.*\d+\s+\w+', texto):
+    # Multiple items with quantity prefix: "2 X 1 Y 1 Z" (3+ item groups)
+    items = re.findall(r'\b\d+\s+\w+', texto)
+    if len(items) >= 3:
         return True
-    # Also: "Manguera 15 Mts 1 Set..." (word + number + word + number)
-    if re.search(r'\w+\s+\d+\s+\w+\s+\d+\s+\w+', texto):
-        return True
-    if re.search(r'\b(total|precio\s+por\s+cantidad)\b', texto) and re.search(r'\b(unidades?|c/u)\b', texto):
-        return True
-    if re.search(r'\d+\s+unidad(es)?\s+\d+', texto):
-        return True
+
+    # Items with "1 X [spec] 1 Y [spec]..." pattern (2+ items with "1 " prefix)
+    # Skip short words (1, 1l, etc.)
+    items_1 = re.findall(r'\b1\s+(\w{3,})', texto)
+    if len(items_1) >= 2:
+        diferentes = set(items_1)
+        if len(diferentes) >= 2:
+            return True
+
+    # "Incluye / Incluido" en descripción (solo si no es "piezas" genéricas)
+    if re.search(r'\b(incluye|incluido)\s+\d+\s+', texto_completo):
+        resto = re.split(r'\b(incluye|incluido)\s+\d+\s+', texto_completo, maxsplit=1)[-1]
+        primera_palabra = resto.split()[0] if resto.split() else ''
+        if primera_palabra not in ('piezas', 'pieza', 'unidades', 'unidad', 'partes', 'set', 'kit'):
+            return True
+
     return False
 
 
@@ -220,13 +245,64 @@ def _buscar_imagenes_en_txt(ruta_txt, carpeta_media):
             if f.lower().endswith((".jpg", ".jpeg", ".png", ".webp")):
                 photos_in_order.append(f)
 
-    photo_idx = 0
+    # Pre-construir mapa de timestamp de fotos para matching por fecha
+    photo_timestamp_map = {}  # filename -> datetime
+    for f in photos_in_order:
+        dm = re.search(r'(\d{4})-(\d{2})-(\d{2})-(\d{2})-(\d{2})-(\d{2})', f)
+        if dm:
+            photo_timestamp_map[f] = datetime(
+                int(dm.group(1)), int(dm.group(2)), int(dm.group(3)),
+                int(dm.group(4)), int(dm.group(5)), int(dm.group(6))
+            )
+
+    def _parse_msg_datetime(ts_str):
+        """Convierte timestamp de WhatsApp a datetime."""
+        ts_clean = ts_str.replace('\u202f', ' ')
+        dm = re.match(
+            r'(\d{1,2})/(\d{1,2})/(\d{2,4}),\s*(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(a\.\s*m\.|p\.\s*m\.)?',
+            ts_clean
+        )
+        if not dm:
+            return None
+        day, month, year, hour, minute, second, ampm = (
+            int(dm.group(1)), int(dm.group(2)), int(dm.group(3)),
+            int(dm.group(4)), int(dm.group(5)),
+            int(dm.group(6)) if dm.group(6) else 0,
+            dm.group(7)
+        )
+        if year < 100:
+            year += 2000
+        if ampm:
+            if 'p' in ampm and hour < 12:
+                hour += 12
+            if 'a' in ampm and hour == 12:
+                hour = 0
+        return datetime(year, month, day, hour, minute, second)
+
+    def _match_photo_by_timestamp(msg_dt, used_photos):
+        """Encuentra la foto más cercana al timestamp del mensaje (máx 48h)."""
+        best = None
+        best_diff = None
+        for fname, fdt in photo_timestamp_map.items():
+            if fname in used_photos:
+                continue
+            diff = abs((fdt - msg_dt).total_seconds())
+            if diff > 172800:  # 48 hours max
+                continue
+            if best_diff is None or diff < best_diff:
+                best = fname
+                best_diff = diff
+        return best
+
+    used_photos = set()
 
     for i, msg in enumerate(mensajes):
         texto = msg["texto"]
         es_imagen = bool(patron_imagen.search(texto))
         if not es_imagen:
             continue
+
+        es_iphone = "imagen omitida" in texto.lower()
 
         remitente_lower = msg["remitente"].lower()
         es_principal = any(r in remitente_lower for r in remitentes_principales)
@@ -235,8 +311,12 @@ def _buscar_imagenes_en_txt(ruta_txt, carpeta_media):
         if not es_principal:
             continue
 
-        # iPhone export: "imagen omitida" - assign PHOTO files by media sequence order
-        es_iphone = "imagen omitida" in texto.lower()
+        remitente_lower = msg["remitente"].lower()
+        es_principal = any(r in remitente_lower for r in remitentes_principales)
+
+        # Solo procesar mensajes del vendedor principal
+        if not es_principal:
+            continue
 
         # Limpiar el texto: sacar nombre de archivo y "(archivo adjunto)"
         descripcion = re.sub(
@@ -265,25 +345,24 @@ def _buscar_imagenes_en_txt(ruta_txt, carpeta_media):
                 ):
                     descripcion = txt
 
-        # Extract suggested name FIRST to decide if we should consume a photo
+        # Extract suggested name
         texto_completo = descripcion or texto
         texto_crudo = msg["texto"]
         nombre_sugerido = _extraer_nombre_producto(texto_completo) if texto_completo else "Producto"
 
-        # Only assign image if this message is likely a valid product
-        # (skip combos and invalid names so images aren't wasted on filtered items)
-        nombre_archivo = None
-        es_valido = (
-            _es_nombre_valido(nombre_sugerido)
-            and not _es_combo(nombre_sugerido, texto_completo)
-        )
-
-        if es_iphone and es_valido and photos_in_order:
-            if photo_idx < len(photos_in_order):
-                nombre_archivo = photos_in_order[photo_idx]
-                photo_idx += 1
+        # Assign photo: buscar por timestamp (iPhone) o extraer del texto (Android)
+        if es_iphone and photo_timestamp_map:
+            msg_dt = _parse_msg_datetime(msg["timestamp"])
+            if msg_dt:
+                nombre_archivo = _match_photo_by_timestamp(msg_dt, used_photos)
+                if nombre_archivo:
+                    used_photos.add(nombre_archivo)
+            else:
+                nombre_archivo = None
         elif not es_iphone:
             nombre_archivo = _extraer_nombre_archivo_imagen(texto)
+        else:
+            nombre_archivo = None
 
         # Extract price
         precio = _extraer_precio(texto_crudo) or _extraer_precio(texto_completo)
@@ -307,10 +386,20 @@ def _extraer_nombre_producto(descripcion):
         return "Producto"
 
     # Split by * (bold markers) or newlines
-    partes = re.split(r'[\n*]+', descripcion)
+    partes = re.split(r'[\n*\U0001F300-\U0001FFFF\U0000200D\U0000FE0F]+', descripcion)
     
     # Known brands to look for
-    brands = r'(samsung|xiaomi|redmi|poco|apple|jbl|lg|tcl|bgh|gadnic|nuvoh|hisense|noga|winco|phonix|siera|noblex|philco|atvio|hyundai|telefunken|pioneer|embassy|saho|force\s*by\s*gadnic|daihatsu|lamborghini|cecotec|ken\s*brown|n[oó]made|enova|hynurik|kalley|supreme|geek\s*bar|vapear|sprint|hal[oó]gena|stromberg|pro\s*bass|akro|karseell|elfbar|canon|atma|lusqtoff)'
+    brands = r'(samsung|xiaomi|redmi|poco|apple|jbl|lg|tcl|bgh|gadnic|nuvoh|hisense|noga|winco|phonix|siera|noblex|philco|atvio|hyundai|telefunken|pioneer|embassy|saho|force\s*by\s*gadnic|daihatsu|lamborghini|cecotec|ken\s*brown|n[oó]made|enova|hynurik|kalley|supreme|geek\s*bar|vapear|sprint|hal[oó]gena|stromberg|pro\s*bass|akro|karseell|elfbar|canon|atma|lusqtoff|philips|usman)'
+    
+    marketing_words = [
+        'disfruta', 'ideal', 'aprovecha', 'consultanos', 'regalar',
+        'pedilo', 'envios', 'stock', 'mejor', 'super', 'promo',
+        'precio', 'unidades', 'reingresan', 'garantia', 'oportunidad',
+        'stockeate', 'llevas', 'converti', 'facilidades', 'calidad',
+        'experiencia', 'excelente', 'nuevo', 'disponibles', 'ultimas',
+        'unidad', 'aproveche', 'renova', 'convierta', 'unica',
+        'limitado', 'pregunta', 'escribinos', 'consultar',
+    ]
     
     mejor_candidata = ""
     mejor_puntaje = -1
@@ -320,6 +409,7 @@ def _extraer_nombre_producto(descripcion):
         if not p or len(p) < 4:
             continue
         
+        # Remove emoji/unicode clutter for length calc
         limpio = re.sub(r'[^\w\s/\-,.()]', ' ', p)
         limpio = re.sub(r'\s+', ' ', limpio).strip()
         if not limpio or len(limpio) < 4:
@@ -331,12 +421,22 @@ def _extraer_nombre_producto(descripcion):
             continue
         
         brand_match = re.search(brands, p_lower)
+        product_match = re.search(r'\b(tv|smart|celular|notebook|parlante|auricular|proyector|cafetera|estufa|freidora|monopat[ní]n|bicicleta|tablet|microondas|aire\s*aacondicionado|inflador|lavarropas|sill[oa]n|cocina|m[áa]quina|c[áa]mara|impresora|pava|volante|tender|aspiradora|cargador|adaptador)\b', p_lower, re.IGNORECASE)
         
-        puntaje = len(limpio)
+        has_marketing = any(w in p_lower for w in marketing_words)
+        
+        puntaje = 0
         if brand_match:
-            puntaje += 20
-        if re.search(r'\b(tv|smart|celular|notebook|parlante|auricular|proyector|cafetera|estufa|freidora|monopat[ní]n|bicicleta|tablet|microondas|aire\s*aacondicionado|inflador|lavarropas|sill[oa]n|cocina|m[áa]quina|c[áa]mara|impresora|pava|volante)\b', p_lower, re.IGNORECASE):
-            puntaje += 10
+            puntaje += 200
+        if product_match:
+            puntaje += 80
+        # Ideal length: between 10 and 60 chars
+        if 10 <= len(limpio) <= 60:
+            puntaje += 30
+        elif len(limpio) > 80:
+            puntaje -= 20
+        if has_marketing:
+            puntaje -= 50
         
         if puntaje > mejor_puntaje:
             mejor_puntaje = puntaje
@@ -470,7 +570,12 @@ def _es_nombre_valido(nombre):
         'el hogar', 'jardin eventos', 'al costo', 'producto mas pedido',
         'superando los', 'incluye ', 'incluido',
         'pedi el tuyo', 'ferias y camping', 'taller o reventa',
-        'parlantes surtidos', 'cafetera prensa francesa',
+        'parlantes surtidos',
+        'por privado', 'hacemos envio', 'escribime', 'consultame',
+        'al privado', 'se unio', 'creo el grupo', 'cifrados',
+        'pro bass', 'surtidos', 'diseno moderno', 'asi de facil',
+        'stockeate', 'stockear', 'elegi', 'modelos surtidos',
+        'ideal para reventa', 'talles disponibles', 'stock disponible',
     ]
     nl = nombre.lower()
     for g in genericos:
@@ -598,31 +703,51 @@ def auto_crear_productos(resultado, margen=35):
             return {"creados": [], "saltados": [], "errores": [f"No se pudo crear proveedor '{proveedor}'"]}
         prv = {"id": pid}
 
+    created_names = set()
+    seen_names = set()
+
     for c in candidatos:
         nombre = c["nombre_sugerido"]
         if not nombre or nombre == "Producto":
             saltados.append({"candidato": c, "motivo": "Sin nombre"})
             continue
 
+        # Normalize for duplicate detection
+        import unicodedata
+        def norm(s):
+            s_clean = unicodedata.normalize('NFKD', s).encode('ascii', 'ignore').decode('ascii').lower().strip()
+            s_clean = re.sub(r'[^\w\s]', ' ', s_clean)
+            return re.sub(r'\s+', ' ', s_clean).strip()
+        nom_norm = norm(nombre)
+
         # Skip invalid/generic names
         if not _es_nombre_valido(nombre):
             saltados.append({"candidato": c, "motivo": f"Nombre inválido: {nombre}"})
             continue
 
-        # Skip combos
+        # Skip combos (check both name and full description)
         if _es_combo(nombre, c.get("descripcion", "")):
             saltados.append({"candidato": c, "motivo": f"Es combo/kit: {nombre}"})
             continue
 
-        # Skip duplicates
+        # Skip duplicates already created in this batch
+        if nom_norm in created_names:
+            saltados.append({"candidato": c, "motivo": f"Duplicado en este batch: {nombre}"})
+            continue
+        # Skip duplicates from DB
         dup, dup_id = _es_duplicado(nombre)
         if dup:
             saltados.append({"candidato": c, "motivo": f"Ya existe (ID {dup_id}): {nombre}"})
             continue
 
+        created_names.add(nom_norm)
+
         costo = c.get("precio")
         if not costo or costo <= 0:
             saltados.append({"candidato": c, "motivo": f"Sin precio de costo ({nombre})"})
+            continue
+        if costo < 500:
+            saltados.append({"candidato": c, "motivo": f"Precio sospechosamente bajo ({costo}): {nombre}"})
             continue
 
         # Extract USD price
