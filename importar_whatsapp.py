@@ -762,6 +762,7 @@ def auto_crear_productos(resultado, margen=35):
                 proveedor_id=prv["id"],
                 costo=costo,
                 stock=1,
+                publicar=1,
             )
 
             # Set USD price if found
