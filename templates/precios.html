@@ -20,10 +20,10 @@
     {% if resultado %}
     <div class="price-result">
         <div class="label">Precio final</div>
-        <div class="final">$ {{ "{:,.2f}".format(resultado.precio_final).replace(",",".") }}</div>
+        <div class="final">$ {{ resultado.precio_final|fmt_pesos }}</div>
         <div class="breakdown">
-            <div><span>Costo</span><span>$ {{ "{:,.2f}".format(resultado.costo).replace(",",".") }}</span></div>
-            <div><span>Ganancia</span><span>$ {{ "{:,.2f}".format(resultado.ganancia).replace(",",".") }}</span></div>
+            <div><span>Costo</span><span>$ {{ resultado.costo|fmt_pesos }}</span></div>
+            <div><span>Ganancia</span><span>$ {{ resultado.ganancia|fmt_pesos }}</span></div>
             <div><span>Margen s/costo</span><span>{{ '{:.1f}%'.format(resultado.margen_porcentaje) }}</span></div>
         </div>
     </div>

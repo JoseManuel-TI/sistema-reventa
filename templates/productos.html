@@ -43,9 +43,9 @@
                     <td>{% if p.categoria %}<span class="badge badge-cat">{{ p.categoria }}</span>{% else %}—{% endif %}</td>
                     <td>{% if p.publicar %}✅{% else %}—{% endif %}</td>
                     <td>{{ p.proveedor_nombre or '-' }}</td>
-                    <td class="precio">$ {{ "{:,.0f}".format(p.costo).replace(",",".") if p.costo else '-' }}</td>
-                    <td class="precio">{% if p.costo_usd %}USD {{ "{:,.0f}".format(p.costo_usd).replace(",",".") }}{% else %}—{% endif %}</td>
-                    <td class="precio">$ {{ "{:,.0f}".format(p.precio_venta).replace(",",".") if p.precio_venta else '-' }}</td>
+                    <td class="precio">$ {{ p.costo|fmt_pesos }}</td>
+                    <td class="precio">{% if p.costo_usd %}USD {{ p.costo_usd|fmt_num }}{% else %}—{% endif %}</td>
+                    <td class="precio">$ {{ p.precio_venta|fmt_pesos }}</td>
                     <td><span class="badge badge-stock">{{ p.stock or 0 }} uds</span></td>
                     <td>
                         <div class="btn-group">

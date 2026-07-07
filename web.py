@@ -109,13 +109,38 @@ def _guardar_imagen_producto(producto_id, nombre_producto, proveedor_id, imagen)
 def _parsear_numero_form(valor, default=None):
     if valor is None:
         return default
-    texto = str(valor).strip()
+    texto = str(valor).strip().replace("$", "").replace(" ", "")
     if texto == "":
         return default
     try:
-        return float(texto.replace(",", "."))
+        if "," in texto:
+            # Formato argentino: . = miles, , = decimal
+            # Ej: 25.000,50 → 25000.50
+            texto = texto.replace(".", "")
+            texto = texto.replace(",", ".")
+        return float(texto)
     except ValueError:
         raise ValueError("Valor numérico inválido")
+
+
+def _fmt_pesos(valor):
+    if valor is None or valor == 0:
+        return "-"
+    return "{:,.2f}".format(valor).replace(",", "X").replace(".", ",").replace("X", ".")
+
+def _fmt_num(valor):
+    if valor is None:
+        return "-"
+    return "{:,.2f}".format(valor).replace(",", "X").replace(".", ",").replace("X", ".")
+
+
+@app.template_filter("fmt_pesos")
+def jinja_fmt_pesos(valor):
+    return _fmt_pesos(valor)
+
+@app.template_filter("fmt_num")
+def jinja_fmt_num(valor):
+    return _fmt_num(valor)
 
 
 @app.context_processor
@@ -202,7 +227,7 @@ def productos_nuevo():
                 categoria=categoria, stock=stock, iva_porcentaje=iva,
                 publicar=publicar,
             )
-            if costo_usd is not None:
+            if costo_usd is not None and costo_usd > 0:
                 db.update_producto(pid, costo_usd=costo_usd)
                 if not precio_venta:
                     calc = pcalc.calcular_precio_desde_usd(costo_usd, margen=35)
@@ -272,11 +297,17 @@ def productos_editar(id):
             stock = int(request.form.get("stock", 0) or 0)
             iva = _parsear_numero_form(request.form.get("iva_porcentaje"), default=21)
 
-            if costo_usd is not None and not precio_venta:
+            costo_cambiado = costo != p.get("costo", 0)
+            costo_usd_cambiado = costo_usd != p.get("costo_usd", 0)
+            pv_original = p.get("precio_venta")
+            pv_cambiado_manualmente = (precio_venta is not None and
+                                       abs(precio_venta - (pv_original or 0)) > 0.001)
+
+            if costo_usd is not None and costo_usd > 0 and costo_usd_cambiado and not pv_cambiado_manualmente:
                 calc = pcalc.calcular_precio_desde_usd(costo_usd, margen=35)
                 precio_venta = calc["precio_final"]
                 costo = calc["costo_ars"]
-            elif costo is not None and not precio_venta:
+            elif costo is not None and costo > 0 and costo_cambiado and not pv_cambiado_manualmente:
                 precio_venta = pcalc.calcular_precio_venta_rapido(costo, margen=35)
 
             db.update_producto(id,
@@ -543,7 +574,9 @@ def importar_crear():
     proveedor_nombre = request.form.get("proveedor", "").strip()
 
     try:
-        costo = float(costo_str.replace(",", "."))
+        if "," in costo_str:
+            costo_str = costo_str.replace(".", "").replace(",", ".")
+        costo = float(costo_str)
     except ValueError:
         costo = 0
 
@@ -730,6 +763,8 @@ def configuracion():
 
 
 # ─── Error handlers ───────────────────────────────────────────────
+
+
 
 @app.errorhandler(500)
 def handle_500(e):

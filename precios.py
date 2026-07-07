@@ -1,7 +1,7 @@
 """
-Calculadora de precios — markup simple sobre costo.
-Precio final = costo * (1 + margen/100)
-Precio desde USD = costo_usd * dolar_blue * (1 + margen/100)
+Calculadora de precios — margen sobre precio de venta.
+Precio final = costo / (1 - margen/100)
+Precio desde USD = (costo_usd * dolar_blue) / (1 - margen/100)
 """
 
 from dataclasses import dataclass
@@ -42,7 +42,9 @@ class ParametrosPrecio:
         for field_name in self.__dataclass_fields__:
             val = getattr(self, field_name)
             if isinstance(val, str):
-                cleaned = val.replace("%", "").replace("$", "").replace(",", ".").strip()
+                cleaned = val.replace("%", "").replace("$", "").replace(" ", "").strip()
+                if "," in cleaned:
+                    cleaned = cleaned.replace(".", "").replace(",", ".")
                 setattr(self, field_name, float(cleaned))
 
 
@@ -50,15 +52,14 @@ def calcular_precio_final(params: ParametrosPrecio) -> dict:
     costo = params.costo
     margen = params.margen_deseado
 
-    precio_final = round(costo * (1 + margen / 100), 2)
+    precio_final = round(costo / (1 - margen / 100), 2)
     ganancia = round(precio_final - costo, 2)
-    margen_porcentaje = round(ganancia / costo * 100, 1) if costo else 0
 
     desglose = {
         "costo": round(costo, 2),
         "precio_final": precio_final,
         "ganancia": ganancia,
-        "margen_porcentaje": margen_porcentaje,
+        "margen_porcentaje": margen,
         "params_usados": {
             "costo": costo,
             "margen_deseado": margen,
@@ -79,7 +80,7 @@ def calcular_precio_desde_usd(costo_usd: float, margen: float = 35) -> dict:
 
 
 def calcular_precio_venta_rapido(costo: float, margen: float = 35) -> float:
-    return round(costo * (1 + margen / 100), 2)
+    return round(costo / (1 - margen / 100), 2)
 
 
 def precio_sugerido_ml(costo: float, comision: float = 20.5) -> dict:

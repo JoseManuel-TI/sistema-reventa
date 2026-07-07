@@ -7,8 +7,8 @@
 
 <div class="card" style="max-width:400px;">
     <div style="margin-bottom:16px;">
-        <strong>Costo actual:</strong> $ {{ "{:,.2f}".format(p.costo).replace(",",".") }}<br>
-        <strong>Precio actual:</strong> {{ '$ ' + "{:,.2f}".format(p.precio_venta).replace(",",".") if p.precio_venta else 'Sin definir' }}
+        <strong>Costo actual:</strong> $ {{ p.costo|fmt_pesos }}<br>
+        <strong>Precio actual:</strong> {{ '$ ' + (p.precio_venta|fmt_pesos) if p.precio_venta else 'Sin definir' }}
     </div>
 
     <form method="POST">
@@ -22,10 +22,10 @@
     {% if resultado %}
     <div class="price-result">
         <div class="label">Precio sugerido</div>
-        <div class="final">$ {{ "{:,.2f}".format(resultado.precio_final).replace(",",".") }}</div>
+        <div class="final">$ {{ resultado.precio_final|fmt_pesos }}</div>
         <div class="breakdown">
-            <div><span>Costo</span><span>$ {{ "{:,.2f}".format(resultado.costo).replace(",",".") }}</span></div>
-            <div><span>Ganancia</span><span>$ {{ "{:,.2f}".format(resultado.ganancia).replace(",",".") }}</span></div>
+            <div><span>Costo</span><span>$ {{ resultado.costo|fmt_pesos }}</span></div>
+            <div><span>Ganancia</span><span>$ {{ resultado.ganancia|fmt_pesos }}</span></div>
             <div><span>Margen s/costo</span><span>{{ '{:.1f}%'.format(resultado.margen_porcentaje) }}</span></div>
         </div>
         <form method="POST" action="/precios/producto/{{ p.id }}/guardar" style="margin-top:12px;">

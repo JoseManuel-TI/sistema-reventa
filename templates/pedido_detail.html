@@ -16,7 +16,7 @@
     </div>
     <div class="stat-card">
         <div class="label">Total</div>
-        <div class="value green" style="font-size:20px;">$ {{ "{:,.0f}".format(pedido.total).replace(",",".") }}</div>
+        <div class="value green" style="font-size:20px;">$ {{ pedido.total|fmt_pesos }}</div>
     </div>
     <div class="stat-card">
         <div class="label">Fecha</div>
@@ -44,8 +44,8 @@
                 <tr>
                     <td>{{ item.nombre }}</td>
                     <td>{{ item.cantidad }}</td>
-                    <td>$ {{ "{:,.0f}".format(item.precio_unitario).replace(",",".") }}</td>
-                    <td>$ {{ "{:,.0f}".format(item.subtotal).replace(",",".") }}</td>
+                    <td>$ {{ item.precio_unitario|fmt_pesos }}</td>
+                    <td>$ {{ item.subtotal|fmt_pesos }}</td>
                 </tr>
                 {% endfor %}
             </tbody>

@@ -14,7 +14,7 @@
         {% endif %}
         <div class="info">
             <h3>{{ p.nombre[:50] }}</h3>
-            <div class="price">$ {{ "{:,.0f}".format(p.precio_venta).replace(",",".") }}</div>
+            <div class="price">$ {{ p.precio_venta|fmt_pesos }}</div>
             {% if p.categoria %}<div class="cat-label">{{ p.categoria }}</div>{% endif %}
             <div class="shipping-badge">Envío gratis</div>
         </div>

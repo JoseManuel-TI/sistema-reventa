@@ -23,7 +23,7 @@
 
     <div class="detail-info">
         <h1>{{ p.nombre }}</h1>
-        <div class="big-price">$ {{ "{:,.0f}".format(p.precio_venta).replace(",",".") }}</div>
+        <div class="big-price">$ {{ p.precio_venta|fmt_pesos }}</div>
         <div class="price-shipping">Envío gratis</div>
 
         {% if p.stock and p.stock > 0 %}

@@ -30,7 +30,7 @@
                     <td>{{ ped.id }}</td>
                     <td>{{ ped.cliente_nombre }}</td>
                     <td>{{ ped.cliente_email }}</td>
-                    <td class="precio">$ {{ "{:,.0f}".format(ped.total).replace(",",".") }}</td>
+                    <td class="precio">$ {{ ped.total|fmt_pesos }}</td>
                     <td>{{ ped.total_items }}</td>
                     <td><span class="badge badge-{{ ped.estado }}">{{ ped.estado }}</span></td>
                     <td>{{ ped.created_at[:10] }}</td>

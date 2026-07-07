@@ -65,8 +65,8 @@ def cmd_productos_listar(args):
     print(f"\n{'ID':<4} {'Nombre':<35} {'Costo':>10} {'Venta':>10} {'Stock':<6} {'Proveedor':<20}")
     print("-" * 90)
     for p in productos:
-        costo = f"${p['costo']:,.0f}".replace(",", ".") if p['costo'] else "-"
-        venta = f"${p['precio_venta']:,.0f}".replace(",", ".") if p['precio_venta'] else "-"
+        costo = f"${p['costo']:,.0f}".replace(",", "X").replace(".", ",").replace("X", ".") if p['costo'] else "-"
+        venta = f"${p['precio_venta']:,.0f}".replace(",", "X").replace(".", ",").replace("X", ".") if p['precio_venta'] else "-"
         print(f"{p['id']:<4} {p['nombre'][:34]:<35} {costo:>10} {venta:>10} {p['stock']:<6} {(p.get('proveedor_nombre') or ''):<20}")
 
 
@@ -82,7 +82,9 @@ def cmd_productos_agregar(args):
         args.descripcion = input("Descripción: ").strip()
     if not args.costo:
         costo_str = input("Costo (solo número): ").strip()
-        args.costo = float(costo_str.replace(",", "."))
+        if "," in costo_str:
+            costo_str = costo_str.replace(".", "").replace(",", ".")
+        args.costo = float(costo_str)
     if not args.proveedor:
         print("\nProveedores disponibles:")
         for p in proveedores:
@@ -122,7 +124,8 @@ def cmd_productos_editar(args):
         if val:
             if key in ("costo", "precio_venta", "stock"):
                 try:
-                    val = float(val.replace(",", "."))
+                    if "," in val:
+                        val = val.replace(".", "").replace(",", ".")
                 except ValueError:
                     print(f"  Valor inválido, se ignora.")
                     continue
