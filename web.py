@@ -8,7 +8,11 @@ Uso:
 
 import os
 import shutil
+import traceback
+import logging
 from functools import wraps
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 
 import db
 import config
@@ -20,6 +24,7 @@ from flask import (
     Flask, render_template, request, redirect, url_for,
     flash, send_from_directory, session,
 )
+from werkzeug.utils import secure_filename
 
 BASE_DIR = os.path.dirname(__file__)
 app = Flask(__name__, template_folder=os.path.join(BASE_DIR, "templates"),
@@ -47,7 +52,9 @@ def login():
     if request.method == "POST":
         password = request.form.get("password", "")
         admin_pass = config.get("ADMIN_PASSWORD")
-        if admin_pass and password == admin_pass:
+        if not admin_pass:
+            flash("ADMIN_PASSWORD no configurada. Configurala via ADMIN_PASSWORD env var o data/config.json", "error")
+        elif password == admin_pass:
             session["admin"] = True
             next_page = request.args.get("next") or url_for("dashboard")
             return redirect(next_page)
@@ -72,6 +79,43 @@ def _formatear_pesos(valor):
     if valor is None or valor == 0:
         return "-"
     return f"$ {valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+
+def _guardar_imagen_producto(producto_id, nombre_producto, proveedor_id, imagen):
+    if not imagen or not getattr(imagen, "filename", ""):
+        return None
+
+    try:
+        prv = db.get_proveedores()
+        prv_nombre = next((p["nombre"] for p in prv if p["id"] == proveedor_id), "sin_proveedor")
+        safe_prv = secure_filename(prv_nombre or "sin_proveedor") or "sin_proveedor"
+        dest_dir = os.path.join(IMAGENES_DIR, "proveedores", safe_prv)
+        os.makedirs(dest_dir, exist_ok=True)
+
+        ext = os.path.splitext(imagen.filename)[1].lower() or ".jpg"
+        safe_nombre = secure_filename(nombre_producto or f"producto_{producto_id}") or f"producto_{producto_id}"
+        nombre_img = f"{producto_id}_{safe_nombre[:40]}{ext}"
+        ruta_img = os.path.join(dest_dir, nombre_img)
+        imagen.save(ruta_img)
+
+        rel_path = os.path.relpath(ruta_img, BASE_DIR)
+        db.add_imagen(producto_id, rel_path, es_principal=True)
+        return rel_path
+    except Exception as exc:
+        flash(f"No se pudo guardar la imagen: {exc}", "error")
+        return None
+
+
+def _parsear_numero_form(valor, default=None):
+    if valor is None:
+        return default
+    texto = str(valor).strip()
+    if texto == "":
+        return default
+    try:
+        return float(texto.replace(",", "."))
+    except ValueError:
+        raise ValueError("Valor numérico inválido")
 
 
 @app.context_processor
@@ -130,134 +174,136 @@ def productos_listar():
 @app.route("/productos/nuevo", methods=["GET", "POST"])
 @login_required
 def productos_nuevo():
-    proveedores = db.get_proveedores()
-    if not proveedores:
-        flash("Primero creá un proveedor.", "error")
-        return redirect(url_for("proveedores_nuevo"))
+    try:
+        proveedores = db.get_proveedores()
+        if not proveedores:
+            flash("Primero creá un proveedor.", "error")
+            return redirect(url_for("proveedores_nuevo"))
 
-    if request.method == "POST":
-        nombre = request.form["nombre"].strip()
-        descripcion = request.form.get("descripcion", "").strip()
-        proveedor_id = int(request.form["proveedor_id"])
-        costo = float(request.form["costo"].replace(",", "."))
-        costo_usd = request.form.get("costo_usd")
-        costo_usd = float(costo_usd.replace(",", ".")) if costo_usd else None
-        precio_venta = request.form.get("precio_venta")
-        precio_venta = float(precio_venta.replace(",", ".")) if precio_venta else None
-        categoria = request.form.get("categoria", "").strip()
-        stock = int(request.form.get("stock", 0))
-        iva = float(request.form.get("iva_porcentaje", 21))
-        publicar = 1 if request.form.get("publicar") else 0
+        if request.method == "POST":
+            nombre = request.form.get("nombre", "").strip()
+            if not nombre:
+                flash("El nombre del producto es obligatorio.", "error")
+                return redirect(url_for("productos_nuevo"))
 
-        pid = db.add_producto(
-            nombre=nombre, descripcion=descripcion,
-            proveedor_id=proveedor_id, costo=costo,
-            categoria=categoria, stock=stock, iva_porcentaje=iva,
-            publicar=publicar,
-        )
-        if costo_usd is not None:
-            db.update_producto(pid, costo_usd=costo_usd)
-            # Si se ingresó costo_usd pero no un precio_venta manual, calculamos el precio de venta sugerido usando el costo convertido y margen del 35%
-            if not precio_venta:
-                calc = pcalc.calcular_precio_desde_usd(costo_usd, margen=35)
-                precio_venta = calc["precio_final"]
-                # Además actualizamos el costo en ARS que corresponde a ese costo_usd convertido al dolar_blue actual
-                db.update_producto(pid, costo=calc["costo_ars"])
-        elif costo and not precio_venta:
-            # Si hay costo en ARS pero no precio_venta manual, calculamos usando markup del 35%
-            precio_venta = pcalc.calcular_precio_venta_rapido(costo, margen=35)
+            descripcion = request.form.get("descripcion", "").strip()
+            proveedor_id = int(request.form.get("proveedor_id", 0) or 0)
+            costo = _parsear_numero_form(request.form.get("costo"), default=0)
+            costo_usd = _parsear_numero_form(request.form.get("costo_usd"), default=None)
+            precio_venta = _parsear_numero_form(request.form.get("precio_venta"), default=None)
+            categoria = request.form.get("categoria", "").strip()
+            stock = int(request.form.get("stock", 0) or 0)
+            iva = _parsear_numero_form(request.form.get("iva_porcentaje"), default=21)
+            publicar = 1 if request.form.get("publicar") else 0
 
-        if precio_venta:
-            db.update_producto(pid, precio_venta=precio_venta)
+            pid = db.add_producto(
+                nombre=nombre, descripcion=descripcion,
+                proveedor_id=proveedor_id, costo=costo,
+                categoria=categoria, stock=stock, iva_porcentaje=iva,
+                publicar=publicar,
+            )
+            if costo_usd is not None:
+                db.update_producto(pid, costo_usd=costo_usd)
+                if not precio_venta:
+                    calc = pcalc.calcular_precio_desde_usd(costo_usd, margen=35)
+                    precio_venta = calc["precio_final"]
+                    db.update_producto(pid, costo=calc["costo_ars"])
+            elif costo and not precio_venta:
+                precio_venta = pcalc.calcular_precio_venta_rapido(costo, margen=35)
 
-        # Handle image upload
-        imagen = request.files.get("imagen")
-        if imagen and imagen.filename:
-            prv = db.get_proveedores()
-            prv_nombre = next((p["nombre"] for p in prv if p["id"] == proveedor_id), "sin_proveedor")
-            dest_dir = os.path.join(IMAGENES_DIR, "proveedores", prv_nombre)
-            os.makedirs(dest_dir, exist_ok=True)
-            ext = os.path.splitext(imagen.filename)[1].lower() or ".jpg"
-            nombre_img = f"{pid}_{nombre[:30].replace(' ','_')}{ext}"
-            ruta_img = os.path.join(dest_dir, nombre_img)
-            imagen.save(ruta_img)
-            db.add_imagen(pid, os.path.relpath(ruta_img, BASE_DIR), es_principal=True)
+            if precio_venta:
+                db.update_producto(pid, precio_venta=precio_venta)
 
-        flash(f"Producto '{nombre}' creado.", "success")
-        return redirect(url_for("productos_detalle", id=pid))
+            imagen = request.files.get("imagen")
+            _guardar_imagen_producto(pid, nombre, proveedor_id, imagen)
 
-    return render_template("producto_form.html", producto=None, proveedores=proveedores,
-                           **_ruta("/productos"))
+            flash(f"Producto '{nombre}' creado.", "success")
+            return redirect(url_for("productos_detalle", id=pid))
+
+        return render_template("producto_form.html", producto=None, proveedores=proveedores,
+                               **_ruta("/productos"))
+    except Exception as e:
+        logging.error("Error en productos_nuevo: %s", traceback.format_exc())
+        flash(f"Error inesperado: {e}", "error")
+        return redirect(url_for("productos_listar"))
 
 
 @app.route("/productos/<int:id>")
 @login_required
 def productos_detalle(id):
-    p = db.get_producto(id)
-    if not p:
-        flash("Producto no encontrado.", "error")
+    try:
+        p = db.get_producto(id)
+        if not p:
+            flash("Producto no encontrado.", "error")
+            return redirect(url_for("productos_listar"))
+        imgs = db.get_imagenes(id)
+        p["imagenes"] = imgs
+        p["imagen_principal"] = imgs[0]["archivo"] if imgs else None
+        return render_template("producto_detail.html", p=p, **_ruta("/productos"))
+    except Exception as e:
+        logging.error("Error en productos_detalle(%s): %s", id, traceback.format_exc())
+        flash(f"Error inesperado: {e}", "error")
         return redirect(url_for("productos_listar"))
-    imgs = db.get_imagenes(id)
-    p["imagenes"] = imgs
-    p["imagen_principal"] = imgs[0]["archivo"] if imgs else None
-    return render_template("producto_detail.html", p=p, **_ruta("/productos"))
 
 
 @app.route("/productos/<int:id>/editar", methods=["GET", "POST"])
 @login_required
 def productos_editar(id):
-    p = db.get_producto(id)
-    if not p:
-        flash("Producto no encontrado.", "error")
+    try:
+        p = db.get_producto(id)
+        if not p:
+            flash("Producto no encontrado.", "error")
+            return redirect(url_for("productos_listar"))
+        proveedores = db.get_proveedores()
+        imgs = db.get_imagenes(id)
+        p["imagenes"] = imgs
+
+        if request.method == "POST":
+            nombre = request.form.get("nombre", "").strip()
+            if not nombre:
+                flash("El nombre del producto es obligatorio.", "error")
+                return redirect(url_for("productos_editar", id=id))
+
+            costo_input = request.form.get("costo", "")
+            costo = _parsear_numero_form(costo_input, default=p.get("costo", 0))
+            costo_usd = _parsear_numero_form(request.form.get("costo_usd"), default=None)
+            precio_venta = _parsear_numero_form(request.form.get("precio_venta"), default=None)
+            proveedor_id = int(request.form.get("proveedor_id", 0) or 0)
+            stock = int(request.form.get("stock", 0) or 0)
+            iva = _parsear_numero_form(request.form.get("iva_porcentaje"), default=21)
+
+            if costo_usd is not None and not precio_venta:
+                calc = pcalc.calcular_precio_desde_usd(costo_usd, margen=35)
+                precio_venta = calc["precio_final"]
+                costo = calc["costo_ars"]
+            elif costo is not None and not precio_venta:
+                precio_venta = pcalc.calcular_precio_venta_rapido(costo, margen=35)
+
+            db.update_producto(id,
+                nombre=nombre,
+                descripcion=request.form.get("descripcion", "").strip(),
+                proveedor_id=proveedor_id,
+                costo=costo,
+                costo_usd=costo_usd,
+                precio_venta=precio_venta,
+                categoria=request.form.get("categoria", "").strip(),
+                stock=stock,
+                iva_porcentaje=iva,
+                publicar=1 if request.form.get("publicar") else 0,
+            )
+
+            imagen = request.files.get("imagen")
+            _guardar_imagen_producto(id, nombre, proveedor_id, imagen)
+
+            flash("Producto actualizado.", "success")
+            return redirect(url_for("productos_detalle", id=id))
+
+        return render_template("producto_form.html", producto=p, proveedores=proveedores,
+                               **_ruta("/productos"))
+    except Exception as e:
+        logging.error("Error en productos_editar(%s): %s", id, traceback.format_exc())
+        flash(f"Error inesperado: {e}", "error")
         return redirect(url_for("productos_listar"))
-    proveedores = db.get_proveedores()
-    imgs = db.get_imagenes(id)
-    p["imagenes"] = imgs
-
-    if request.method == "POST":
-        nombre = request.form["nombre"].strip()
-        costo_usd = request.form.get("costo_usd")
-        costo_usd = float(costo_usd.replace(",", ".")) if costo_usd else None
-        # Si viene un costo_usd y no se ingresó precio de venta manual, calculamos el precio de venta sugerido
-        if costo_usd is not None and not precio_venta:
-            calc = pcalc.calcular_precio_desde_usd(costo_usd, margen=35)
-            precio_venta = calc["precio_final"]
-            # También actualizamos el costo en ARS según la conversión
-            costo = calc["costo_ars"]
-        elif costo and not precio_venta:
-            # Si hay costo en ARS pero no precio de venta manual, calculamos usando markup del 35%
-            precio_venta = pcalc.calcular_precio_venta_rapido(costo, margen=35)
-
-        db.update_producto(id,
-            nombre=nombre,
-            descripcion=request.form.get("descripcion", "").strip(),
-            proveedor_id=int(request.form["proveedor_id"]),
-            costo=costo,
-            costo_usd=costo_usd,
-            precio_venta=precio_venta,
-            categoria=request.form.get("categoria", "").strip(),
-            stock=int(request.form.get("stock", 0)),
-            iva_porcentaje=float(request.form.get("iva_porcentaje", 21)),
-            publicar=1 if request.form.get("publicar") else 0,
-        )
-
-        imagen = request.files.get("imagen")
-        if imagen and imagen.filename:
-            prv = db.get_proveedores()
-            prv_nombre = next((p["nombre"] for p in prv if p["id"] == p["proveedor_id"]), "sin_proveedor")  # noqa
-            dest_dir = os.path.join(IMAGENES_DIR, "proveedores", prv_nombre)
-            os.makedirs(dest_dir, exist_ok=True)
-            ext = os.path.splitext(imagen.filename)[1].lower() or ".jpg"
-            nombre_img = f"{id}_{nombre[:30].replace(' ','_')}{ext}"
-            ruta_img = os.path.join(dest_dir, nombre_img)
-            imagen.save(ruta_img)
-            db.add_imagen(id, os.path.relpath(ruta_img, BASE_DIR), es_principal=True)
-
-        flash("Producto actualizado.", "success")
-        return redirect(url_for("productos_detalle", id=id))
-
-    return render_template("producto_form.html", producto=p, proveedores=proveedores,
-                           **_ruta("/productos"))
 
 
 @app.route("/productos/<int:id>/eliminar", methods=["POST"])
@@ -318,7 +364,7 @@ def proveedores_listar():
 @login_required
 def proveedores_nuevo():
     if request.method == "POST":
-        nombre = request.form["nombre"].strip()
+        nombre = request.form.get("nombre", "").strip()
         contacto = request.form.get("contacto", "").strip()
         notas = request.form.get("notas", "").strip()
         pid = db.add_proveedor(nombre, contacto, notas)
@@ -338,7 +384,7 @@ def proveedores_editar(id):
         flash("Proveedor no encontrado.", "error")
         return redirect(url_for("proveedores_listar"))
     if request.method == "POST":
-        db.update_proveedor(id, nombre=request.form["nombre"],
+        db.update_proveedor(id, nombre=request.form.get("nombre", ""),
                             contacto=request.form.get("contacto", ""),
                             notas=request.form.get("notas", ""))
         flash("Proveedor actualizado.", "success")
@@ -354,12 +400,14 @@ def precios():
     datos = None
     resultado = None
     if request.method == "POST":
-        datos = {
-            "costo": float(request.form["costo"].replace(",", ".")),
-            "margen_deseado": float(request.form.get("margen_deseado", 35)),
-        }
-        params = pcalc.ParametrosPrecio(**datos)
-        resultado = pcalc.calcular_precio_final(params)
+        try:
+            costo = _parsear_numero_form(request.form.get("costo"), default=0)
+            margen = _parsear_numero_form(request.form.get("margen_deseado"), default=35)
+            datos = {"costo": costo, "margen_deseado": margen}
+            params = pcalc.ParametrosPrecio(**datos)
+            resultado = pcalc.calcular_precio_final(params)
+        except ValueError:
+            flash("Ingresá valores numéricos válidos para calcular el precio.", "error")
     return render_template("precios.html", datos=datos, resultado=resultado, **_ruta("/precios"))
 
 
@@ -373,12 +421,15 @@ def precios_producto(id):
     datos = {"margen_deseado": 35}
     resultado = None
     if request.method == "POST":
-        datos["margen_deseado"] = float(request.form.get("margen_deseado", 35))
-        params = pcalc.ParametrosPrecio(
-            costo=p["costo"],
-            margen_deseado=datos["margen_deseado"],
-        )
-        resultado = pcalc.calcular_precio_final(params)
+        try:
+            datos["margen_deseado"] = _parsear_numero_form(request.form.get("margen_deseado"), default=35)
+            params = pcalc.ParametrosPrecio(
+                costo=p["costo"],
+                margen_deseado=datos["margen_deseado"],
+            )
+            resultado = pcalc.calcular_precio_final(params)
+        except ValueError:
+            flash("Ingresá un margen válido para calcular el precio.", "error")
     return render_template("precios_producto.html", p=p, datos=datos, resultado=resultado,
                            **_ruta("/precios"))
 
@@ -386,10 +437,15 @@ def precios_producto(id):
 @app.route("/precios/producto/<int:id>/guardar", methods=["POST"])
 @login_required
 def precios_producto_guardar(id):
-    precio = float(request.form["precio_venta"])
-    margen = float(request.form["margen_porcentaje"])
-    db.update_producto(id, precio_venta=precio, margen_porcentaje=margen)
-    flash("Precio guardado en el producto.", "success")
+    try:
+        precio = _parsear_numero_form(request.form.get("precio_venta"), default=None)
+        margen = _parsear_numero_form(request.form.get("margen_porcentaje"), default=None)
+        if precio is None or margen is None:
+            raise ValueError("faltan datos")
+        db.update_producto(id, precio_venta=precio, margen_porcentaje=margen)
+        flash("Precio guardado en el producto.", "success")
+    except ValueError:
+        flash("No se pudo guardar el precio porque faltan datos válidos.", "error")
     return redirect(url_for("productos_detalle", id=id))
 
 
@@ -480,7 +536,7 @@ def importar_escanear_route():
 @app.route("/importar/crear", methods=["POST"])
 @login_required
 def importar_crear():
-    nombre = request.form["nombre"].strip()[:60]
+    nombre = request.form.get("nombre", "").strip()[:60]
     descripcion = request.form.get("descripcion", "").strip()
     archivo = request.form.get("archivo", "")
     costo_str = request.form.get("costo", "0").strip()
@@ -673,11 +729,26 @@ def configuracion():
     return render_template("configuracion.html", cfg=cfg, **_ruta("/configuracion"))
 
 
-# ─── Main ─────────────────────────────────────────────────────────
+# ─── Error handlers ───────────────────────────────────────────────
+
+@app.errorhandler(500)
+def handle_500(e):
+    logging.error("Error 500: %s", traceback.format_exc())
+    return render_template("error.html", codigo=500, mensaje="Error interno del servidor"), 500
+
+@app.errorhandler(404)
+def handle_404(e):
+    return render_template("error.html", codigo=404, mensaje="Página no encontrada"), 404
+
 
 # ─── Init ──────────────────────────────────────────────────────
 db.init_db()
 
+admin_pass = config.get("ADMIN_PASSWORD")
+if not admin_pass:
+    print("⚠  ADMIN_PASSWORD no configurada. Usá la variable de entorno ADMIN_PASSWORD o configurá en data/config.json")
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
-    app.run(debug=True, host="0.0.0.0", port=port)
+    debug = os.environ.get("FLASK_DEBUG", "0") == "1"
+    app.run(debug=debug, host="0.0.0.0", port=port)

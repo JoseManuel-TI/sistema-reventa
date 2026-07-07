@@ -288,9 +288,6 @@ def _buscar_imagenes_en_txt(ruta_txt, carpeta_media):
         # Extract price
         precio = _extraer_precio(texto_crudo) or _extraer_precio(texto_completo)
 
-        remitente_lower = msg["remitente"].lower()
-        es_principal = any(r in remitente_lower for r in remitentes_principales)
-
         candidatos.append({
             "remitente": msg["remitente"],
             "descripcion": texto_completo,
@@ -697,7 +694,7 @@ def escanear_carpeta_imagenes(proveedor):
     for f in archivos:
         nombre = os.path.splitext(f)[0].replace("_", " ").replace("-", " ").title()
         productos.append({
-            "archivo": os.path.join(carpeta, f),
+            "archivo": os.path.relpath(os.path.join(carpeta, f), BASE_DIR),
             "nombre_sugerido": nombre,
             "descripcion": "",
         })

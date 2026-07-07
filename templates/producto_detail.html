@@ -23,15 +23,16 @@
             <dt>Proveedor</dt>
             <dd>{{ p.proveedor_nombre or '-' }}</dd>
             <dt>Costo</dt>
-            <dd>$ {{ "{:,.2f}".format(p.costo).replace(",",".") }}</dd>
-            {% if p.costo_usd %}
+            <dt>Costo</dt>
+            <dd>$ {{ "{:,.2f}".format(p.costo|float).replace(",",".") }}</dd>
+            {% if p.costo_usd is not none and p.costo_usd %}
             <dt>Costo USD</dt>
             <dd>USD {{ "{:,.2f}".format(p.costo_usd).replace(",",".") }}</dd>
             {% endif %}
             <dt>Precio venta</dt>
-            <dd style="color:#10b981;font-size:20px;">{{ '$ ' + "{:,.2f}".format(p.precio_venta).replace(",",".") if p.precio_venta else 'Sin definir' }}</dd>
+            <dd style="color:#10b981;font-size:20px;">{{ '$ ' + "{:,.2f}".format(p.precio_venta|float).replace(",",".") if p.precio_venta is not none and p.precio_venta else 'Sin definir' }}</dd>
             <dt>Margen</dt>
-            <dd>{{ '{:.1f}%'.format(p.margen_porcentaje) if p.margen_porcentaje else '-' }}</dd>
+            <dd>{{ '{:.1f}%'.format(p.margen_porcentaje|float) if p.margen_porcentaje is not none and p.margen_porcentaje else '-' }}</dd>
             <dt>Categoría</dt>
             <dd>{{ p.categoria or '-' }}</dd>
             <dt>Stock</dt>

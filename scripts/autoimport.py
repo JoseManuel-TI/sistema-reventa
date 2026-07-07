@@ -314,6 +314,7 @@ try:
     TRENDING_AVAILABLE = True
 except ImportError:
     TRENDING_AVAILABLE = False
+    TREND_THRESHOLD = 60
 
 # ─── Main logic ───
 
@@ -457,6 +458,7 @@ def procesar_archivo(ruta_txt, proveedor, margen, estado):
 
         # Trend scoring
         trend_result = None
+        is_trend = False
         if TRENDING_AVAILABLE:
             trend_result = score_product(nombre_full, costo, use_web=False)
             is_trend, _ = is_trending(nombre_full, costo, threshold=trend_threshold)

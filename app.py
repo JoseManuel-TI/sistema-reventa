@@ -14,7 +14,9 @@ Uso:
 
 import argparse
 import os
+import re
 import sys
+import unicodedata
 from datetime import datetime
 
 import db
@@ -144,13 +146,11 @@ def cmd_productos_eliminar(args):
 
 
 def _quitar_acentos(t):
-    import unicodedata
     return unicodedata.normalize('NFKD', t).encode('ascii', 'ignore').decode('ascii')
 
 
 def _normalizar_modelo(nombre):
     """Extrae el modelo/base del nombre del producto para detectar duplicados."""
-    import re
     n = _quitar_acentos(nombre).lower().strip()
 
     # Remove parentheticals, special chars, collapse whitespace
@@ -205,7 +205,6 @@ def _normalizar_modelo(nombre):
 
 def _limpiar_nombre(nombre):
     """Limpia el nombre del producto para mostrar en catalogo, sin texto marketing."""
-    import re
     n = _quitar_acentos(nombre).strip()
     n = re.sub(r'\(.*?\)', ' ', n)
     n = re.sub(r'[^\w\s/\-áéíóúñÁÉÍÓÚÑ]', ' ', n)
@@ -317,8 +316,6 @@ def _limpiar_nombre(nombre):
 
 def cmd_productos_limpiar(args):
     """Limpia catálogo: desactiva tests, elimina combos/promos, limpia nombres."""
-    import re
-
     test_ids = {1, 2, 3, 4}
     for tid in test_ids:
         p = db.get_producto(tid)

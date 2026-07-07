@@ -18,6 +18,14 @@ with open(SEED_PATH, encoding="utf-8") as f:
     data = json.load(f)
 
 conn = local_db.get_connection()
+
+# Only seed if DB is empty (non-destructive)
+existing = conn.execute("SELECT COUNT(*) as c FROM productos").fetchone()
+if existing and existing["c"] > 0:
+    print(f"DB already has {existing['c']} productos, skipping seed")
+    conn.close()
+    exit(0)
+
 conn.execute("PRAGMA foreign_keys = OFF")
 conn.executescript("""
     DELETE FROM imagenes;

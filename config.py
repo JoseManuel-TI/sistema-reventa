@@ -36,11 +36,32 @@ def _save(data):
         json.dump(data, f, indent=2)
 
 def get(key):
-    return os.environ.get(key) or _load().get(key) or DEFAULTS.get(key, "")
+    env_val = os.environ.get(key)
+    if env_val is not None:
+        return env_val
+    cfg = _load()
+    if key in cfg:
+        return cfg[key]
+    return DEFAULTS.get(key, "")
+
+def set(key, value):
+    cfg = _load()
+    cfg[key] = value
+    _save(cfg)
+    return value
 
 def get_all():
     cfg = _load()
-    return {k: os.environ.get(k) or cfg.get(k, DEFAULTS[k]) for k in DEFAULTS}
+    result = {}
+    for k in DEFAULTS:
+        env_val = os.environ.get(k)
+        if env_val is not None:
+            result[k] = env_val
+        elif k in cfg:
+            result[k] = cfg[k]
+        else:
+            result[k] = DEFAULTS[k]
+    return result
 
 def set_many(data):
     cfg = _load()

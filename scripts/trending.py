@@ -41,7 +41,6 @@ BRAND_SCORES = {
     "NOGA": 18,
     "NOGA TORNADO": 20,
     "NOGA DRIFTER": 22,
-    "NOGA TORNADO": 20,
     "HISENSE": 22,
     "PHILCO": 18,
     "NOBLEX": 18,
@@ -68,7 +67,6 @@ BRAND_SCORES = {
     "EMBASSY": 8,
     "TELEFUNKEN": 14,
     "LUSQTOFF": 5,
-    "NOGA": 18,
 }
 
 def _detect_brand(name):
@@ -122,7 +120,7 @@ def _detect_brand(name):
 CATEGORY_SCORES = [
     (r'\b(airpod\w*|auricular|galaxy\s*buds|jbl|parlante|bocina|headphone|headset|buds\s+pro)\b', 30, "Audio"),
     (r'\b(smartphone|celular|telefono|samsung\s+\w+|xiaomi|redmi|poco|tcl\s*\w+|motorola|iphone)\b', 30, "Smartphones"),
-    (r'\b(smart\s*tv|tv\s+\w+|televisor|\d+["""])\b', 28, "Smart TV"),
+    (r'\b(smart\s*tv|tv\s+\w+|televisor|\d{2,}\s*["""]?)\b', 28, "Smart TV"),
     (r'\b(xbox|playstation|ps\d|nintendo|switch|consola|volante|joystick)\b', 28, "Gaming"),
     (r'\b(notebook|netbook|laptop)\b', 26, "Computación"),
     (r'\b(proyector|proyector|proyector\s+gamer)\b', 24, "Proyectores"),
