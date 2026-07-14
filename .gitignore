@@ -9,3 +9,5 @@ data/config.json
 data/import_state.json
 exports/
 .env
+venv/
+.venv/
