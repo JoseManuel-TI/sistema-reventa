@@ -23,7 +23,8 @@
         <table>
             <thead>
                 <tr>
-                    <th>ID</th>
+                    <th></th>
+                    <th>Ref</th>
                     <th>Nombre</th>
                     <th>Categoría</th>
                     <th>En tienda</th>
@@ -38,7 +39,8 @@
             <tbody id="prod-tbody">
                 {% for p in productos %}
                 <tr data-categoria="{{ (p.categoria or '')|lower }}" data-nombre="{{ p.nombre|lower }}" data-proveedor="{{ (p.proveedor_nombre or '')|lower }}">
-                    <td>{{ p.id }}</td>
+                    <td>{% if p.imagen %}<img src="/{{ p.imagen }}" style="width:48px;height:48px;object-fit:cover;border-radius:6px;display:block;">{% else %}<div style="width:48px;height:48px;background:#f1f5f9;border-radius:6px;"></div>{% endif %}</td>
+                    <td style="font-family:monospace;font-size:13px;color:#6366f1;">{{ p.referencia or '' }}</td>
                     <td><a href="/productos/{{ p.id }}" style="font-weight:500;">{{ p.nombre }}</a></td>
                     <td>{% if p.categoria %}<span class="badge badge-cat">{{ p.categoria }}</span>{% else %}—{% endif %}</td>
                     <td>{% if p.publicar %}✅{% else %}—{% endif %}</td>
@@ -47,16 +49,11 @@
                     <td class="precio">{% if p.costo_usd %}USD {{ p.costo_usd|fmt_num }}{% else %}—{% endif %}</td>
                     <td class="precio">$ {{ p.precio_venta|fmt_pesos }}</td>
                     <td><span class="badge badge-stock">{{ p.stock or 0 }} uds</span></td>
-                    <td>
-                        <div class="btn-group">
-                            <a href="/productos/{{ p.id }}/editar" class="btn btn-outline btn-sm">Editar</a>
-                            <a href="/precios/producto/{{ p.id }}" class="btn btn-outline btn-sm">Precio</a>
-                        </div>
-                    </td>
+                    <td></td>
                 </tr>
                 {% endfor %}
                 {% if not productos %}
-                <tr id="empty-row"><td colspan="9" style="text-align:center;padding:32px;color:#94a3b8;">No hay productos. <a href="/productos/nuevo">Agregá el primero</a></td></tr>
+                <tr id="empty-row"><td colspan="11" style="text-align:center;padding:32px;color:#94a3b8;">No hay productos. <a href="/productos/nuevo">Agregá el primero</a></td></tr>
                 {% endif %}
             </tbody>
         </table>
@@ -120,7 +117,7 @@ function filtrarProductos() {
         var tbody = document.getElementById('prod-tbody');
         var tr = document.createElement('tr');
         tr.id = 'empty-row';
-        tr.innerHTML = '<td colspan="9" style="text-align:center;padding:32px;color:#94a3b8;">Sin resultados para esta búsqueda.</td>';
+        tr.innerHTML = '<td colspan="11" style="text-align:center;padding:32px;color:#94a3b8;">Sin resultados para esta búsqueda.</td>';
         tbody.appendChild(tr); e = tr;
     }
     if (e) e.style.display = visibles === 0 ? '' : 'none';

@@ -77,9 +77,10 @@ def init_db():
     """)
     conn.commit()
     # Migrations for existing databases
-    for col in ["publicar", "costo_usd"]:
+    for col in ["publicar", "costo_usd", "referencia"]:
+        tipo = "TEXT DEFAULT ''" if col == "referencia" else ("REAL DEFAULT 0" if col == "costo_usd" else "INTEGER DEFAULT 0")
         try:
-            conn.execute(f"ALTER TABLE productos ADD COLUMN {col} {'REAL DEFAULT 0' if col == 'costo_usd' else 'INTEGER DEFAULT 0'}")
+            conn.execute(f"ALTER TABLE productos ADD COLUMN {col} {tipo}")
             conn.commit()
         except Exception:
             pass

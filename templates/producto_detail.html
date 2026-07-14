@@ -1,7 +1,7 @@
 {% extends "layout.html" %}
 {% block content %}
 <div class="page-header">
-    <h2>{{ p.nombre }}</h2>
+    <h2>{{ p.nombre }} <span style="font-size:14px;font-family:monospace;color:#6366f1;font-weight:400;margin-left:8px;">{{ p.referencia or '' }}</span></h2>
     <div class="btn-group">
         <a href="/productos/{{ p.id }}/editar" class="btn btn-primary">✏️ Editar</a>
         <a href="/precios/producto/{{ p.id }}" class="btn btn-outline">💰 Calcular precio</a>

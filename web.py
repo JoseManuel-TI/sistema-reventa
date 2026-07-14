@@ -192,6 +192,9 @@ def productos_listar():
     proveedor_id = request.args.get("proveedor", type=int)
     categoria = request.args.get("categoria")
     productos = db.get_productos(proveedor_id=proveedor_id, categoria=categoria)
+    for p in productos:
+        imgs = db.get_imagenes(p["id"])
+        p["imagen"] = imgs[0]["archivo"] if imgs else None
     categorias = sorted(set(p.get("categoria") for p in productos if p.get("categoria")))
     return render_template("productos.html", productos=productos, categorias=categorias, **_ruta("/productos"))
 
@@ -303,12 +306,13 @@ def productos_editar(id):
             pv_cambiado_manualmente = (precio_venta is not None and
                                        abs(precio_venta - (pv_original or 0)) > 0.001)
 
+            margen = 35
             if costo_usd is not None and costo_usd > 0 and costo_usd_cambiado and not pv_cambiado_manualmente:
-                calc = pcalc.calcular_precio_desde_usd(costo_usd, margen=35)
+                calc = pcalc.calcular_precio_desde_usd(costo_usd, margen=margen)
                 precio_venta = calc["precio_final"]
                 costo = calc["costo_ars"]
             elif costo is not None and costo > 0 and costo_cambiado and not pv_cambiado_manualmente:
-                precio_venta = pcalc.calcular_precio_venta_rapido(costo, margen=35)
+                precio_venta = pcalc.calcular_precio_venta_rapido(costo, margen=margen)
 
             db.update_producto(id,
                 nombre=nombre,
@@ -317,6 +321,7 @@ def productos_editar(id):
                 costo=costo,
                 costo_usd=costo_usd,
                 precio_venta=precio_venta,
+                margen_porcentaje=margen,
                 categoria=request.form.get("categoria", "").strip(),
                 stock=stock,
                 iva_porcentaje=iva,
