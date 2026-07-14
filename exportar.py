@@ -95,7 +95,10 @@ def exportar_catalogo_html(productos, nombre_archivo=None):
         </div>
         """
 
-    html = template.replace("{{TARJETAS}}", tarjetas)
+    # Use an HTML comment marker in the template to avoid accidental Jinja
+    # parsing when templates are processed via Flask. Replace that marker
+    # with the generated cards HTML.
+    html = template.replace("<!--TARJETAS-->", tarjetas)
     with open(ruta, "w", encoding="utf-8") as f:
         f.write(html)
     return ruta
