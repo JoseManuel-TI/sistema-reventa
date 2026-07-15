@@ -7,6 +7,7 @@ Uso:
 """
 
 import os
+import re
 import shutil
 import traceback
 import logging
@@ -736,9 +737,72 @@ def pedidos_estado(id):
 
 # ─── Servir imágenes ─────────────────────────────────────────────
 
+def _normalize_text(text):
+    return re.sub(r'[^a-z0-9]+', ' ', text.lower()).strip()
+
+
+def _best_image_match(product_name):
+    normalized_name = _normalize_text(product_name)
+    best_file = None
+    best_score = 0
+    for root, _, files in os.walk(IMAGENES_DIR):
+        for file_name in files:
+            if file_name == '.DS_Store':
+                continue
+            stem = os.path.splitext(file_name)[0]
+            normalized_file = _normalize_text(stem)
+            file_tokens = set(normalized_file.split())
+            score = sum(1 for token in normalized_name.split() if token in file_tokens)
+            if score > best_score:
+                best_score = score
+                best_file = os.path.relpath(os.path.join(root, file_name), IMAGENES_DIR)
+    return best_file if best_score > 0 else None
+
+
 @app.route("/imagenes/<path:filename>")
 def servir_imagen(filename):
-    return send_from_directory(IMAGENES_DIR, filename)
+    try:
+        return send_from_directory(IMAGENES_DIR, filename)
+    except Exception:
+        basename = os.path.basename(filename)
+
+        # First fallback: exact basename anywhere under imagenes/
+        for root, _, files in os.walk(IMAGENES_DIR):
+            if basename in files:
+                rel_path = os.path.relpath(os.path.join(root, basename), IMAGENES_DIR)
+                return send_from_directory(IMAGENES_DIR, rel_path)
+
+        # Second fallback: if the DB has the broken path, try to match by product name.
+        conn = db.get_connection()
+        row = conn.execute(
+            "SELECT producto_id FROM imagenes WHERE archivo = ? OR archivo LIKE ? LIMIT 1",
+            (filename, f"%{filename}"),
+        ).fetchone()
+        if row:
+            producto = db.get_producto(row["producto_id"])
+            if producto:
+                best_match = _best_image_match(producto["nombre"])
+                if best_match:
+                    return send_from_directory(IMAGENES_DIR, best_match)
+
+        # Third fallback: match by basename tokens against any image file.
+        normalized_basename = _normalize_text(os.path.splitext(basename)[0])
+        best_file = None
+        best_score = 0
+        for root, _, files in os.walk(IMAGENES_DIR):
+            for file_name in files:
+                if file_name == '.DS_Store':
+                    continue
+                stem = os.path.splitext(file_name)[0]
+                normalized_file = _normalize_text(stem)
+                score = sum(1 for token in normalized_basename.split() if token in normalized_file.split())
+                if score > best_score:
+                    best_score = score
+                    best_file = os.path.relpath(os.path.join(root, file_name), IMAGENES_DIR)
+        if best_file and best_score > 1:
+            return send_from_directory(IMAGENES_DIR, best_file)
+
+        raise
 
 
 # ─── Configuración ─────────────────────────────────────────────────
