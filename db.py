@@ -3,10 +3,16 @@ import os
 import json
 from datetime import datetime
 
-DB_PATH = os.path.join(os.path.dirname(__file__), "data", "productos.db")
+BASE_DIR = os.path.dirname(__file__)
+DATA_DIR = os.environ.get("APP_DATA_DIR")
+if not DATA_DIR and os.environ.get("RAILWAY_ENVIRONMENT"):
+    DATA_DIR = "/data"
+DATA_DIR = DATA_DIR or os.path.join(BASE_DIR, "data")
+DB_PATH = os.environ.get("DATABASE_PATH") or os.path.join(DATA_DIR, "productos.db")
 
 
 def get_connection():
+    os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
     conn = sqlite3.connect(DB_PATH, timeout=20)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")

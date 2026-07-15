@@ -14,8 +14,21 @@ import shutil
 from datetime import datetime
 
 BASE_DIR = os.path.dirname(__file__)
-EXPORT_DIR = os.path.join(BASE_DIR, "data", "whatsapp_export")
-IMAGENES_DIR = os.path.join(BASE_DIR, "imagenes", "proveedores")
+DATA_DIR = os.environ.get("APP_DATA_DIR")
+if not DATA_DIR and os.environ.get("RAILWAY_ENVIRONMENT"):
+    DATA_DIR = "/data"
+DATA_DIR = DATA_DIR or os.path.join(BASE_DIR, "data")
+IMAGENES_BASE_DIR = os.environ.get("IMAGES_DIR") or (
+    os.path.join(DATA_DIR, "imagenes")
+    if os.environ.get("RAILWAY_ENVIRONMENT")
+    else os.path.join(BASE_DIR, "imagenes")
+)
+EXPORT_DIR = os.path.join(DATA_DIR, "whatsapp_export")
+IMAGENES_DIR = os.path.join(IMAGENES_BASE_DIR, "proveedores")
+
+
+def _ruta_imagen_web(path):
+    return os.path.join("imagenes", os.path.relpath(path, IMAGENES_BASE_DIR))
 
 
 def _listar_archivos_txt():
@@ -788,7 +801,7 @@ def auto_crear_productos(resultado, margen=35):
             # Link image
             img_path = c.get("imagen_copiada")
             if img_path:
-                rel_path = os.path.relpath(img_path, BASE_DIR)
+                rel_path = _ruta_imagen_web(img_path)
                 db.add_imagen(pid, rel_path, es_principal=True)
 
             creados.append({
@@ -820,7 +833,7 @@ def escanear_carpeta_imagenes(proveedor):
     for f in archivos:
         nombre = os.path.splitext(f)[0].replace("_", " ").replace("-", " ").title()
         productos.append({
-            "archivo": os.path.relpath(os.path.join(carpeta, f), BASE_DIR),
+            "archivo": _ruta_imagen_web(os.path.join(carpeta, f)),
             "nombre_sugerido": nombre,
             "descripcion": "",
         })

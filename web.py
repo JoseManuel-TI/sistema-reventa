@@ -28,13 +28,35 @@ from flask import (
 from werkzeug.utils import secure_filename
 
 BASE_DIR = os.path.dirname(__file__)
+DATA_DIR = os.environ.get("APP_DATA_DIR")
+if not DATA_DIR and os.environ.get("RAILWAY_ENVIRONMENT"):
+    DATA_DIR = "/data"
+DATA_DIR = DATA_DIR or os.path.join(BASE_DIR, "data")
 app = Flask(__name__, template_folder=os.path.join(BASE_DIR, "templates"),
             static_folder=os.path.join(BASE_DIR, "static"))
 app.secret_key = os.environ.get("SESSION_SECRET") or os.urandom(24).hex()
 app.register_blueprint(tienda)
 
-IMAGENES_DIR = os.path.join(BASE_DIR, "imagenes")
-EXPORTS_DIR = os.path.join(BASE_DIR, "exports")
+IMAGENES_DIR = os.environ.get("IMAGES_DIR") or (
+    os.path.join(DATA_DIR, "imagenes")
+    if os.environ.get("RAILWAY_ENVIRONMENT")
+    else os.path.join(BASE_DIR, "imagenes")
+)
+EXPORTS_DIR = os.environ.get("EXPORTS_DIR") or (
+    os.path.join(DATA_DIR, "exports")
+    if os.environ.get("RAILWAY_ENVIRONMENT")
+    else os.path.join(BASE_DIR, "exports")
+)
+
+
+def _image_web_path(path):
+    return os.path.join("imagenes", os.path.relpath(path, IMAGENES_DIR))
+
+
+def _image_file_path(web_path):
+    if web_path.startswith("imagenes/"):
+        return os.path.join(IMAGENES_DIR, web_path[len("imagenes/"):])
+    return os.path.join(BASE_DIR, web_path)
 
 
 # ─── Auth ─────────────────────────────────────────────────────────
@@ -99,7 +121,7 @@ def _guardar_imagen_producto(producto_id, nombre_producto, proveedor_id, imagen)
         ruta_img = os.path.join(dest_dir, nombre_img)
         imagen.save(ruta_img)
 
-        rel_path = os.path.relpath(ruta_img, BASE_DIR)
+        rel_path = _image_web_path(ruta_img)
         db.add_imagen(producto_id, rel_path, es_principal=True)
         return rel_path
     except Exception as exc:
@@ -527,7 +549,7 @@ def importar_whatsapp_route():
     if resultado["imagenes_copiadas"]:
         for i, img in enumerate(resultado["imagenes_copiadas"]):
             if i < len(candidatos):
-                candidatos[i]["archivo"] = os.path.relpath(img["destino"], BASE_DIR)
+                candidatos[i]["archivo"] = _image_web_path(img["destino"])
                 candidatos[i]["nombre_sugerido"] = os.path.splitext(os.path.basename(img["destino"]))[0][:40]
 
     return render_template("importar.html",
@@ -609,7 +631,7 @@ def importar_crear():
     )
 
     # Register image if exists
-    if archivo and os.path.exists(os.path.join(BASE_DIR, archivo)):
+    if archivo and os.path.exists(_image_file_path(archivo)):
         db.add_imagen(product_id, archivo, es_principal=True)
 
     flash(f"'{nombre}' creado desde importación.", "success")

@@ -1,14 +1,24 @@
 import argparse
 import json
 import os
+import shutil
 import sys
 
 sys.path.insert(0, os.path.dirname(__file__))
 
 import db as local_db
-from db import DB_PATH
 
 SEED_PATH = os.path.join(os.path.dirname(__file__), "data", "seed.json")
+BASE_DIR = os.path.dirname(__file__)
+DATA_DIR = os.environ.get("APP_DATA_DIR")
+if not DATA_DIR and os.environ.get("RAILWAY_ENVIRONMENT"):
+    DATA_DIR = "/data"
+DATA_DIR = DATA_DIR or os.path.join(BASE_DIR, "data")
+IMAGES_DIR = os.environ.get("IMAGES_DIR") or (
+    os.path.join(DATA_DIR, "imagenes")
+    if os.environ.get("RAILWAY_ENVIRONMENT")
+    else os.path.join(BASE_DIR, "imagenes")
+)
 
 
 def parse_args():
@@ -70,6 +80,21 @@ def seed_database(conn, data):
         )
 
 
+def copy_seed_images(data):
+    for img in data.get("imagenes", []):
+        archivo = img.get("archivo", "")
+        if not archivo.startswith("imagenes/"):
+            continue
+
+        source = os.path.join(BASE_DIR, archivo)
+        target = os.path.join(IMAGES_DIR, archivo[len("imagenes/"):])
+        if not os.path.exists(source) or os.path.exists(target):
+            continue
+
+        os.makedirs(os.path.dirname(target), exist_ok=True)
+        shutil.copy2(source, target)
+
+
 def seed_from_file(seed_path, force=False):
     if not os.path.exists(seed_path):
         print("No seed.json found, skipping seed")
@@ -79,6 +104,8 @@ def seed_from_file(seed_path, force=False):
 
     with open(seed_path, encoding="utf-8") as f:
         data = json.load(f)
+
+    copy_seed_images(data)
 
     conn = local_db.get_connection()
     existing = conn.execute("SELECT COUNT(*) as c FROM productos").fetchone()
