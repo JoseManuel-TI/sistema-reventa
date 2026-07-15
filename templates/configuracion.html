@@ -82,17 +82,23 @@
     </p>
 </form>
 
-<div class="card" style="margin-top:24px;">
+<div class="card card-spaced">
     <h3>Estado actual</h3>
     <table class="table">
         <tr><td>Banco</td><td>{{ cfg.BANCO or "—" }}</td></tr>
         <tr><td>Titular</td><td>{{ cfg.BANCO_TITULAR or "—" }}</td></tr>
-        <tr><td>CBU</td><td style="font-family:monospace">{{ cfg.BANCO_CBU or "—" }}</td></tr>
+        <tr><td>CBU</td><td class="monospace">{{ cfg.BANCO_CBU or "—" }}</td></tr>
         <tr><td>Alias</td><td>{{ cfg.BANCO_ALIAS or "—" }}</td></tr>
         <tr><td>Nombre tienda</td><td>{{ cfg.TIENDA_NOMBRE }}</td></tr>
         <tr><td>Logo</td><td>{{ cfg.TIENDA_LOGO or cfg.TIENDA_NOMBRE }}</td></tr>
-        <tr><td>Color</td><td><span style="display:inline-block;width:20px;height:20px;border-radius:4px;background:{{ cfg.TIENDA_COLOR }};vertical-align:middle;border:1px solid #d1d5db"></span> {{ cfg.TIENDA_COLOR }}</td></tr>
+        <tr><td>Color</td><td><span class="color-preview" data-color="{{ cfg.TIENDA_COLOR }}"></span> {{ cfg.TIENDA_COLOR }}</td></tr>
         <tr><td>WhatsApp</td><td><a href="{{ cfg.TIENDA_WA }}" target="_blank">{{ cfg.TIENDA_WA or "—" }}</a></td></tr>
     </table>
 </div>
+
+<script>
+    document.querySelectorAll('.color-preview').forEach(function(el) {
+        el.style.background = el.dataset.color || '#ffffff';
+    });
+</script>
 {% endblock %}

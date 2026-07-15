@@ -21,7 +21,11 @@ a:hover { text-decoration:underline; }
 
 /* Cards */
 .card { background:#fff; border-radius:12px; padding:20px; box-shadow:0 1px 3px rgba(0,0,0,0.06); margin-bottom:16px; }
+.card-spaced { margin-top:24px; }
 .card-header { font-size:14px; font-weight:600; color:#64748b; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:12px; }
+
+.monospace { font-family:monospace; }
+.color-preview { display:inline-block; width:20px; height:20px; border-radius:4px; vertical-align:middle; border:1px solid #d1d5db; margin-right:8px; }
 
 /* Stats grid */
 .stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:16px; margin-bottom:24px; }

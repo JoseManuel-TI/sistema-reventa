@@ -40,7 +40,6 @@
                 {% for p in productos %}
                 <tr data-categoria="{{ (p.categoria or '')|lower }}" data-nombre="{{ p.nombre|lower }}" data-proveedor="{{ (p.proveedor_nombre or '')|lower }}">
                     <td>{% if p.imagen %}<img src="/{{ p.imagen }}" style="width:48px;height:48px;object-fit:cover;border-radius:6px;display:block;">{% else %}<div style="width:48px;height:48px;background:#f1f5f9;border-radius:6px;"></div>{% endif %}</td>
-                    <td style="font-family:monospace;font-size:13px;color:#6366f1;">{{ p.referencia or '' }}</td>
                     <td><a href="/productos/{{ p.id }}" style="font-weight:500;">{{ p.nombre }}</a></td>
                     <td>{% if p.categoria %}<span class="badge badge-cat">{{ p.categoria }}</span>{% else %}—{% endif %}</td>
                     <td>{% if p.publicar %}✅{% else %}—{% endif %}</td>
