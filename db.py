@@ -37,8 +37,6 @@ if USE_POSTGRES:
         cur = conn.execute(q, params)
         return cur.fetchone()["id"]
 
-    def _warn_persist():
-        pass
 else:
     import sqlite3
 
@@ -61,17 +59,19 @@ else:
         cur = conn.execute(query, params)
         return cur.lastrowid
 
-    def _warn_persist():
-        if os.environ.get("RAILWAY_ENVIRONMENT"):
-            test_f = os.path.join(DATA_DIR, ".write_test")
-            try:
-                os.makedirs(DATA_DIR, exist_ok=True)
-                with open(test_f, "w") as f:
-                    f.write("ok")
-                os.remove(test_f)
-            except OSError:
-                print("⚠  Railway Volume no detectado — los datos NO persistirán tras un deploy.")
-                print("   Creá un Volume en https://railway.com/project/volumes montado en /data")
+def _warn_persist():
+    if USE_POSTGRES:
+        return
+    if os.environ.get("RAILWAY_ENVIRONMENT"):
+        test_f = os.path.join(DATA_DIR, ".write_test")
+        try:
+            os.makedirs(DATA_DIR, exist_ok=True)
+            with open(test_f, "w") as f:
+                f.write("ok")
+            os.remove(test_f)
+        except OSError:
+            print("⚠  Railway Volume no detectado — los datos NO persistirán tras un deploy.")
+            print("   Creá un Volume en https://railway.com/project/volumes montado en /data")
 
 
 _warn_persist()
