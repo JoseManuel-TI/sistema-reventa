@@ -27,7 +27,6 @@
             <a href="/precios" class="{{ 'active' if ruta == '/precios' else '' }}">💰 Precios</a>
             <a href="/pedidos" class="{{ 'active' if ruta.startswith('/pedidos') else '' }}">📋 Pedidos</a>
             <a href="/imagenes" class="{{ 'active' if ruta == '/imagenes' else '' }}">🖼️ Imágenes</a>
-            <a href="/importar" class="{{ 'active' if ruta == '/importar' else '' }}">📥 Importar</a>
             <hr style="border:none;border-top:1px solid rgba(255,255,255,0.1);margin:8px 20px;">
             <hr style="border:none;border-top:1px solid rgba(255,255,255,0.1);margin:8px 20px;">
             <a href="/configuracion" class="{{ 'active' if ruta == '/configuracion' else '' }}">⚙️ Configuración</a>
@@ -41,6 +40,12 @@
         </nav>
     </aside>
     <main class="main">
+        {% if not persist_ok and persist_msg %}
+        <div class="alert alert-error" style="background:#fef2f2;border:1px solid #fca5a5;color:#991b1b;padding:10px 16px;border-radius:8px;margin-bottom:12px;font-size:13px;">
+            ⚠️ {{ persist_msg }} — Los datos y las imágenes se perderán al reiniciar.
+            <a href="https://docs.railway.com/reference/volumes" target="_blank" style="color:#991b1b;font-weight:600;">Crear Volume</a>
+        </div>
+        {% endif %}
         {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
         {% for category, message in messages %}

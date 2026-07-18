@@ -1,108 +1,232 @@
-import sqlite3
+"""
+Database layer — supports SQLite (local) and PostgreSQL (Railway).
+Auto-detects PostgreSQL when DATABASE_URL env var is set.
+"""
+
 import os
 import json
 from datetime import datetime
+
+DATABASE_URL = os.environ.get("DATABASE_URL", "")
+USE_POSTGRES = bool(DATABASE_URL) and not DATABASE_URL.strip().startswith("sqlite")
 
 BASE_DIR = os.path.dirname(__file__)
 DATA_DIR = os.environ.get("APP_DATA_DIR")
 if not DATA_DIR and os.environ.get("RAILWAY_ENVIRONMENT"):
     DATA_DIR = "/data"
 DATA_DIR = DATA_DIR or os.path.join(BASE_DIR, "data")
-DB_PATH = os.environ.get("DATABASE_PATH") or os.path.join(DATA_DIR, "productos.db")
+
+if USE_POSTGRES:
+    import psycopg2
+    from psycopg2 import errors as pg_errors
+    from psycopg2.extras import RealDictCursor
+
+    DB_PATH = DATABASE_URL
+    IntegrityError = pg_errors.UniqueViolation
+
+    def get_connection():
+        conn = psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
+        conn.autocommit = False
+        return conn
+
+    def _sql(q):
+        return q.replace("?", "%s")
+
+    def _insert_and_get_id(conn, query, params):
+        q = _sql(query).rstrip(";") + " RETURNING id"
+        cur = conn.execute(q, params)
+        return cur.fetchone()["id"]
+
+    def _warn_persist():
+        pass
+else:
+    import sqlite3
+
+    DB_PATH = os.environ.get("DATABASE_PATH") or os.path.join(DATA_DIR, "productos.db")
+    IntegrityError = sqlite3.IntegrityError
+
+    def get_connection():
+        os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
+        conn = sqlite3.connect(DB_PATH, timeout=20)
+        conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA foreign_keys = ON")
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA busy_timeout=20000")
+        return conn
+
+    def _sql(q):
+        return q
+
+    def _insert_and_get_id(conn, query, params):
+        cur = conn.execute(query, params)
+        return cur.lastrowid
+
+    def _warn_persist():
+        if os.environ.get("RAILWAY_ENVIRONMENT"):
+            test_f = os.path.join(DATA_DIR, ".write_test")
+            try:
+                os.makedirs(DATA_DIR, exist_ok=True)
+                with open(test_f, "w") as f:
+                    f.write("ok")
+                os.remove(test_f)
+            except OSError:
+                print("⚠  Railway Volume no detectado — los datos NO persistirán tras un deploy.")
+                print("   Creá un Volume en https://railway.com/project/volumes montado en /data")
 
 
-def get_connection():
-    os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
-    conn = sqlite3.connect(DB_PATH, timeout=20)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys = ON")
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA busy_timeout=20000")
-    return conn
+_warn_persist()
+
+
+def execute(conn, query, params=None):
+    """Execute query adapting placeholders for the active backend."""
+    q = _sql(query)
+    if params is not None:
+        return conn.execute(q, params)
+    return conn.execute(q)
 
 
 def init_db():
     conn = get_connection()
-    conn.executescript("""
-        CREATE TABLE IF NOT EXISTS proveedores (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            nombre TEXT NOT NULL UNIQUE,
-            contacto TEXT,
-            notas TEXT,
-            created_at TEXT DEFAULT (datetime('now','localtime'))
-        );
+    try:
+        if USE_POSTGRES:
+            for ddl in [
+                """CREATE TABLE IF NOT EXISTS proveedores (
+                    id SERIAL PRIMARY KEY,
+                    nombre TEXT NOT NULL UNIQUE,
+                    contacto TEXT DEFAULT '',
+                    notas TEXT DEFAULT '',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )""",
+                """CREATE TABLE IF NOT EXISTS productos (
+                    id SERIAL PRIMARY KEY,
+                    nombre TEXT NOT NULL,
+                    descripcion TEXT DEFAULT '',
+                    proveedor_id INTEGER REFERENCES proveedores(id),
+                    costo DOUBLE PRECISION NOT NULL DEFAULT 0,
+                    precio_venta DOUBLE PRECISION DEFAULT 0,
+                    margen_porcentaje DOUBLE PRECISION DEFAULT 0,
+                    iva_porcentaje DOUBLE PRECISION DEFAULT 21,
+                    categoria TEXT DEFAULT '',
+                    stock INTEGER DEFAULT 0,
+                    activo INTEGER DEFAULT 1,
+                    publicar INTEGER DEFAULT 0,
+                    costo_usd DOUBLE PRECISION DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )""",
+                """CREATE TABLE IF NOT EXISTS imagenes (
+                    id SERIAL PRIMARY KEY,
+                    producto_id INTEGER NOT NULL REFERENCES productos(id) ON DELETE CASCADE,
+                    archivo TEXT NOT NULL,
+                    es_principal INTEGER DEFAULT 0
+                )""",
+                """CREATE TABLE IF NOT EXISTS pedidos (
+                    id SERIAL PRIMARY KEY,
+                    cliente_nombre TEXT NOT NULL,
+                    cliente_email TEXT NOT NULL,
+                    cliente_telefono TEXT DEFAULT '',
+                    cliente_direccion TEXT DEFAULT '',
+                    total DOUBLE PRECISION NOT NULL,
+                    estado TEXT NOT NULL DEFAULT 'pendiente',
+                    mp_preference_id TEXT DEFAULT '',
+                    mp_payment_id TEXT DEFAULT '',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )""",
+                """CREATE TABLE IF NOT EXISTS pedido_items (
+                    id SERIAL PRIMARY KEY,
+                    pedido_id INTEGER NOT NULL REFERENCES pedidos(id) ON DELETE CASCADE,
+                    producto_id INTEGER DEFAULT NULL,
+                    nombre TEXT NOT NULL,
+                    cantidad INTEGER NOT NULL,
+                    precio_unitario DOUBLE PRECISION NOT NULL,
+                    subtotal DOUBLE PRECISION NOT NULL
+                )""",
+            ]:
+                conn.execute(ddl)
+        else:
+            conn.executescript("""
+                CREATE TABLE IF NOT EXISTS proveedores (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    nombre TEXT NOT NULL UNIQUE,
+                    contacto TEXT,
+                    notas TEXT,
+                    created_at TEXT DEFAULT (datetime('now','localtime'))
+                );
+                CREATE TABLE IF NOT EXISTS productos (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    nombre TEXT NOT NULL,
+                    descripcion TEXT,
+                    proveedor_id INTEGER REFERENCES proveedores(id),
+                    costo REAL NOT NULL DEFAULT 0,
+                    precio_venta REAL DEFAULT 0,
+                    margen_porcentaje REAL DEFAULT 0,
+                    iva_porcentaje REAL DEFAULT 21,
+                    categoria TEXT,
+                    stock INTEGER DEFAULT 0,
+                    activo INTEGER DEFAULT 1,
+                    publicar INTEGER DEFAULT 0,
+                    costo_usd REAL DEFAULT 0,
+                    created_at TEXT DEFAULT (datetime('now','localtime')),
+                    updated_at TEXT DEFAULT (datetime('now','localtime'))
+                );
+                CREATE TABLE IF NOT EXISTS imagenes (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    producto_id INTEGER NOT NULL REFERENCES productos(id) ON DELETE CASCADE,
+                    archivo TEXT NOT NULL,
+                    es_principal INTEGER DEFAULT 0
+                );
+                CREATE TABLE IF NOT EXISTS pedidos (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    cliente_nombre TEXT NOT NULL,
+                    cliente_email TEXT NOT NULL,
+                    cliente_telefono TEXT DEFAULT '',
+                    cliente_direccion TEXT DEFAULT '',
+                    total REAL NOT NULL,
+                    estado TEXT NOT NULL DEFAULT 'pendiente',
+                    mp_preference_id TEXT DEFAULT '',
+                    mp_payment_id TEXT DEFAULT '',
+                    created_at TEXT DEFAULT (datetime('now','localtime')),
+                    updated_at TEXT DEFAULT (datetime('now','localtime'))
+                );
+                CREATE TABLE IF NOT EXISTS pedido_items (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    pedido_id INTEGER NOT NULL REFERENCES pedidos(id) ON DELETE CASCADE,
+                    producto_id INTEGER DEFAULT NULL,
+                    nombre TEXT NOT NULL,
+                    cantidad INTEGER NOT NULL,
+                    precio_unitario REAL NOT NULL,
+                    subtotal REAL NOT NULL
+                );
+            """)
+        conn.commit()
 
-        CREATE TABLE IF NOT EXISTS productos (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            nombre TEXT NOT NULL,
-            descripcion TEXT,
-            proveedor_id INTEGER REFERENCES proveedores(id),
-            costo REAL NOT NULL DEFAULT 0,
-            precio_venta REAL DEFAULT 0,
-            margen_porcentaje REAL DEFAULT 0,
-            iva_porcentaje REAL DEFAULT 21,
-            categoria TEXT,
-            stock INTEGER DEFAULT 0,
-            activo INTEGER DEFAULT 1,
-            publicar INTEGER DEFAULT 0,
-            costo_usd REAL DEFAULT 0,
-            created_at TEXT DEFAULT (datetime('now','localtime')),
-            updated_at TEXT DEFAULT (datetime('now','localtime'))
-        );
+        for col, typ in [("publicar", "INTEGER DEFAULT 0"), ("costo_usd", "REAL DEFAULT 0"), ("referencia", "TEXT DEFAULT ''")]:
+            try:
+                conn.execute(f"ALTER TABLE productos ADD COLUMN {col} {typ}")
+                conn.commit()
+            except Exception:
+                pass
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
 
-        CREATE TABLE IF NOT EXISTS imagenes (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            producto_id INTEGER NOT NULL REFERENCES productos(id) ON DELETE CASCADE,
-            archivo TEXT NOT NULL,
-            es_principal INTEGER DEFAULT 0
-        );
 
-        CREATE TABLE IF NOT EXISTS pedidos (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            cliente_nombre TEXT NOT NULL,
-            cliente_email TEXT NOT NULL,
-            cliente_telefono TEXT DEFAULT '',
-            cliente_direccion TEXT DEFAULT '',
-            total REAL NOT NULL,
-            estado TEXT NOT NULL DEFAULT 'pendiente',
-            mp_preference_id TEXT DEFAULT '',
-            mp_payment_id TEXT DEFAULT '',
-            created_at TEXT DEFAULT (datetime('now','localtime')),
-            updated_at TEXT DEFAULT (datetime('now','localtime'))
-        );
-
-        CREATE TABLE IF NOT EXISTS pedido_items (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            pedido_id INTEGER NOT NULL REFERENCES pedidos(id) ON DELETE CASCADE,
-            producto_id INTEGER DEFAULT NULL,
-            nombre TEXT NOT NULL,
-            cantidad INTEGER NOT NULL,
-            precio_unitario REAL NOT NULL,
-            subtotal REAL NOT NULL
-        );
-    """)
-    conn.commit()
-    # Migrations for existing databases
-    for col in ["publicar", "costo_usd", "referencia"]:
-        tipo = "TEXT DEFAULT ''" if col == "referencia" else ("REAL DEFAULT 0" if col == "costo_usd" else "INTEGER DEFAULT 0")
-        try:
-            conn.execute(f"ALTER TABLE productos ADD COLUMN {col} {tipo}")
-            conn.commit()
-        except Exception:
-            pass
-    conn.close()
-
+# ─── Proveedores ──────────────────────────────────────────────────
 
 def add_proveedor(nombre, contacto="", notas=""):
     conn = get_connection()
     try:
-        cur = conn.execute(
+        new_id = _insert_and_get_id(
+            conn,
             "INSERT INTO proveedores (nombre, contacto, notas) VALUES (?, ?, ?)",
             (nombre, contacto, notas),
         )
         conn.commit()
-        return cur.lastrowid
-    except sqlite3.IntegrityError:
+        return new_id
+    except IntegrityError:
         return None
     finally:
         conn.close()
@@ -110,9 +234,11 @@ def add_proveedor(nombre, contacto="", notas=""):
 
 def get_proveedores():
     conn = get_connection()
-    rows = conn.execute("SELECT * FROM proveedores ORDER BY nombre").fetchall()
-    conn.close()
-    return [dict(r) for r in rows]
+    try:
+        rows = conn.execute("SELECT * FROM proveedores ORDER BY nombre").fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
 
 
 def update_proveedor(proveedor_id, nombre=None, contacto=None, notas=None):
@@ -128,63 +254,73 @@ def update_proveedor(proveedor_id, nombre=None, contacto=None, notas=None):
     set_clause = ", ".join(f"{k} = ?" for k in updates)
     values = list(updates.values()) + [proveedor_id]
     conn = get_connection()
-    conn.execute(f"UPDATE proveedores SET {set_clause} WHERE id = ?", values)
-    conn.commit()
-    conn.close()
-    return True
+    try:
+        conn.execute(f"UPDATE proveedores SET {set_clause} WHERE id = ?", values)
+        conn.commit()
+        return True
+    finally:
+        conn.close()
 
+
+# ─── Productos ────────────────────────────────────────────────────
 
 def add_producto(nombre, descripcion, proveedor_id, costo, categoria="",
                  stock=0, iva_porcentaje=21, publicar=0):
     conn = get_connection()
-    cur = conn.execute(
-        """INSERT INTO productos
-           (nombre, descripcion, proveedor_id, costo, categoria, stock, iva_porcentaje, publicar)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-        (nombre, descripcion, proveedor_id, costo, categoria, stock, iva_porcentaje, publicar),
-    )
-    conn.commit()
-    product_id = cur.lastrowid
-    conn.close()
-    return product_id
+    try:
+        product_id = _insert_and_get_id(
+            conn,
+            """INSERT INTO productos
+               (nombre, descripcion, proveedor_id, costo, categoria, stock, iva_porcentaje, publicar)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            (nombre, descripcion, proveedor_id, costo, categoria, stock, iva_porcentaje, publicar),
+        )
+        conn.commit()
+        return product_id
+    finally:
+        conn.close()
 
 
 def get_productos(activos=True, proveedor_id=None, categoria=None, publicado_only=False):
     conn = get_connection()
-    query = """
-        SELECT p.*, pr.nombre as proveedor_nombre
-        FROM productos p
-        LEFT JOIN proveedores pr ON p.proveedor_id = pr.id
-        WHERE 1=1
-    """
-    params = []
-    if activos:
-        query += " AND p.activo = 1"
-    if proveedor_id:
-        query += " AND p.proveedor_id = ?"
-        params.append(proveedor_id)
-    if categoria:
-        query += " AND p.categoria = ?"
-        params.append(categoria)
-    if publicado_only:
-        query += " AND p.publicar = 1"
-    query += " ORDER BY p.created_at DESC"
-    rows = conn.execute(query, params).fetchall()
-    conn.close()
-    return [dict(r) for r in rows]
+    try:
+        query = """
+            SELECT p.*, pr.nombre as proveedor_nombre
+            FROM productos p
+            LEFT JOIN proveedores pr ON p.proveedor_id = pr.id
+            WHERE 1=1
+        """
+        params = []
+        if activos:
+            query += " AND p.activo = 1"
+        if proveedor_id:
+            query += " AND p.proveedor_id = ?"
+            params.append(proveedor_id)
+        if categoria:
+            query += " AND p.categoria = ?"
+            params.append(categoria)
+        if publicado_only:
+            query += " AND p.publicar = 1"
+        query += " ORDER BY p.created_at DESC"
+        rows = conn.execute(_sql(query), params).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
 
 
 def get_producto(producto_id):
     conn = get_connection()
-    row = conn.execute(
-        """SELECT p.*, pr.nombre as proveedor_nombre
-           FROM productos p
-           LEFT JOIN proveedores pr ON p.proveedor_id = pr.id
-           WHERE p.id = ?""",
-        (producto_id,),
-    ).fetchone()
-    conn.close()
-    return dict(row) if row else None
+    try:
+        row = conn.execute(
+            _sql("""SELECT p.*, pr.nombre as proveedor_nombre
+               FROM productos p
+               LEFT JOIN proveedores pr ON p.proveedor_id = pr.id
+               WHERE p.id = ?"""),
+            (producto_id,),
+        ).fetchone()
+        return dict(row) if row else None
+    finally:
+        conn.close()
 
 
 def update_producto(producto_id, **kwargs):
@@ -198,115 +334,151 @@ def update_producto(producto_id, **kwargs):
     set_clause = ", ".join(f"{k} = ?" for k in updates)
     values = list(updates.values()) + [producto_id]
     conn = get_connection()
-    conn.execute(f"UPDATE productos SET {set_clause} WHERE id = ?", values)
-    conn.commit()
-    conn.close()
-    return True
+    try:
+        conn.execute(f"UPDATE productos SET {set_clause} WHERE id = ?", values)
+        conn.commit()
+        return True
+    finally:
+        conn.close()
 
 
 def delete_producto(producto_id):
     conn = get_connection()
-    conn.execute("DELETE FROM productos WHERE id = ?", (producto_id,))
-    conn.commit()
-    conn.close()
+    try:
+        conn.execute("DELETE FROM productos WHERE id = ?", (producto_id,))
+        conn.commit()
+    finally:
+        conn.close()
 
+
+# ─── Imágenes ─────────────────────────────────────────────────────
 
 def add_imagen(producto_id, archivo, es_principal=False):
     conn = get_connection()
-    if es_principal:
+    try:
+        if es_principal:
+            conn.execute(
+                _sql("UPDATE imagenes SET es_principal = 0 WHERE producto_id = ?"),
+                (producto_id,),
+            )
         conn.execute(
-            "UPDATE imagenes SET es_principal = 0 WHERE producto_id = ?",
-            (producto_id,),
+            _sql("INSERT INTO imagenes (producto_id, archivo, es_principal) VALUES (?, ?, ?)"),
+            (producto_id, archivo, int(es_principal)),
         )
-    conn.execute(
-        "INSERT INTO imagenes (producto_id, archivo, es_principal) VALUES (?, ?, ?)",
-        (producto_id, archivo, int(es_principal)),
-    )
-    conn.commit()
-    conn.close()
+        conn.commit()
+    finally:
+        conn.close()
 
 
 def get_imagenes(producto_id):
     conn = get_connection()
-    rows = conn.execute(
-        "SELECT * FROM imagenes WHERE producto_id = ? ORDER BY es_principal DESC",
-        (producto_id,),
-    ).fetchall()
-    conn.close()
-    return [dict(r) for r in rows]
+    try:
+        rows = conn.execute(
+            _sql("SELECT * FROM imagenes WHERE producto_id = ? ORDER BY es_principal DESC"),
+            (producto_id,),
+        ).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
 
 
-# ─── Pedidos ───────────────────────────────────────────────────────
+# ─── Pedidos ──────────────────────────────────────────────────────
 
 def crear_pedido(cliente_nombre, cliente_email, cliente_telefono,
                  cliente_direccion, total, items):
     conn = get_connection()
-    cur = conn.execute(
-        """INSERT INTO pedidos
-           (cliente_nombre, cliente_email, cliente_telefono, cliente_direccion, total)
-           VALUES (?, ?, ?, ?, ?)""",
-        (cliente_nombre, cliente_email, cliente_telefono, cliente_direccion, total),
-    )
-    pedido_id = cur.lastrowid
-    for item in items.values():
-        conn.execute(
-            """INSERT INTO pedido_items
-               (pedido_id, producto_id, nombre, cantidad, precio_unitario, subtotal)
-               VALUES (?, ?, ?, ?, ?, ?)""",
-            (pedido_id, item.get("producto_id"), item["nombre"],
-             item["cantidad"], item["precio"],
-             item["precio"] * item["cantidad"]),
+    try:
+        pedido_id = _insert_and_get_id(
+            conn,
+            """INSERT INTO pedidos
+               (cliente_nombre, cliente_email, cliente_telefono, cliente_direccion, total)
+               VALUES (?, ?, ?, ?, ?)""",
+            (cliente_nombre, cliente_email, cliente_telefono, cliente_direccion, total),
         )
-    conn.commit()
-    conn.close()
-    return pedido_id
+        for item in items.values():
+            conn.execute(
+                _sql("""INSERT INTO pedido_items
+                   (pedido_id, producto_id, nombre, cantidad, precio_unitario, subtotal)
+                   VALUES (?, ?, ?, ?, ?, ?)"""),
+                (pedido_id, item.get("producto_id"), item["nombre"],
+                 item["cantidad"], item["precio"],
+                 item["precio"] * item["cantidad"]),
+            )
+        conn.commit()
+        return pedido_id
+    finally:
+        conn.close()
 
 
 def get_pedido(pedido_id):
     conn = get_connection()
-    row = conn.execute("SELECT * FROM pedidos WHERE id = ?", (pedido_id,)).fetchone()
-    conn.close()
-    return dict(row) if row else None
+    try:
+        row = conn.execute(
+            _sql("SELECT * FROM pedidos WHERE id = ?"), (pedido_id,)
+        ).fetchone()
+        return dict(row) if row else None
+    finally:
+        conn.close()
 
 
 def get_pedido_items(pedido_id):
     conn = get_connection()
-    rows = conn.execute(
-        "SELECT * FROM pedido_items WHERE pedido_id = ?", (pedido_id,)
-    ).fetchall()
-    conn.close()
-    return [dict(r) for r in rows]
+    try:
+        rows = conn.execute(
+            _sql("SELECT * FROM pedido_items WHERE pedido_id = ?"), (pedido_id,)
+        ).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
 
 
 def get_pedidos(estado=None):
     conn = get_connection()
-    query = "SELECT * FROM pedidos"
-    params = []
-    if estado:
-        query += " WHERE estado = ?"
-        params.append(estado)
-    query += " ORDER BY created_at DESC"
-    rows = conn.execute(query, params).fetchall()
-    conn.close()
-    return [dict(r) for r in rows]
+    try:
+        query = "SELECT * FROM pedidos"
+        params = []
+        if estado:
+            query += " WHERE estado = ?"
+            params.append(estado)
+        query += " ORDER BY created_at DESC"
+        rows = conn.execute(_sql(query), params).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
 
 
 def actualizar_pedido_mp(pedido_id, mp_preference_id=""):
     conn = get_connection()
-    conn.execute(
-        "UPDATE pedidos SET mp_preference_id = ?, updated_at = datetime('now','localtime') WHERE id = ?",
-        (mp_preference_id, pedido_id),
-    )
-    conn.commit()
-    conn.close()
+    try:
+        if USE_POSTGRES:
+            conn.execute(
+                "UPDATE pedidos SET mp_preference_id = %s, updated_at = NOW() WHERE id = %s",
+                (mp_preference_id, pedido_id),
+            )
+        else:
+            conn.execute(
+                "UPDATE pedidos SET mp_preference_id = ?, updated_at = datetime('now','localtime') WHERE id = ?",
+                (mp_preference_id, pedido_id),
+            )
+        conn.commit()
+    finally:
+        conn.close()
 
 
 def actualizar_estado_pedido(pedido_id, estado, mp_payment_id=""):
     conn = get_connection()
-    conn.execute(
-        """UPDATE pedidos SET estado = ?, mp_payment_id = ?,
-           updated_at = datetime('now','localtime') WHERE id = ?""",
-        (estado, mp_payment_id, pedido_id),
-    )
-    conn.commit()
-    conn.close()
+    try:
+        if USE_POSTGRES:
+            conn.execute(
+                "UPDATE pedidos SET estado = %s, mp_payment_id = %s, updated_at = NOW() WHERE id = %s",
+                (estado, mp_payment_id, pedido_id),
+            )
+        else:
+            conn.execute(
+                """UPDATE pedidos SET estado = ?, mp_payment_id = ?,
+                   updated_at = datetime('now','localtime') WHERE id = ?""",
+                (estado, mp_payment_id, pedido_id),
+            )
+        conn.commit()
+    finally:
+        conn.close()

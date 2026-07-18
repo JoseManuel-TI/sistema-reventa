@@ -21,7 +21,6 @@ from datetime import datetime
 
 import db
 import precios as pcalc
-import importar_whatsapp
 import exportar
 
 
@@ -126,6 +125,10 @@ def cmd_productos_editar(args):
                 try:
                     if "," in val:
                         val = val.replace(".", "").replace(",", ".")
+                    if key in ("costo", "precio_venta"):
+                        val = float(val)
+                    else:
+                        val = int(val)
                 except ValueError:
                     print(f"  Valor inválido, se ignora.")
                     continue
@@ -463,66 +466,6 @@ def cmd_precios_producto(args):
         print("  ✓ Precio guardado en el producto.")
 
 
-# ─── Importar ─────────────────────────────────────────────────────
-
-def cmd_importar_whatsapp(args):
-    try:
-        resultado = importar_whatsapp.importar_desde_txt(args.proveedor, args.archivo)
-    except FileNotFoundError as e:
-        print(f"Error: {e}")
-        return
-
-    if args.auto:
-        print(f"\n⏳ Creando productos automáticamente...\n")
-        res = importar_whatsapp.auto_crear_productos(resultado, margen=args.margen)
-        print(f"✅ Creados: {len(res['creados'])}")
-        print(f"⏭️  Saltados: {len(res['saltados'])}")
-        print(f"❌ Errores: {len(res['errores'])}")
-        if res["creados"]:
-            print(f"\n{'ID':<4} {'Nombre':<35} {'Costo':>10} {'Venta':>10} {'Img':<4}")
-            print("-" * 65)
-            for c in res["creados"]:
-                img = "✓" if c["imagen"] else "✗"
-                print(f"{c['id']:<4} {c['nombre'][:34]:<35} ${c['costo']:>7,.0f} ${c['precio_venta']:>7,.0f} {img:<4}")
-        if res["saltados"]:
-            print(f"\n⏭️  Saltados ({len(res['saltados'])}):")
-            for s in res["saltados"]:
-                nom = s["candidato"].get("nombre_sugerido", "?")
-                print(f"  · {nom} — {s['motivo']}")
-        if res["errores"]:
-            print(f"\n❌ Errores ({len(res['errores'])}):")
-            for e in res["errores"]:
-                print(f"  · {e['motivo']}")
-        return
-
-    print(f"\nProveedor: {resultado['proveedor']}")
-    print(f"Archivo: {resultado['archivo']}")
-    print(f"\nCandidatos a producto encontrados: {len(resultado['candidatos'])}")
-    for c in resultado["candidatos"]:
-        desc = c["descripcion"][:80] if c["descripcion"] else "(sin descripción)"
-        precio = f" — ${c['precio']:,.0f}" if c.get("precio") else ""
-        print(f"  · {c['remitente']}: {desc}{precio}")
-
-    if resultado["imagenes_copiadas"]:
-        print(f"\nImágenes copiadas: {len(resultado['imagenes_copiadas'])}")
-        dest = os.path.dirname(resultado["imagenes_copiadas"][0]["destino"])
-        print(f"  → {dest}")
-
-    print(f"\n💡 Usá --auto para crear los productos automáticamente:")
-    print(f"   python app.py importar whatsapp --proveedor \"{args.proveedor}\" --auto")
-
-
-def cmd_importar_escanear(args):
-    productos = importar_whatsapp.escanear_carpeta_imagenes(args.proveedor)
-    if not productos:
-        print(f"No se encontraron imágenes en imagenes/proveedores/{args.proveedor}/")
-        return
-    print(f"\nImágenes encontradas: {len(productos)}")
-    for p in productos:
-        print(f"  · {p['nombre_sugerido']}")
-    print(f"\n💡 Agregalos con: python app.py productos agregar")
-
-
 # ─── Exportar ─────────────────────────────────────────────────────
 
 def cmd_exportar(args):
@@ -564,7 +507,6 @@ Ejemplos:
   python app.py productos agregar --proveedor 1
   python app.py precios calcular --costo 1500 --margen 35
   python app.py precios producto 1 --guardar
-  python app.py importar whatsapp --proveedor "Distribuidora X"
   python app.py exportar ml
   python app.py exportar instagram
         """,
@@ -646,22 +588,6 @@ Ejemplos:
     p2.add_argument("--margen", type=float, default=35, help="Margen de ganancia %% (default: 35)")
     p2.add_argument("--guardar", action="store_true", help="Guardar el precio calculado")
     p2.set_defaults(func=cmd_precios_producto)
-
-    # importar
-    p = sub.add_parser("importar", help="Importar productos")
-    p_sub = p.add_subparsers(dest="subcomando")
-    p_sub.required = True
-
-    p2 = p_sub.add_parser("whatsapp", help="Importar desde exportación de WhatsApp")
-    p2.add_argument("--proveedor", required=True, help="Nombre del proveedor")
-    p2.add_argument("--archivo", help="Nombre del .txt en data/whatsapp_export/")
-    p2.add_argument("--auto", action="store_true", help="Crear productos automáticamente")
-    p2.add_argument("--margen", type=float, default=35, help="Margen de ganancia %% (default: 35)")
-    p2.set_defaults(func=cmd_importar_whatsapp)
-
-    p2 = p_sub.add_parser("escanear", help="Escanea carpeta de imágenes de un proveedor")
-    p2.add_argument("--proveedor", required=True, help="Nombre del proveedor (carpeta en imagenes/proveedores/)")
-    p2.set_defaults(func=cmd_importar_escanear)
 
     # exportar
     p = sub.add_parser("exportar", help="Exportar productos")

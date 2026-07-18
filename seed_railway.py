@@ -1,3 +1,8 @@
+"""
+Seed the database from data/seed.json.
+Works with both SQLite and PostgreSQL (auto-detected via db.USE_POSTGRES).
+"""
+
 import argparse
 import json
 import os
@@ -39,45 +44,50 @@ def parse_args():
 
 
 def reset_data(conn):
-    conn.execute("PRAGMA foreign_keys = OFF")
-    conn.executescript("""
-        DELETE FROM imagenes;
-        DELETE FROM productos;
-        DELETE FROM proveedores;
-    """)
+    conn.execute("DELETE FROM imagenes")
+    conn.execute("DELETE FROM productos")
+    conn.execute("DELETE FROM proveedores")
+    if local_db.USE_POSTGRES:
+        conn.execute("ALTER SEQUENCE proveedores_id_seq RESTART WITH 1")
+        conn.execute("ALTER SEQUENCE productos_id_seq RESTART WITH 1")
+        conn.execute("ALTER SEQUENCE imagenes_id_seq RESTART WITH 1")
 
 
 def seed_database(conn, data):
     for prov in data["proveedores"]:
-        conn.execute(
+        local_db.execute(
+            conn,
             "INSERT INTO proveedores (id, nombre, contacto, notas, created_at) VALUES (?,?,?,?,?)",
-            (
-                prov["id"], prov["nombre"], prov.get("contacto", ""),
-                prov.get("notas", ""), prov.get("created_at", ""),
-            ),
+            (prov["id"], prov["nombre"], prov.get("contacto", ""),
+             prov.get("notas", ""), prov.get("created_at", "")),
         )
 
     for prod in data["productos"]:
-        conn.execute(
+        local_db.execute(
+            conn,
             """INSERT INTO productos (id, nombre, descripcion, proveedor_id, costo, precio_venta,
                margen_porcentaje, iva_porcentaje, categoria, stock, activo, publicar, costo_usd,
                created_at, updated_at)
                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-            (
-                prod["id"], prod["nombre"], prod.get("descripcion", ""),
-                prod["proveedor_id"], prod["costo"], prod["precio_venta"],
-                prod.get("margen_porcentaje", 0), prod.get("iva_porcentaje", 21),
-                prod.get("categoria", ""), prod.get("stock", 1), prod.get("activo", 1),
-                prod.get("publicar", 0), prod.get("costo_usd", 0),
-                prod.get("created_at", ""), prod.get("updated_at", ""),
-            ),
+            (prod["id"], prod["nombre"], prod.get("descripcion", ""),
+             prod["proveedor_id"], prod["costo"], prod["precio_venta"],
+             prod.get("margen_porcentaje", 0), prod.get("iva_porcentaje", 21),
+             prod.get("categoria", ""), prod.get("stock", 1), prod.get("activo", 1),
+             prod.get("publicar", 0), prod.get("costo_usd", 0),
+             prod.get("created_at", ""), prod.get("updated_at", "")),
         )
 
     for img in data["imagenes"]:
-        conn.execute(
+        local_db.execute(
+            conn,
             "INSERT INTO imagenes (id, producto_id, archivo, es_principal) VALUES (?,?,?,?)",
             (img["id"], img["producto_id"], img["archivo"], img.get("es_principal", 0)),
         )
+
+    if local_db.USE_POSTGRES:
+        conn.execute("SELECT setval('proveedores_id_seq', (SELECT COALESCE(MAX(id), 1) FROM proveedores))")
+        conn.execute("SELECT setval('productos_id_seq', (SELECT COALESCE(MAX(id), 1) FROM productos))")
+        conn.execute("SELECT setval('imagenes_id_seq', (SELECT COALESCE(MAX(id), 1) FROM imagenes))")
 
 
 def copy_seed_images(data):
@@ -85,12 +95,10 @@ def copy_seed_images(data):
         archivo = img.get("archivo", "")
         if not archivo.startswith("imagenes/"):
             continue
-
         source = os.path.join(BASE_DIR, archivo)
         target = os.path.join(IMAGES_DIR, archivo[len("imagenes/"):])
         if not os.path.exists(source) or os.path.exists(target):
             continue
-
         os.makedirs(os.path.dirname(target), exist_ok=True)
         shutil.copy2(source, target)
 
@@ -108,24 +116,30 @@ def seed_from_file(seed_path, force=False):
     copy_seed_images(data)
 
     conn = local_db.get_connection()
-    existing = conn.execute("SELECT COUNT(*) as c FROM productos").fetchone()
-    current_count = existing["c"] if existing else 0
+    try:
+        cur = local_db.execute(conn, "SELECT COUNT(*) as c FROM productos")
+        existing = cur.fetchone()
+        current_count = existing["c"] if existing else 0
 
-    if current_count > 0 and not force:
-        print(f"DB already has {current_count} productos, skipping seed")
+        if current_count > 0 and not force:
+            print(f"DB already has {current_count} productos, skipping seed")
+            return
+
+        if current_count > 0 and force:
+            print("Force reseed enabled: clearing existing database data...")
+            reset_data(conn)
+
+        seed_database(conn, data)
+        conn.commit()
+        print(
+            f"Seeded: {len(data['proveedores'])} proveedores, {len(data['productos'])} productos, {len(data['imagenes'])} imagenes"
+        )
+    except Exception as e:
+        conn.rollback()
+        print(f"Error seeding database: {e}")
+        raise
+    finally:
         conn.close()
-        return
-
-    if current_count > 0 and force:
-        print("Force reseed enabled: clearing existing database data...")
-        reset_data(conn)
-
-    seed_database(conn, data)
-    conn.commit()
-    conn.close()
-    print(
-        f"Seeded: {len(data['proveedores'])} proveedores, {len(data['productos'])} productos, {len(data['imagenes'])} imagenes"
-    )
 
 
 if __name__ == "__main__":

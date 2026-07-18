@@ -11,6 +11,8 @@ import re
 import shutil
 import traceback
 import logging
+import uuid
+from datetime import datetime
 from functools import wraps
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -18,7 +20,6 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(me
 import db
 import config
 import precios as pcalc
-import importar_whatsapp
 import exportar
 from tienda import tienda
 from flask import (
@@ -35,6 +36,7 @@ DATA_DIR = DATA_DIR or os.path.join(BASE_DIR, "data")
 app = Flask(__name__, template_folder=os.path.join(BASE_DIR, "templates"),
             static_folder=os.path.join(BASE_DIR, "static"))
 app.secret_key = os.environ.get("SESSION_SECRET") or os.urandom(24).hex()
+app.config["MAX_CONTENT_LENGTH"] = 20 * 1024 * 1024  # 20 MB
 app.register_blueprint(tienda)
 
 IMAGENES_DIR = os.environ.get("IMAGES_DIR") or (
@@ -109,6 +111,13 @@ def _guardar_imagen_producto(producto_id, nombre_producto, proveedor_id, imagen)
         return None
 
     try:
+        imagen.stream.seek(0, os.SEEK_END)
+        size = imagen.stream.tell()
+        imagen.stream.seek(0)
+        if size > 20 * 1024 * 1024:
+            flash("La imagen supera los 20 MB.", "error")
+            return None
+
         prv = db.get_proveedores()
         prv_nombre = next((p["nombre"] for p in prv if p["id"] == proveedor_id), "sin_proveedor")
         safe_prv = secure_filename(prv_nombre or "sin_proveedor") or "sin_proveedor"
@@ -117,14 +126,17 @@ def _guardar_imagen_producto(producto_id, nombre_producto, proveedor_id, imagen)
 
         ext = os.path.splitext(imagen.filename)[1].lower() or ".jpg"
         safe_nombre = secure_filename(nombre_producto or f"producto_{producto_id}") or f"producto_{producto_id}"
-        nombre_img = f"{producto_id}_{safe_nombre[:40]}{ext}"
+        unique_id = uuid.uuid4().hex[:8]
+        nombre_img = f"{producto_id}_{safe_nombre[:32]}_{unique_id}{ext}"
         ruta_img = os.path.join(dest_dir, nombre_img)
         imagen.save(ruta_img)
 
         rel_path = _image_web_path(ruta_img)
         db.add_imagen(producto_id, rel_path, es_principal=True)
+        logging.info("Imagen guardada: %s (producto %s)", rel_path, producto_id)
         return rel_path
     except Exception as exc:
+        logging.error("Error guardando imagen (producto %s): %s", producto_id, traceback.format_exc())
         flash(f"No se pudo guardar la imagen: {exc}", "error")
         return None
 
@@ -166,9 +178,25 @@ def jinja_fmt_num(valor):
     return _fmt_num(valor)
 
 
+def _check_persistent_storage():
+    """Check if data dir is persistent (not ephemeral). Returns (ok, msg)."""
+    if not os.environ.get("RAILWAY_ENVIRONMENT"):
+        return True, ""
+    test_file = os.path.join(DATA_DIR, ".persist_test")
+    try:
+        os.makedirs(os.path.dirname(test_file), exist_ok=True)
+        with open(test_file, "w") as f:
+            f.write("1")
+        ok = os.path.exists(test_file)
+        return ok, "" if ok else "Railway Volume no detectado en /data"
+    except OSError:
+        return False, "No se puede escribir en /data — ¿Volume montado?"
+
+
 @app.context_processor
 def inject_globals():
-    return {"ruta": request.path}
+    persist_ok, persist_msg = _check_persistent_storage()
+    return {"ruta": request.path, "persist_ok": persist_ok, "persist_msg": persist_msg}
 
 
 # ─── Dashboard ────────────────────────────────────────────────────
@@ -390,21 +418,22 @@ def productos_toggle_publicar(id):
 @login_required
 def imagen_eliminar(id):
     conn = db.get_connection()
-    img = conn.execute("SELECT * FROM imagenes WHERE id=?", (id,)).fetchone()
-    if not img:
-        flash("Imagen no encontrada.", "error")
+    try:
+        img = db.execute(conn, "SELECT * FROM imagenes WHERE id=?", (id,)).fetchone()
+        if not img:
+            flash("Imagen no encontrada.", "error")
+            return redirect(url_for("productos_listar"))
+        pid = img["producto_id"]
+        db.execute(conn, "DELETE FROM imagenes WHERE id=?", (id,))
+        conn.commit()
+        # Optionally delete the file
+        fpath = img["archivo"]
+        if os.path.exists(fpath) and os.path.isfile(fpath):
+            os.remove(fpath)
+        flash("Imagen eliminada.", "success")
+        return redirect(url_for("productos_detalle", id=pid))
+    finally:
         conn.close()
-        return redirect(url_for("productos_listar"))
-    pid = img["producto_id"]
-    conn.execute("DELETE FROM imagenes WHERE id=?", (id,))
-    conn.commit()
-    conn.close()
-    # Optionally delete the file
-    fpath = img["archivo"]
-    if os.path.exists(fpath) and os.path.isfile(fpath):
-        os.remove(fpath)
-    flash("Imagen eliminada.", "success")
-    return redirect(url_for("productos_detalle", id=pid))
 
 
 # ─── Proveedores ──────────────────────────────────────────────────
@@ -508,134 +537,7 @@ def precios_producto_guardar(id):
     return redirect(url_for("productos_detalle", id=id))
 
 
-# ─── Importar ─────────────────────────────────────────────────────
 
-@app.route("/importar")
-@login_required
-def importar():
-    return render_template("importar.html", candidatos=[], imagenes_copiadas=[],
-                           proveedor="", **_ruta("/importar"))
-
-
-@app.route("/importar/whatsapp")
-@login_required
-def importar_whatsapp_route():
-    proveedor = request.args.get("proveedor", "")
-
-    # Find the first txt in whatsapp_export
-    txts = [f for f in os.listdir(importar_whatsapp.EXPORT_DIR)
-            if f.endswith(".txt")] if os.path.isdir(importar_whatsapp.EXPORT_DIR) else []
-    if not txts:
-        flash("No hay archivos .txt en data/whatsapp_export/. Exportá un chat de WhatsApp con medios y ponelo ahí.", "error")
-        return redirect(url_for("importar"))
-
-    archivo = txts[0]
-    try:
-        resultado = importar_whatsapp.importar_desde_txt(proveedor or os.path.splitext(archivo)[0], archivo)
-    except Exception as e:
-        flash(f"Error al importar: {e}", "error")
-        return redirect(url_for("importar"))
-
-    candidatos = []
-    for c in resultado["candidatos"]:
-        candidatos.append({
-            "remitente": c["remitente"],
-            "descripcion": c["descripcion"],
-            "nombre_sugerido": c["descripcion"][:40] if c["descripcion"] else "Producto",
-            "archivo": "",
-        })
-
-    # Attach copied images to candidates
-    if resultado["imagenes_copiadas"]:
-        for i, img in enumerate(resultado["imagenes_copiadas"]):
-            if i < len(candidatos):
-                candidatos[i]["archivo"] = _image_web_path(img["destino"])
-                candidatos[i]["nombre_sugerido"] = os.path.splitext(os.path.basename(img["destino"]))[0][:40]
-
-    return render_template("importar.html",
-                           candidatos=candidatos,
-                           imagenes_copiadas=resultado["imagenes_copiadas"],
-                           proveedor=resultado["proveedor"],
-                           **_ruta("/importar"))
-
-
-@app.route("/importar/escanear")
-@login_required
-def importar_escanear_route():
-    proveedor = request.args.get("proveedor", "")
-    if not proveedor:
-        # Show form to pick provider
-        proveedores = db.get_proveedores()
-        if proveedores:
-            proveedor = proveedores[0]["nombre"]
-        else:
-            flash("No hay proveedores. Creá uno primero.", "error")
-            return redirect(url_for("proveedores_nuevo"))
-
-    try:
-        productos = importar_whatsapp.escanear_carpeta_imagenes(proveedor)
-    except Exception as e:
-        flash(f"Error: {e}", "error")
-        return redirect(url_for("importar"))
-
-    candidatos = [{
-        "archivo": p["archivo"],
-        "nombre_sugerido": p["nombre_sugerido"],
-        "descripcion": p["descripcion"],
-        "remitente": proveedor,
-    } for p in productos]
-
-    return render_template("importar.html",
-                           candidatos=candidatos,
-                           imagenes_copiadas=[],
-                           proveedor=proveedor,
-                           **_ruta("/importar"))
-
-
-@app.route("/importar/crear", methods=["POST"])
-@login_required
-def importar_crear():
-    nombre = request.form.get("nombre", "").strip()[:60]
-    descripcion = request.form.get("descripcion", "").strip()
-    archivo = request.form.get("archivo", "")
-    costo_str = request.form.get("costo", "0").strip()
-    proveedor_nombre = request.form.get("proveedor", "").strip()
-
-    try:
-        if "," in costo_str:
-            costo_str = costo_str.replace(".", "").replace(",", ".")
-        costo = float(costo_str)
-    except ValueError:
-        costo = 0
-
-    if not proveedor_nombre:
-        flash("Especificá el proveedor.", "error")
-        return redirect(url_for("importar_escanear_route"))
-
-    # Get or create provider
-    proveedores = db.get_proveedores()
-    prv = next((p for p in proveedores if p["nombre"].lower() == proveedor_nombre.lower()), None)
-    if not prv:
-        pid = db.add_proveedor(proveedor_nombre)
-        if not pid:
-            flash(f"Error creando proveedor {proveedor_nombre}", "error")
-            return redirect(url_for("importar"))
-        prv = {"id": pid}
-
-    # Create product
-    product_id = db.add_producto(
-        nombre=nombre or "Producto sin nombre",
-        descripcion=descripcion,
-        proveedor_id=prv["id"],
-        costo=costo,
-    )
-
-    # Register image if exists
-    if archivo and os.path.exists(_image_file_path(archivo)):
-        db.add_imagen(product_id, archivo, es_principal=True)
-
-    flash(f"'{nombre}' creado desde importación.", "success")
-    return redirect(url_for("productos_detalle", id=product_id))
 
 
 # ─── Exportar ─────────────────────────────────────────────────────
@@ -688,12 +590,13 @@ def _imagenes_orfanas():
             if not fname.lower().endswith((".jpg", ".jpeg", ".png", ".webp")):
                 continue
             rel = os.path.join("imagenes", "proveedores", prv_dir, fname)
-            # check if already linked
             conn = db.get_connection()
-            row = conn.execute(
-                "SELECT producto_id FROM imagenes WHERE archivo = ?", (rel,)
-            ).fetchone()
-            conn.close()
+            try:
+                row = db.execute(
+                    conn, "SELECT producto_id FROM imagenes WHERE archivo = ?", (rel,)
+                ).fetchone()
+            finally:
+                conn.close()
             if row is None:
                 orfanas.append({"archivo": rel, "proveedor": prv_dir})
     return orfanas
@@ -796,10 +699,12 @@ def servir_imagen(filename):
 
         # Second fallback: if the DB has the broken path, try to match by product name.
         conn = db.get_connection()
-        row = conn.execute(
+        row = db.execute(
+            conn,
             "SELECT producto_id FROM imagenes WHERE archivo = ? OR archivo LIKE ? LIMIT 1",
             (filename, f"%{filename}"),
         ).fetchone()
+        conn.close()
         if row:
             producto = db.get_producto(row["producto_id"])
             if producto:
@@ -855,7 +760,10 @@ def configuracion():
 
 # ─── Error handlers ───────────────────────────────────────────────
 
-
+@app.errorhandler(413)
+def handle_413(e):
+    flash("La imagen es demasiado grande (máximo 20 MB).", "error")
+    return redirect(request.referrer or url_for("productos_listar"))
 
 @app.errorhandler(500)
 def handle_500(e):
