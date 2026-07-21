@@ -74,6 +74,26 @@
         </label>
     </fieldset>
 
+    <fieldset>
+        <legend>Notificaciones Telegram</legend>
+        <p style="color:#666;font-size:0.9em;margin-bottom:12px;">
+            Cuando alguien haga una compra, te va a llegar un mensaje al Telegram.
+            Necesitás crear un bot con <a href="https://t.me/BotFather" target="_blank">@BotFather</a>
+            y obtener el chat ID (mandale <code>/start</code> a
+            <a href="https://t.me/userinfobot" target="_blank">@userinfobot</a>).
+        </p>
+        <label>
+            Token del bot
+            <input type="text" name="TELEGRAM_BOT_TOKEN" value="{{ cfg.TELEGRAM_BOT_TOKEN }}" placeholder="123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11">
+            <small>Lo da <a href="https://t.me/BotFather" target="_blank">@BotFather</a> al crear el bot.</small>
+        </label>
+        <label>
+            Chat ID
+            <input type="text" name="TELEGRAM_CHAT_ID" value="{{ cfg.TELEGRAM_CHAT_ID }}" placeholder="-1001234567890 o 123456789">
+            <small>ID del chat donde querés recibir los avisos (tu usuario o un grupo).</small>
+        </label>
+    </fieldset>
+
     <div class="form-actions">
         <button type="submit" class="btn btn-primary">Guardar configuración</button>
     </div>
@@ -93,6 +113,8 @@
         <tr><td>Logo</td><td>{{ cfg.TIENDA_LOGO or cfg.TIENDA_NOMBRE }}</td></tr>
         <tr><td>Color</td><td><span class="color-preview" data-color="{{ cfg.TIENDA_COLOR }}"></span> {{ cfg.TIENDA_COLOR }}</td></tr>
         <tr><td>WhatsApp</td><td><a href="{{ cfg.TIENDA_WA }}" target="_blank">{{ cfg.TIENDA_WA or "—" }}</a></td></tr>
+        <tr><td>Telegram Bot</td><td>{{ cfg.TELEGRAM_BOT_TOKEN[:12] + "…" if cfg.TELEGRAM_BOT_TOKEN else "—" }}</td></tr>
+        <tr><td>Telegram Chat ID</td><td>{{ cfg.TELEGRAM_CHAT_ID or "—" }}</td></tr>
     </table>
 </div>
 

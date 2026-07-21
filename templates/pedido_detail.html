@@ -40,7 +40,7 @@
         <table>
             <thead><tr><th>Producto</th><th>Cantidad</th><th>Precio unitario</th><th>Subtotal</th></tr></thead>
             <tbody>
-                {% for item in pedido.items %}
+                {% for item in pedido.line_items %}
                 <tr>
                     <td>{{ item.nombre }}</td>
                     <td>{{ item.cantidad }}</td>

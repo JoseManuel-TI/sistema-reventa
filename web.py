@@ -22,6 +22,7 @@ import config
 import precios as pcalc
 import exportar
 from tienda import tienda
+import notificaciones
 from flask import (
     Flask, render_template, request, redirect, url_for,
     flash, send_from_directory, session,
@@ -299,8 +300,9 @@ def productos_nuevo():
             flash(f"Producto '{nombre}' creado.", "success")
             return redirect(url_for("productos_detalle", id=pid))
 
+        dolar_blue = pcalc.get_dolar_blue()
         return render_template("producto_form.html", producto=None, proveedores=proveedores,
-                               **_ruta("/productos"))
+                               dolar_blue=dolar_blue, **_ruta("/productos"))
     except Exception as e:
         logging.error("Error en productos_nuevo: %s", traceback.format_exc())
         flash(f"Error inesperado: {e}", "error")
@@ -385,8 +387,9 @@ def productos_editar(id):
             flash("Producto actualizado.", "success")
             return redirect(url_for("productos_detalle", id=id))
 
+        dolar_blue = pcalc.get_dolar_blue()
         return render_template("producto_form.html", producto=p, proveedores=proveedores,
-                               **_ruta("/productos"))
+                               dolar_blue=dolar_blue, **_ruta("/productos"))
     except Exception as e:
         logging.error("Error en productos_editar(%s): %s", id, traceback.format_exc())
         flash(f"Error inesperado: {e}", "error")
@@ -644,7 +647,7 @@ def pedidos_detalle(id):
     if not pedido:
         flash("Pedido no encontrado.", "error")
         return redirect(url_for("pedidos_listar"))
-    pedido["items"] = db.get_pedido_items(id)
+    pedido["line_items"] = db.get_pedido_items(id)
     return render_template("pedido_detail.html", pedido=pedido, **_ruta("/pedidos"))
 
 
@@ -652,11 +655,31 @@ def pedidos_detalle(id):
 @login_required
 def pedidos_estado(id):
     estado = request.form.get("estado", "").strip()
-    if estado in ("pendiente", "pagado", "enviado", "entregado", "cancelado"):
-        db.actualizar_estado_pedido(id, estado)
-        flash(f"Pedido #{id} actualizado a '{estado}'.", "success")
-    else:
+    if estado not in ("pendiente", "pagado", "enviado", "entregado", "cancelado"):
         flash("Estado inválido.", "error")
+        return redirect(url_for("pedidos_detalle", id=id))
+
+    db.actualizar_estado_pedido(id, estado)
+    flash(f"Pedido #{id} actualizado a '{estado}'.", "success")
+
+    if estado == "pagado":
+        pedido = db.get_pedido(id)
+        items = db.get_pedido_items(id)
+        if pedido:
+            lineas = "\n".join(
+                f"  • {i['nombre']} x{i['cantidad']} = {_fmt_pesos(i['subtotal'])}"
+                for i in items
+            )
+            msg = (
+                f"💰 <b>Pedido #{id} PAGADO</b> — Preparar despacho\n\n"
+                f"👤 {pedido['cliente_nombre']}\n"
+                f"📱 {pedido.get('cliente_telefono') or '—'}\n"
+                f"🏠 {pedido.get('cliente_direccion') or '—'}\n\n"
+                f"{lineas}\n\n"
+                f"<b>Total: {_fmt_pesos(pedido['total'])}</b>"
+            )
+            notificaciones.telegram(msg)
+
     return redirect(url_for("pedidos_detalle", id=id))
 
 
@@ -751,6 +774,8 @@ def configuracion():
             "TIENDA_WA": request.form.get("TIENDA_WA", "#").strip(),
             "DOLAR_BLUE": request.form.get("DOLAR_BLUE", "1300").strip(),
             "DELIVERY_INFO": request.form.get("DELIVERY_INFO", "").strip(),
+            "TELEGRAM_BOT_TOKEN": request.form.get("TELEGRAM_BOT_TOKEN", "").strip(),
+            "TELEGRAM_CHAT_ID": request.form.get("TELEGRAM_CHAT_ID", "").strip(),
         })
         flash("Configuración guardada. Reinciá el servidor para aplicar cambios.", "success")
         return redirect(url_for("configuracion"))

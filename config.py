@@ -19,6 +19,8 @@ DEFAULTS = {
     "ADMIN_PASSWORD": "",
     "DOLAR_BLUE": "1510",
     "DELIVERY_INFO": "Se entrega dentro de las 24 hs hábiles posteriores a la confirmación del pago.",
+    "TELEGRAM_BOT_TOKEN": "",
+    "TELEGRAM_CHAT_ID": "",
 }
 
 def _load():
