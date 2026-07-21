@@ -2,7 +2,10 @@
 
 import os, json
 
-CONFIG_PATH = os.path.join(os.path.dirname(__file__), "data", "config.json")
+if os.environ.get("RAILWAY_ENVIRONMENT") or os.environ.get("RAILWAY_SERVICE_NAME"):
+    CONFIG_PATH = os.path.join("/data", "config.json")
+else:
+    CONFIG_PATH = os.path.join(os.path.dirname(__file__), "data", "config.json")
 
 DEFAULTS = {
     "BANCO": "",
