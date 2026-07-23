@@ -29,7 +29,7 @@
         <div class="form-row">
             <div class="form-group">
                 <label for="costo">Costo ($)</label>
-                <input type="number" id="costo" name="costo" class="form-control" step="0.01" value="{{ producto.costo if producto and producto.costo is not none else '' }}" required>
+                <input type="number" id="costo" name="costo" class="form-control" step="0.01" value="{{ producto.costo if producto and producto.costo is not none else '' }}">
             </div>
             <div class="form-group">
                 <label for="costo_usd">Costo (USD)</label>
@@ -86,4 +86,19 @@
         </div>
     </form>
 </div>
+
+<script>
+const DOLAR_BLUE = {{ dolar_blue }};
+const costoUsdInput = document.getElementById('costo_usd');
+const costoArsInput = document.getElementById('costo');
+
+costoUsdInput.addEventListener('input', function() {
+    const usd = parseFloat(this.value);
+    if (usd > 0) {
+        costoArsInput.value = (usd * DOLAR_BLUE).toFixed(2);
+    } else if (this.value === '') {
+        costoArsInput.value = '';
+    }
+});
+</script>
 {% endblock %}
