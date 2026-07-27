@@ -556,23 +556,19 @@ def exportar_ruta(formato):
     try:
         if formato == "ml":
             ruta = exportar.exportar_mercadolibre_csv(productos)
-            flash(f"CSV para Mercado Libre generado: {os.path.basename(ruta)}", "success")
         elif formato == "catalogo":
             ruta = exportar.exportar_catalogo_html(productos)
-            flash(f"Catálogo web generado: {os.path.basename(ruta)}", "success")
         elif formato == "instagram":
             ruta = exportar.exportar_instagram_html(productos, base_url=request.host_url.rstrip("/"))
-            flash(f"Posts para Instagram generados: {os.path.basename(ruta)}", "success")
         elif formato == "json":
             ruta = exportar.exportar_json(productos)
-            flash(f"JSON exportado: {os.path.basename(ruta)}", "success")
         else:
             flash("Formato no soportado.", "error")
             return redirect(url_for("dashboard"))
+        return redirect(url_for("servir_export", filename=os.path.basename(ruta)))
     except Exception as e:
         flash(f"Error al exportar: {e}", "error")
-
-    return redirect(url_for("dashboard"))
+        return redirect(url_for("dashboard"))
 
 
 # ─── Imágenes (admin) ─────────────────────────────────────────────
