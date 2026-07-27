@@ -556,16 +556,21 @@ def exportar_ruta(formato):
     try:
         if formato == "ml":
             ruta = exportar.exportar_mercadolibre_csv(productos)
+            with open(ruta, encoding="utf-8-sig") as f:
+                return f.read(), 200, {"Content-Type": "text/csv; charset=utf-8-sig", "Content-Disposition": f"attachment; filename={os.path.basename(ruta)}"}
         elif formato == "catalogo":
             ruta = exportar.exportar_catalogo_html(productos)
         elif formato == "instagram":
             ruta = exportar.exportar_instagram_html(productos, base_url=request.host_url.rstrip("/"))
         elif formato == "json":
             ruta = exportar.exportar_json(productos)
+            with open(ruta, encoding="utf-8") as f:
+                return f.read(), 200, {"Content-Type": "application/json; charset=utf-8", "Content-Disposition": f"attachment; filename={os.path.basename(ruta)}"}
         else:
             flash("Formato no soportado.", "error")
             return redirect(url_for("dashboard"))
-        return send_from_directory(os.path.dirname(ruta), os.path.basename(ruta))
+        with open(ruta, encoding="utf-8") as f:
+            return f.read(), 200, {"Content-Type": "text/html; charset=utf-8"}
     except Exception as e:
         flash(f"Error al exportar: {e}", "error")
         return redirect(url_for("dashboard"))
