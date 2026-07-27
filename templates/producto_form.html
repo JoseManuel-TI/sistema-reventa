@@ -89,16 +89,36 @@
 
 <script>
 const DOLAR_BLUE = {{ dolar_blue }};
+const MARGEN = 35;
 const costoUsdInput = document.getElementById('costo_usd');
 const costoArsInput = document.getElementById('costo');
+const precioVentaInput = document.getElementById('precio_venta');
 
-costoUsdInput.addEventListener('input', function() {
-    const usd = parseFloat(this.value);
+function calcularPrecioVenta(costoArs) {
+    const c = parseFloat(costoArs);
+    if (c > 0) return (c / (1 - MARGEN / 100)).toFixed(2);
+    return '';
+}
+
+function actualizarDesdeUSD() {
+    const usd = parseFloat(costoUsdInput.value);
     if (usd > 0) {
-        costoArsInput.value = (usd * DOLAR_BLUE).toFixed(2);
-    } else if (this.value === '') {
+        const costoArs = usd * DOLAR_BLUE;
+        costoArsInput.value = costoArs.toFixed(2);
+        precioVentaInput.value = calcularPrecioVenta(costoArs);
+    } else {
         costoArsInput.value = '';
+        precioVentaInput.value = '';
     }
-});
+}
+
+function actualizarDesdeCostoArs() {
+    if (!costoUsdInput.value || parseFloat(costoUsdInput.value) <= 0) {
+        precioVentaInput.value = calcularPrecioVenta(costoArsInput.value);
+    }
+}
+
+costoUsdInput.addEventListener('input', actualizarDesdeUSD);
+costoArsInput.addEventListener('input', actualizarDesdeCostoArs);
 </script>
 {% endblock %}

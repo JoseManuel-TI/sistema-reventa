@@ -6,7 +6,7 @@
 {% else %}
 <div class="product-grid">
     {% for p in productos %}
-    <a href="/tienda/{{ p.id }}" class="product-card" data-categoria="{{ (p.categoria or '')|lower }}" data-nombre="{{ p.nombre|lower }}">
+    <a href="/tienda/{{ p.id }}" class="product-card {% if p.stock == 0 %}agotado{% endif %}" data-categoria="{{ (p.categoria or '')|lower }}" data-nombre="{{ p.nombre|lower }}">
         {% if p.imagen %}
         <img src="/{{ p.imagen }}" alt="{{ p.nombre }}" loading="lazy">
         {% else %}
@@ -17,6 +17,7 @@
             <div class="price">$ {{ p.precio_venta|fmt_pesos }}</div>
             {% if p.categoria %}<div class="cat-label">{{ p.categoria }}</div>{% endif %}
             <div class="shipping-badge">Envío gratis</div>
+            {% if p.stock == 0 %}<div class="agotado-badge">Agotado</div>{% endif %}
         </div>
     </a>
     {% endfor %}

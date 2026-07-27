@@ -100,6 +100,14 @@ def cmd_productos_agregar(args):
         stock=args.stock or 0,
         iva_porcentaje=args.iva or 21,
     )
+
+    # Auto-calcular precio de venta si no se especificó
+    if hasattr(args, 'precio_venta') and args.precio_venta is not None:
+        db.update_producto(pid, precio_venta=args.precio_venta, margen_porcentaje=args.margen)
+    else:
+        margen = getattr(args, 'margen', 35)
+        pv = pcalc.calcular_precio_venta_rapido(args.costo, margen=margen)
+        db.update_producto(pid, precio_venta=pv, margen_porcentaje=margen)
     print(f"Producto '{args.nombre}' creado (ID {pid}).")
 
 
@@ -552,6 +560,8 @@ Ejemplos:
     p2.add_argument("--categoria", help="Categoría")
     p2.add_argument("--stock", type=int, default=0, help="Stock inicial")
     p2.add_argument("--iva", type=float, default=21, help="IVA %% (default: 21)")
+    p2.add_argument("--precio-venta", type=float, help="Precio de venta (omitir para calcular automático)")
+    p2.add_argument("--margen", type=float, default=35, help="Margen de ganancia %% (default: 35)")
     p2.set_defaults(func=cmd_productos_agregar)
 
     p2 = p_sub.add_parser("editar", help="Editar producto (interactivo)")

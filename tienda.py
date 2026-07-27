@@ -30,11 +30,16 @@ def _cant_carrito():
     return sum(i["cantidad"] for i in _get_carrito().values())
 
 
-def _estimar_entrega():
-    """Calcula fecha estimada: 24 hs hábiles desde hoy."""
-    hoy = datetime.now()
+def _estimar_entrega(hora_corte=14):
+    """Calcula fecha estimada con corte a las 2 PM.
+    Antes de las 2 PM en día hábil → hoy.
+    Después de las 2 PM o fin de semana → próximo día hábil.
+    """
+    ahora = datetime.now()
+    if ahora.hour < hora_corte and ahora.weekday() < 5:
+        return "hoy"
     habiles = 0
-    d = hoy
+    d = ahora
     while habiles < 1:
         d += timedelta(days=1)
         if d.weekday() < 5:
@@ -122,7 +127,10 @@ def carrito_agregar(id):
 
     cantidad = max(int(request.form.get("cantidad", 1)), 1)
     stock = p.get("stock") or 0
-    if stock > 0 and cantidad > stock:
+    if stock == 0:
+        flash("Producto agotado.", "error")
+        return redirect(url_for("tienda.producto", id=id))
+    if cantidad > stock:
         flash(f"Stock insuficiente. Disponible: {stock}", "error")
         return redirect(url_for("tienda.producto", id=id))
 
@@ -177,7 +185,10 @@ def comprar_ahora(id):
 
     cantidad = max(int(request.form.get("cantidad", 1)), 1)
     stock = p.get("stock") or 0
-    if stock > 0 and cantidad > stock:
+    if stock == 0:
+        flash("Producto agotado.", "error")
+        return redirect(url_for("tienda.producto", id=id))
+    if cantidad > stock:
         flash(f"Stock insuficiente. Disponible: {stock}", "error")
         return redirect(url_for("tienda.producto", id=id))
 

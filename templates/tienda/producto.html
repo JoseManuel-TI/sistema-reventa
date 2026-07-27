@@ -28,10 +28,13 @@
 
         {% if p.stock and p.stock > 0 %}
         <p class="stock ok">Stock disponible</p>
+        {% elif p.stock == 0 %}
+        <p class="stock agotado">Agotado</p>
         {% else %}
         <p class="stock low">Consultar disponibilidad</p>
         {% endif %}
 
+        {% if not p.stock == 0 %}
         <form action="/carrito/agregar/{{ p.id }}" method="POST" class="buy-form">
             <div class="qty-picker">
                 <button type="button" onclick="this.parentNode.querySelector('input').stepDown();">−</button>
@@ -41,8 +44,9 @@
             <button type="submit" class="btn-buy">Agregar al carrito</button>
             <button type="submit" class="btn-buy-now" formaction="/comprar-ahora/{{ p.id }}">Comprar ahora</button>
         </form>
+        {% endif %}
 
-        <div class="delivery-badge">🚚 Llega entre el <strong>lunes</strong> y el <strong>miércoles</strong></div>
+        <div class="delivery-badge">🚚 Envío gratis. {% if entrega_estimada == "hoy" %}Llega <strong>hoy</strong>{% else %}Llega el <strong>{{ entrega_estimada }}</strong>{% endif %}</div>
 
         {% if p.descripcion %}
         <div class="desc-section">
