@@ -565,7 +565,7 @@ def exportar_ruta(formato):
         else:
             flash("Formato no soportado.", "error")
             return redirect(url_for("dashboard"))
-        return redirect(url_for("servir_export", filename=os.path.basename(ruta)))
+        return send_from_directory(os.path.dirname(ruta), os.path.basename(ruta))
     except Exception as e:
         flash(f"Error al exportar: {e}", "error")
         return redirect(url_for("dashboard"))
