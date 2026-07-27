@@ -12,8 +12,15 @@ import os
 from datetime import datetime
 
 BASE_DIR = os.path.dirname(__file__)
-EXPORTS_DIR = os.path.join(BASE_DIR, "exports")
 TEMPLATES_DIR = os.path.join(BASE_DIR, "templates")
+
+_env_exports = os.environ.get("EXPORTS_DIR")
+if _env_exports:
+    EXPORTS_DIR = _env_exports
+elif os.environ.get("RAILWAY_ENVIRONMENT"):
+    EXPORTS_DIR = os.path.join("/data", "exports")
+else:
+    EXPORTS_DIR = os.path.join(BASE_DIR, "exports")
 
 
 def _preparar_productos(productos):
