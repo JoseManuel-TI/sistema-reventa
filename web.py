@@ -561,7 +561,7 @@ def exportar_ruta(formato):
             ruta = exportar.exportar_catalogo_html(productos)
             flash(f"Catálogo web generado: {os.path.basename(ruta)}", "success")
         elif formato == "instagram":
-            ruta = exportar.exportar_instagram_html(productos)
+            ruta = exportar.exportar_instagram_html(productos, base_url=request.host_url.rstrip("/"))
             flash(f"Posts para Instagram generados: {os.path.basename(ruta)}", "success")
         elif formato == "json":
             ruta = exportar.exportar_json(productos)

@@ -84,7 +84,8 @@ def exportar_catalogo_html(productos, nombre_archivo=None):
     tarjetas = ""
     for p in productos:
         img = p.get("imagen_principal") or ""
-        precio = f"$ {p.get('precio_venta'):,.2f}".replace(",", ".") if p.get("precio_venta") else "Consultar"
+        pv = p.get("precio_venta")
+        precio = f"$ {pv:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".") if pv else "Consultar"
         tarjetas += f"""
         <div class="card">
             {"<img src='{}' alt='{}'>".format(img, p["nombre"]) if img else "<div class='sin-imagen'>Sin imagen</div>"}
@@ -132,11 +133,12 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 
 # ─── Instagram 9:16 ───────────────────────────────────────────────
 
-def exportar_instagram_html(productos, nombre_archivo=None):
+def exportar_instagram_html(productos, nombre_archivo=None, base_url="https://clickya.net"):
     """
     Genera un HTML con tarjetas en formato 9:16 (1080x1920).
     Ideal para capturar pantalla y subir a Instagram / WhatsApp.
     """
+    from config import get as cfg_get
     if not nombre_archivo:
         fecha = datetime.now().strftime("%Y%m%d_%H%M")
         nombre_archivo = f"instagram_{fecha}.html"
@@ -153,16 +155,21 @@ def exportar_instagram_html(productos, nombre_archivo=None):
     else:
         template = _instagram_default_template()
 
+    wa_link = cfg_get("TIENDA_WA") or "https://wa.me/5491126268359"
     tarjetas = ""
     for p in productos:
         img = p.get("imagen_principal") or ""
+        if img and not img.startswith(("http://", "https://")):
+            img = f"{base_url.rstrip('/')}/{img.lstrip('/')}"
         desc = p.get("descripcion", "")[:120]
-        precio = f"$ {p.get('precio_venta'):,.2f}".replace(",", ".") if p.get("precio_venta") else "Consultar"
+        pv = p.get("precio_venta")
+        precio = f"$ {pv:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".") if pv else "Consultar"
         card = template
         card = card.replace("{{IMAGEN}}", img)
         card = card.replace("{{NOMBRE}}", p["nombre"])
         card = card.replace("{{DESCRIPCION}}", desc)
         card = card.replace("{{PRECIO}}", precio)
+        card = card.replace("{{WA_LINK}}", wa_link)
         tarjetas += card + "\n"
 
     html = f"""<!DOCTYPE html>

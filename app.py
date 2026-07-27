@@ -493,7 +493,7 @@ def cmd_exportar(args):
     elif args.formato == "catalogo":
         ruta = exportar.exportar_catalogo_html(productos, args.output)
     elif args.formato == "instagram":
-        ruta = exportar.exportar_instagram_html(productos, args.output)
+        ruta = exportar.exportar_instagram_html(productos, args.output, base_url="https://clickya.net")
     elif args.formato == "json":
         ruta = exportar.exportar_json(productos, args.output)
     else:
