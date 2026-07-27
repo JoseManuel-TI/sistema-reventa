@@ -755,6 +755,14 @@ def servir_imagen(filename):
         raise
 
 
+# ─── Servir exportaciones ─────────────────────────────────────────
+
+@app.route("/exports/<path:filename>")
+@login_required
+def servir_export(filename):
+    return send_from_directory(EXPORTS_DIR, filename)
+
+
 # ─── Configuración ─────────────────────────────────────────────────
 
 @app.route("/configuracion", methods=["GET", "POST"])
