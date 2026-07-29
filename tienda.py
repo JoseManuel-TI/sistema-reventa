@@ -242,6 +242,50 @@ def checkout_procesar():
     return redirect(url_for("tienda.gracias", id=pedido_id))
 
 
+# ─── Google Merchant Center XML Feed ─────────────────────────────
+
+@tienda.route("/productos.xml")
+def merchant_feed():
+    productos = db.get_productos(publicado_only=True)
+    productos = [p for p in productos if p.get("precio_venta") and p["precio_venta"] > 0]
+    _productos_con_imagen(productos)
+
+    from flask import Response
+    from xml.sax.saxutils import escape
+
+    items = []
+    for p in productos:
+        imgs = db.get_imagenes(p["id"])
+        img = imgs[0]["archivo"] if imgs else ""
+        if img and not img.startswith("http"):
+            img = request.host_url.rstrip("/") + "/" + img
+        link = url_for("tienda.producto", id=p["id"], _external=True)
+        desc = escape((p.get("descripcion") or p["nombre"])[:5000])
+        name = escape(p["nombre"][:150])
+        items.append(f"""    <item>
+      <g:id>{p['id']}</g:id>
+      <g:title>{name}</g:title>
+      <g:description>{desc}</g:description>
+      <g:link>{escape(link)}</g:link>
+      <g:image_link>{escape(img)}</g:image_link>
+      <g:availability>{'in_stock' if p.get('stock', 0) > 0 else 'out_of_stock'}</g:availability>
+      <g:price>{p['precio_venta']:.2f} ARS</g:price>
+      <g:condition>new</g:condition>
+      <g:brand>{escape(STORE_NAME)}</g:brand>
+    </item>""")
+
+    xml = f"""<?xml version="1.0" encoding="UTF-8"?>
+<rss xmlns:g="http://base.google.com/ns/1.0" version="2.0">
+  <channel>
+    <title>{escape(STORE_NAME)}</title>
+    <link>{request.host_url}</link>
+    <description>{escape(STORE_NAME)} - Productos</description>
+{chr(10).join(items)}
+  </channel>
+</rss>"""
+    return Response(xml, mimetype="application/xml; charset=utf-8")
+
+
 # ─── Confirmación ──────────────────────────────────────────────────
 
 @tienda.route("/gracias/<int:id>")

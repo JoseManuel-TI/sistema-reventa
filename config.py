@@ -24,6 +24,10 @@ DEFAULTS = {
     "DELIVERY_INFO": "Se entrega dentro de las 24 hs hábiles posteriores a la confirmación del pago.",
     "TELEGRAM_BOT_TOKEN": "",
     "TELEGRAM_CHAT_ID": "",
+    "FB_PAGE_TOKEN": "",
+    "FB_PAGE_ID": "",
+    "IG_BUSINESS_ID": "",
+    "PUBLIC_URL": "https://clickya.net",
 }
 
 def _load():

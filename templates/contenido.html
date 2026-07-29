@@ -1,0 +1,94 @@
+{% extends "layout.html" %}
+{% block content %}
+<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:16px;">
+  <h1 style="margin:0;">📱 Calendario de Contenido</h1>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+    <span id="ig-status" style="font-size:12px;color:#999;"></span>
+    <form action="/contenido/programar" method="POST" style="display:inline;">
+      <button type="submit" class="btn btn-primary">Programar todos</button>
+    </form>
+    <form action="/contenido/publicar-pendientes" method="POST" style="display:inline;">
+      <button type="submit" class="btn btn-outline" style="background:#25D366;color:#fff;border:none;">Publicar pendientes ahora</button>
+    </form>
+  </div>
+</div>
+
+<script>
+fetch('/api/instagram-status').then(r=>r.json()).then(d=>{
+  document.getElementById('ig-status').textContent = d.ok ? '📸 Instagram: ' + d.msg : '📸 Instagram: ' + d.msg;
+  document.getElementById('ig-status').style.color = d.ok ? '#10b981' : '#ef4444';
+});
+</script>
+
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:20px;">
+  <div style="background:#fff;border-radius:8px;padding:14px;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,0.06);">
+    <div style="font-size:28px;font-weight:700;">{{ stats.total }}</div>
+    <div style="font-size:12px;color:#666;">Total</div>
+  </div>
+  <div style="background:#fff;border-radius:8px;padding:14px;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,0.06);">
+    <div style="font-size:28px;font-weight:700;color:#f59e0b;">{{ stats.pendientes }}</div>
+    <div style="font-size:12px;color:#666;">Pendientes</div>
+  </div>
+  <div style="background:#fff;border-radius:8px;padding:14px;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,0.06);">
+    <div style="font-size:28px;font-weight:700;color:#10b981;">{{ stats.publicados }}</div>
+    <div style="font-size:12px;color:#666;">Publicados</div>
+  </div>
+  {% if proxima %}
+  <div style="background:#fff;border-radius:8px;padding:14px;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,0.06);">
+    <div style="font-size:14px;font-weight:600;">Próxima</div>
+    <div style="font-size:12px;color:#666;">Prod #{{ proxima.producto_id }}</div>
+    <div style="font-size:12px;color:#666;">{{ proxima.fecha }}</div>
+  </div>
+  {% endif %}
+</div>
+
+{% if publicaciones %}
+<table class="table">
+  <thead>
+    <tr>
+      <th>ID</th>
+      <th>Producto</th>
+      <th>Estado</th>
+      <th>Programado</th>
+      <th>Publicado</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for pub in publicaciones %}
+    <tr>
+      <td>{{ pub.id }}</td>
+      <td>
+        <a href="/productos/{{ pub.producto_id }}">{{ pub.producto_nombre or '?' }}</a>
+      </td>
+      <td>
+        {% if pub.estado == 'publicado' %}
+        <span style="color:#10b981;font-weight:600;">✅ Publicado</span>
+        {% elif pub.estado == 'pendiente' %}
+        <span style="color:#f59e0b;">⏳ Pendiente</span>
+        {% elif pub.estado == 'error' %}
+        <span style="color:#ef4444;">❌ Error</span>
+        {% else %}
+        <span style="color:#999;">{{ pub.estado }}</span>
+        {% endif %}
+      </td>
+      <td>{{ pub.programada_para or '-' }}</td>
+      <td>{{ pub.publicada_en or '-' }}</td>
+      <td>
+        {% if pub.estado == 'pendiente' %}
+        <form action="/contenido/publicar/{{ pub.producto_id }}" method="POST" style="display:inline;">
+          <button type="submit" class="btn btn-sm" style="background:#25D366;color:#fff;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;">Publicar ahora</button>
+        </form>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<div class="empty">
+  <p>Sin publicaciones programadas.</p>
+  <p style="font-size:13px;color:#999;">Usá "Programar todos" para generar el calendario automático.</p>
+</div>
+{% endif %}
+{% endblock %}

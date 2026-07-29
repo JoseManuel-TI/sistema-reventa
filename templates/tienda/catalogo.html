@@ -1,4 +1,6 @@
 {% extends "tienda/layout.html" %}
+{% set og_title = store_name ~ ' - Todos los productos' %}
+{% set og_desc = 'Descubrí todos nuestros productos con envío gratis. Comprá online desde tu casa.' %}
 {% block content %}
 <h1 class="page-title">Productos</h1>
 {% if not productos %}

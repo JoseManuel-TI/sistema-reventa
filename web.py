@@ -21,11 +21,12 @@ import db
 import config
 import precios as pcalc
 import exportar
+import contenido as cnt
 from tienda import tienda
 import notificaciones
 from flask import (
     Flask, render_template, request, redirect, url_for,
-    flash, send_from_directory, session,
+    flash, send_from_directory, session, jsonify,
 )
 from werkzeug.utils import secure_filename
 
@@ -576,6 +577,61 @@ def exportar_ruta(formato):
         return redirect(url_for("dashboard"))
 
 
+# ─── Contenido / Redes ──────────────────────────────────────────────
+
+@app.route("/api/instagram-status")
+@login_required
+def api_instagram_status():
+    import instagram_api as ig
+    ok, msg = ig.verificar_conexion()
+    return jsonify({"ok": ok, "msg": msg})
+
+
+@app.route("/contenido")
+@login_required
+def contenido_calendario():
+    pubs = cnt.listar_publicaciones(limit=50)
+    proxima = cnt.proxima_publicacion()
+    stats = {"total": len(pubs), "pendientes": sum(1 for p in pubs if p["estado"] == "pendiente"),
+             "publicados": sum(1 for p in pubs if p["estado"] == "publicado")}
+    return render_template("contenido.html", publicaciones=pubs, proxima=proxima, stats=stats, **_ruta("/contenido"))
+
+
+@app.route("/contenido/publicar/<int:id>", methods=["POST"])
+@login_required
+def contenido_publicar_ahora(id):
+    p = db.get_producto(id)
+    if not p:
+        flash("Producto no encontrado.", "error")
+        return redirect(url_for("contenido_calendario"))
+    caption = cnt.generar_caption(p)
+    ok, msg = cnt.postear_telegram(p, caption)
+    if ok:
+        cnt.programar_publicacion(id)
+        flash(f"✅ Publicado #{id}", "success")
+    else:
+        flash(f"❌ Error: {msg}", "error")
+    return redirect(url_for("contenido_calendario"))
+
+
+@app.route("/contenido/programar", methods=["POST"])
+@login_required
+def contenido_programar_todos():
+    count = cnt.programar_todos()
+    flash(f"Programadas {count} publicaciones.", "success")
+    return redirect(url_for("contenido_calendario"))
+
+
+@app.route("/contenido/publicar-pendientes", methods=["POST"])
+@login_required
+def contenido_publicar_pendientes():
+    result = cnt.publicar_pendientes(base_url=request.host_url.rstrip("/"))
+    ok = sum(1 for _, r, _ in result if r)
+    err = sum(1 for _, r, _ in result if not r)
+    flash(f"Publicadas: {ok} ✅  |  Errores: {err} ❌", "success" if ok else "error")
+    return redirect(url_for("contenido_calendario"))
+
+
 # ─── Imágenes (admin) ─────────────────────────────────────────────
 
 IMAGENES_PROVEEDORES_DIR = os.path.join(IMAGENES_DIR, "proveedores")
@@ -785,6 +841,9 @@ def configuracion():
             "DELIVERY_INFO": request.form.get("DELIVERY_INFO", "").strip(),
             "TELEGRAM_BOT_TOKEN": request.form.get("TELEGRAM_BOT_TOKEN", "").strip(),
             "TELEGRAM_CHAT_ID": request.form.get("TELEGRAM_CHAT_ID", "").strip(),
+            "FB_PAGE_TOKEN": request.form.get("FB_PAGE_TOKEN", "").strip(),
+            "FB_PAGE_ID": request.form.get("FB_PAGE_ID", "").strip(),
+            "IG_BUSINESS_ID": request.form.get("IG_BUSINESS_ID", "").strip(),
         })
         flash("Configuración guardada. Reinciá el servidor para aplicar cambios.", "success")
         return redirect(url_for("configuracion"))

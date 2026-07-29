@@ -167,13 +167,17 @@ def exportar_instagram_html(productos, nombre_archivo=None, base_url="https://cl
     for p in productos:
         img = p.get("imagen_principal") or ""
         if img and not img.startswith(("http://", "https://")):
-            img = f"{base_url.rstrip('/')}/{img.lstrip('/')}"
+            if base_url:
+                img = f"{base_url.rstrip('/')}/{img.lstrip('/')}"
+            else:
+                img = img.lstrip("/")
         desc = p.get("descripcion", "")[:120]
         pv = p.get("precio_venta")
         precio = f"$ {pv:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".") if pv else "Consultar"
         card = template
         card = card.replace("{{IMAGEN}}", img)
         card = card.replace("{{NOMBRE}}", p["nombre"])
+        card = card.replace("{{NOMBRE_WA}}", p["nombre"].replace(" ", "%20"))
         card = card.replace("{{DESCRIPCION}}", desc)
         card = card.replace("{{PRECIO}}", precio)
         card = card.replace("{{WA_LINK}}", wa_link)
@@ -210,8 +214,8 @@ def _instagram_default_template():
     <h2>{{NOMBRE}}</h2>
     <p class="desc">{{DESCRIPCION}}</p>
     <p class="precio">{{PRECIO}}</p>
-    <a class="cta" href="https://wa.me/5411XXXXXXXX?text=Hola%2C+quiero+{{NOMBRE}}">Consultar por WhatsApp</a>
-    <div class="watermark">@tunegocio</div>
+    <a class="cta" href="{{WA_LINK}}?text=Hola%2C+quiero+{{NOMBRE_WA}}">Consultar por WhatsApp</a>
+    <div class="watermark">@clickya.ar</div>
 </div>"""
 
 

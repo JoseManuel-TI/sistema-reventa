@@ -94,6 +94,30 @@
         </label>
     </fieldset>
 
+    <fieldset>
+        <legend>📸 Instagram (publicación automática)</legend>
+        <p class="field-desc">
+            Configurá la API de Instagram para publicar productos automáticamente.
+            Necesitás una <strong>cuenta de Instagram Business</strong> vinculada a una página de Facebook.
+            Seguí la guía en <code>instagram_api.py</code> para obtener los tokens.
+        </p>
+        <label>
+            Facebook Page Token
+            <input type="text" name="FB_PAGE_TOKEN" value="{{ cfg.FB_PAGE_TOKEN }}" placeholder="EAAF...">
+            <small>Token de acceso de página de Facebook (permisos: instagram_basic, instagram_content_publish).</small>
+        </label>
+        <label>
+            Facebook Page ID
+            <input type="text" name="FB_PAGE_ID" value="{{ cfg.FB_PAGE_ID }}" placeholder="123456789">
+            <small>ID de la página de Facebook vinculada a Instagram.</small>
+        </label>
+        <label>
+            Instagram Business ID
+            <input type="text" name="IG_BUSINESS_ID" value="{{ cfg.IG_BUSINESS_ID }}" placeholder="17841400000000000">
+            <small>ID de la cuenta de Instagram Business (se obtiene desde Graph API).</small>
+        </label>
+    </fieldset>
+
     <div class="form-actions">
         <button type="submit" class="btn btn-primary">Guardar configuración</button>
     </div>
@@ -115,6 +139,8 @@
         <tr><td>WhatsApp</td><td><a href="{{ cfg.TIENDA_WA }}" target="_blank">{{ cfg.TIENDA_WA or "—" }}</a></td></tr>
         <tr><td>Telegram Bot</td><td>{{ cfg.TELEGRAM_BOT_TOKEN[:12] + "…" if cfg.TELEGRAM_BOT_TOKEN else "—" }}</td></tr>
         <tr><td>Telegram Chat ID</td><td>{{ cfg.TELEGRAM_CHAT_ID or "—" }}</td></tr>
+        <tr><td>Instagram Business ID</td><td>{{ cfg.IG_BUSINESS_ID or "—" }}</td></tr>
+        <tr><td>Instagram Token</td><td>{{ "✅ Configurado" if cfg.FB_PAGE_TOKEN else "❌ No configurado" }}</td></tr>
     </table>
 </div>
 

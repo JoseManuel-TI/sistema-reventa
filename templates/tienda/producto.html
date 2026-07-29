@@ -1,5 +1,25 @@
 {% extends "tienda/layout.html" %}
+{% set og_title = p.nombre %}
+{% set og_desc = (p.descripcion or '')[:200] %}
+{% set og_image = request.host_url.rstrip('/') + '/' + (imagenes[0].archivo if imagenes else '') %}
+{% set og_type = 'product' %}
 {% block content %}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Product",
+  "name": {{ p.nombre|tojson }},
+  "description": {{ (p.descripcion or '')[:300]|tojson }},
+  "image": {{ (imagenes[0].archivo if imagenes else '')|tojson }},
+  "offers": {
+    "@type": "Offer",
+    "price": "{{ p.precio_venta }}",
+    "priceCurrency": "ARS",
+    "availability": "{% if p.stock and p.stock > 0 %}https://schema.org/InStock{% else %}https://schema.org/OutOfStock{% endif %}",
+    "url": "{{ request.url }}"
+  }
+}
+</script>
 <div class="product-detail">
     <div class="gallery-section">
         <div class="gallery-main">

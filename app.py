@@ -22,6 +22,7 @@ from datetime import datetime
 import db
 import precios as pcalc
 import exportar
+import contenido
 
 
 def cmd_init(args):
@@ -502,6 +503,46 @@ def cmd_exportar(args):
     print(f"Exportado: {ruta}")
 
 
+# ─── Publicar contenido ────────────────────────────────────────────
+
+def cmd_publicar_post(args):
+    if args.producto:
+        p = db.get_producto(args.producto)
+        if not p:
+            print("Producto no encontrado.")
+            return
+        caption = contenido.generar_caption(p)
+        ok, msg = contenido.postear_telegram(p, caption)
+        if args.guardar:
+            contenido.programar_publicacion(p["id"])
+        print(f"{'✅' if ok else '❌'} Publicado producto #{p['id']}: {msg}")
+    elif args.auto:
+        result = contenido.publicar_pendientes()
+        if not result:
+            print("Sin publicaciones pendientes.")
+        for pid, ok, msg in result:
+            print(f"{'✅' if ok else '❌'} Prod#{pid}: {msg}")
+    elif args.programar:
+        count = contenido.programar_todos(args.programar)
+        print(f"Programadas {count} publicaciones nuevas.")
+    elif args.calendario:
+        pubs = contenido.listar_publicaciones(limit=30)
+        if not pubs:
+            print("Sin publicaciones programadas.")
+        else:
+            print(f"{'ID':>3} {'Prod':>4} {'Estado':12s} {'Fecha':14s} {'Producto'}")
+            print("-" * 70)
+            for pub in pubs:
+                print(f"{pub['id']:>3} {pub['producto_id']:>4} {pub['estado']:12s} {pub['programada_para'] or '':14s} {(pub['producto_nombre'] or '?')[:40]}")
+    else:
+        print("Usá --producto ID, --auto, --programar [fecha], o --calendario")
+
+
+def cmd_publicar_programar(args):
+    count = contenido.programar_todos()
+    print(f"Programadas {count} publicaciones nuevas.")
+
+
 # ─── Main ─────────────────────────────────────────────────────────
 
 def main():
@@ -607,6 +648,16 @@ Ejemplos:
     p.add_argument("--proveedor", type=int, help="Filtrar por proveedor")
     p.add_argument("--categoria", help="Filtrar por categoría")
     p.set_defaults(func=cmd_exportar)
+
+    # publicar (redes)
+    p = sub.add_parser("publicar", help="Gestionar publicaciones en redes")
+    p.add_argument("--producto", type=int, help="ID del producto a publicar")
+    p.add_argument("--auto", action="store_true", help="Publicar todas las pendientes")
+    p.add_argument("--programar", nargs="?", const="", metavar="FECHA",
+                   help="Programar todos los productos (opcional: fecha inicio YYYY-MM-DD)")
+    p.add_argument("--calendario", action="store_true", help="Ver calendario de publicaciones")
+    p.add_argument("--guardar", action="store_true", help="Guardar en historial al publicar")
+    p.set_defaults(func=cmd_publicar_post)
 
     args = parser.parse_args()
     args.func(args)

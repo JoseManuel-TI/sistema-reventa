@@ -3,9 +3,38 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>{{ titulo or store_name }} · {{ store_name }}</title>
+<meta name="description" content="{{ meta_desc or tienda_descripcion or 'Compra online los mejores productos con envío gratis.' }}">
+<meta name="theme-color" content="{{ tienda_color }}">
+<meta property="og:site_name" content="{{ store_name }}">
+<meta property="og:title" content="{{ og_title or store_name }}">
+<meta property="og:description" content="{{ og_desc or tienda_descripcion or 'Compra online los mejores productos con envío gratis.' }}">
+<meta property="og:image" content="{{ og_image or '' }}">
+<meta property="og:url" content="{{ request.url }}">
+<meta property="og:type" content="{{ og_type or 'website' }}">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="{{ og_title or store_name }}">
+<meta name="twitter:description" content="{{ og_desc or tienda_descripcion or 'Compra online los mejores productos con envío gratis.' }}">
+<meta name="twitter:image" content="{{ og_image or '' }}">
+<link rel="canonical" href="{{ request.url }}">
+<title>{{ og_title or store_name }} · {{ store_name }}</title>
 <style>:root{--primary:{{ tienda_color }};--primary-dark:{{ tienda_color }};}</style>
 <link rel="stylesheet" href="/static/tienda.css">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Store",
+  "name": "{{ store_name }}",
+  "url": "{{ request.host_url }}",
+  "description": "{{ tienda_descripcion or 'Tienda online' }}",
+  "currenciesAccepted": "ARS",
+  "paymentAccepted": ["Transferencia bancaria", "Efectivo"],
+  "contactPoint": {
+    "@type": "ContactPoint",
+    "telephone": "{{ wa_link|replace('https://wa.me/','')|replace('549','+54 9 ') }}",
+    "contactType": "sales"
+  }
+}
+</script>
 </head>
 <body>
 <header class="topbar">
