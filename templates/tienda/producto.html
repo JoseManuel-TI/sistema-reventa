@@ -135,7 +135,7 @@ document.querySelectorAll('.qty-picker button').forEach(b => {
         e.stopPropagation();
         if (menu.classList.contains('open')) { cerrar(); return; }
         if (navigator.share) {
-            navigator.share({ title: titulo, text: texto, url: url }).catch(function(){});
+            navigator.share({ title: titulo, text: texto }).catch(function(){});
         } else {
             menu.classList.add('open');
             btn.setAttribute('aria-expanded', 'true');
