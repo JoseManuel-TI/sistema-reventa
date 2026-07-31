@@ -1,7 +1,8 @@
 {% extends "tienda/layout.html" %}
 {% set og_title = p.nombre %}
 {% set og_desc = (p.descripcion or '')[:200] %}
-{% set og_image = request.host_url.rstrip('/') + '/' + (imagenes[0].archivo if imagenes else '') %}
+{% set og_image = (public_url or request.host_url.rstrip('/')) + '/' + (imagenes[0].archivo if imagenes else 'static/brand/logo.svg') %}
+{% set og_image_alt = p.nombre %}
 {% set og_type = 'product' %}
 {% block content %}
 <script type="application/ld+json">
@@ -68,6 +69,31 @@
 
         <div class="delivery-badge">🚚 Envío gratis. {% if entrega_estimada == "hoy" %}Llega <strong>hoy</strong>{% else %}Llega el <strong>{{ entrega_estimada }}</strong>{% endif %}</div>
 
+        <div class="share-section">
+            <button type="button" class="btn-share" id="btn-share" aria-haspopup="true" aria-expanded="false">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+                Compartir
+            </button>
+            <div class="share-menu" id="share-menu" role="menu">
+                <a role="menuitem" data-share="whatsapp" target="_blank" rel="noopener">
+                    <svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" fill="#25D366"><path d="M16 3.2C9.4 3.2 4 8.6 4 15.2c0 2.4.6 4.8 1.8 6.9L4 28.8l6.8-1.8c2 1.1 4.4 1.8 6.8 1.8 6.6 0 12-5.4 12-12S22.6 3.2 16 3.2zm5.5 16.9c-.2.7-1.3 1.3-1.8 1.4-.5.1-1 .2-1.7-.1-.5-.2-1.1-.3-1.9-.7-3.3-1.4-5.4-4.7-5.6-4.9-.2-.2-1.3-1.8-1.3-3.4s.8-2.4 1.1-2.7c.3-.3.6-.4.8-.4h.6c.2 0 .4 0 .6.5.2.5.7 1.8.8 1.9.1.1.1.3 0 .4-.1.2-.1.3-.3.5-.2.2-.4.4-.5.6-.2.2-.3.4-.1.7.2.3.9 1.5 2 2.4 1.4 1.2 2.5 1.6 2.9 1.8.3.2.5.2.7-.1.2-.3.8-1 1-1.3.2-.3.4-.3.7-.2.3.1 1.7.8 2 1 .3.2.5.3.6.4.1.2.1.8-.1 1.5z"/></svg>
+                    WhatsApp
+                </a>
+                <a role="menuitem" data-share="telegram" target="_blank" rel="noopener">
+                    <svg viewBox="0 0 24 24" fill="#0088cc"><path d="M9.04 15.51l-.38 3.69c.54 0 .78-.23 1.06-.51l2.55-2.43 5.29 3.87c.97.54 1.66.26 1.92-.9l3.47-16.31c.31-1.4-.52-1.94-1.43-1.6L1.13 9.22C-.46 9.78-.4 10.74.92 11.13l5.35 1.67L18.2 4.83c.53-.35 1.02-.16.62.19L9.04 15.51z"/></svg>
+                    Telegram
+                </a>
+                <a role="menuitem" data-share="facebook" target="_blank" rel="noopener">
+                    <svg viewBox="0 0 24 24" fill="#1877f2"><path d="M24 12.07C24 5.4 18.63 0 12 0S0 5.4 0 12.07c0 6.03 4.39 11.03 10.13 11.93v-8.44H7.08v-3.49h3.05V9.41c0-3.02 1.79-4.69 4.53-4.69 1.31 0 2.69.24 2.69.24v2.97h-1.52c-1.49 0-1.96.93-1.96 1.89v2.26h3.33l-.53 3.49h-2.8V24C19.61 23.1 24 18.1 24 12.07z"/></svg>
+                    Facebook
+                </a>
+                <button type="button" role="menuitem" data-share="copy">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                    Copiar enlace
+                </button>
+            </div>
+        </div>
+
         {% if p.descripcion %}
         <div class="desc-section">
             <h3>Descripción</h3>
@@ -86,5 +112,76 @@ document.querySelectorAll('.qty-picker button').forEach(b => {
         input.dispatchEvent(ev);
     });
 });
+</script>
+<script>
+(function () {
+    var btn = document.getElementById('btn-share');
+    var menu = document.getElementById('share-menu');
+    if (!btn || !menu) return;
+
+    var url = window.location.origin + '/s/' + {{ p.id }};
+    var titulo = {{ p.nombre|tojson }};
+    if (titulo.length > 60) titulo = titulo.slice(0, 57) + '…';
+    var precio = {{ ('$ ' + (p.precio_venta|fmt_pesos))|tojson }};
+    var texto = titulo + ' — ' + precio + '\n' + url;
+
+    function cerrar() {
+        menu.classList.remove('open');
+        btn.setAttribute('aria-expanded', 'false');
+    }
+
+    btn.addEventListener('click', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (menu.classList.contains('open')) { cerrar(); return; }
+        if (navigator.share) {
+            navigator.share({ title: titulo, text: texto, url: url }).catch(function(){});
+        } else {
+            menu.classList.add('open');
+            btn.setAttribute('aria-expanded', 'true');
+        }
+    });
+
+    menu.querySelectorAll('[data-share]').forEach(function (item) {
+        item.addEventListener('click', function (ev) {
+            var tipo = item.getAttribute('data-share');
+            if (tipo === 'copy') {
+                ev.preventDefault();
+                copiarEnlace();
+                return;
+            }
+            var href = '';
+            if (tipo === 'whatsapp') href = 'https://wa.me/?text=' + encodeURIComponent(texto);
+            else if (tipo === 'telegram') href = 'https://t.me/share/url?url=' + encodeURIComponent(url) + '&text=' + encodeURIComponent(titulo + ' $ ' + precio);
+            else if (tipo === 'facebook') href = 'https://www.facebook.com/sharer/sharer.php?u=' + encodeURIComponent(url);
+            item.setAttribute('href', href);
+            cerrar();
+        });
+    });
+
+    document.addEventListener('click', function (e) {
+        if (!menu.contains(e.target) && e.target !== btn) cerrar();
+    });
+
+    function copiarEnlace() {
+        function ok() {
+            var original = btn.innerHTML;
+            btn.innerHTML = '✅ Enlace copiado';
+            setTimeout(function () { btn.innerHTML = original; }, 2000);
+            cerrar();
+        }
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(url).then(ok).catch(function () {});
+        } else {
+            var ta = document.createElement('textarea');
+            ta.value = url;
+            document.body.appendChild(ta);
+            ta.select();
+            try { document.execCommand('copy'); } catch (e) {}
+            document.body.removeChild(ta);
+            ok();
+        }
+    }
+})();
 </script>
 {% endblock %}

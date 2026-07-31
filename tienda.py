@@ -3,7 +3,7 @@
 from datetime import datetime, timedelta
 from flask import (
     Blueprint, render_template, request, redirect, url_for,
-    flash, session,
+    flash, session, abort,
 )
 
 import db
@@ -66,6 +66,7 @@ def inject_globals():
         "delivery_info": DELIVERY_INFO,
         "entrega_estimada": _estimar_entrega(),
         "cant_carrito": _cant_carrito(),
+        "public_url": (config.get("PUBLIC_URL") or "").rstrip("/"),
     }
 
 
@@ -105,6 +106,15 @@ def producto(id):
     return render_template("tienda/producto.html",
                            p=p, imagenes=imgs,
                            store_name=STORE_NAME, peso=_pesos)
+
+
+@tienda.route("/s/<int:id>")
+def enlace_corto(id):
+    """URL corta para compartir: redirige a la ficha del producto."""
+    p = db.get_producto(id)
+    if not p or not p.get("precio_venta") or p["precio_venta"] <= 0:
+        abort(404)
+    return redirect(url_for("tienda.producto", id=id))
 
 
 # ─── Carrito ───────────────────────────────────────────────────────

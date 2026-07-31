@@ -6,9 +6,11 @@
 <meta name="description" content="{{ meta_desc or tienda_descripcion or 'Compra online los mejores productos con envío gratis.' }}">
 <meta name="theme-color" content="{{ tienda_color }}">
 <meta property="og:site_name" content="{{ store_name }}">
+<meta property="og:locale" content="es_AR">
 <meta property="og:title" content="{{ og_title or store_name }}">
 <meta property="og:description" content="{{ og_desc or tienda_descripcion or 'Compra online los mejores productos con envío gratis.' }}">
 <meta property="og:image" content="{{ og_image or '' }}">
+<meta property="og:image:alt" content="{{ og_image_alt or og_title or store_name }}">
 <meta property="og:url" content="{{ request.url }}">
 <meta property="og:type" content="{{ og_type or 'website' }}">
 <meta name="twitter:card" content="summary_large_image">
