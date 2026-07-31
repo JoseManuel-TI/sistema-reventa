@@ -1,5 +1,6 @@
 """Public shop: catalog, cart, checkout, bank transfer payment."""
 
+import os
 from datetime import datetime, timedelta
 from flask import (
     Blueprint, render_template, request, redirect, url_for,
@@ -13,6 +14,9 @@ tienda = Blueprint("tienda", __name__, template_folder="templates")
 
 STORE_NAME = config.get("TIENDA_NOMBRE")
 STORE_WA = config.get("TIENDA_WA")
+
+_CSS_PATH = os.path.join(os.path.dirname(__file__), "static", "tienda.css")
+CSS_VERSION = str(int(os.path.getmtime(_CSS_PATH))) if os.path.exists(_CSS_PATH) else "1"
 
 CARRITO_KEY = "carrito"
 
@@ -67,6 +71,7 @@ def inject_globals():
         "entrega_estimada": _estimar_entrega(),
         "cant_carrito": _cant_carrito(),
         "public_url": (config.get("PUBLIC_URL") or "").rstrip("/"),
+        "css_version": CSS_VERSION,
     }
 
 
