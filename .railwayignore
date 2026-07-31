@@ -1,0 +1,16 @@
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+*.db
+*.db-shm
+*.db-wal
+exports/
+data/config.json
+data/import_state.json
+data/*.db
+data/*.db-shm
+data/*.db-wal
+.env
+.DS_Store
+.git/
