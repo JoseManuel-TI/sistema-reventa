@@ -276,12 +276,19 @@ def productos_nuevo():
             stock = int(request.form.get("stock", 0) or 0)
             iva = _parsear_numero_form(request.form.get("iva_porcentaje"), default=21)
             publicar = 1 if request.form.get("publicar") else 0
+            es_afiliado = 1 if request.form.get("es_afiliado") else 0
+            link_afiliado = request.form.get("link_afiliado", "").strip()
+
+            if es_afiliado and not link_afiliado:
+                flash("Si el producto es de Amazon/Afiliado, el link de afiliado es obligatorio.", "error")
+                return redirect(url_for("productos_nuevo"))
 
             pid = db.add_producto(
                 nombre=nombre, descripcion=descripcion,
                 proveedor_id=proveedor_id, costo=costo,
                 categoria=categoria, stock=stock, iva_porcentaje=iva,
-                publicar=publicar,
+                publicar=publicar, es_afiliado=es_afiliado,
+                link_afiliado=link_afiliado,
             )
             if costo_usd is not None and costo_usd > 0:
                 db.update_producto(pid, costo_usd=costo_usd)
@@ -354,6 +361,12 @@ def productos_editar(id):
             stock = int(request.form.get("stock", 0) or 0)
             iva = _parsear_numero_form(request.form.get("iva_porcentaje"), default=21)
 
+            es_afiliado = 1 if request.form.get("es_afiliado") else 0
+            link_afiliado = request.form.get("link_afiliado", "").strip()
+            if es_afiliado and not link_afiliado:
+                flash("Si el producto es de Amazon/Afiliado, el link de afiliado es obligatorio.", "error")
+                return redirect(url_for("productos_editar", id=id))
+
             costo_cambiado = costo != p.get("costo", 0)
             costo_usd_cambiado = costo_usd != p.get("costo_usd", 0)
             pv_original = p.get("precio_venta")
@@ -380,6 +393,8 @@ def productos_editar(id):
                 stock=stock,
                 iva_porcentaje=iva,
                 publicar=1 if request.form.get("publicar") else 0,
+                es_afiliado=1 if request.form.get("es_afiliado") else 0,
+                link_afiliado=request.form.get("link_afiliado", "").strip(),
             )
 
             imagen = request.files.get("imagen")

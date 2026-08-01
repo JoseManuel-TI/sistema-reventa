@@ -94,7 +94,7 @@ def _productos_con_imagen(productos):
 def catalogo():
     productos = db.get_productos(publicado_only=True)
     productos = [p for p in productos
-                 if p.get("precio_venta") and p["precio_venta"] > 0]
+                 if p.get("es_afiliado") or (p.get("precio_venta") and p["precio_venta"] > 0)]
     _productos_con_imagen(productos)
     return render_template("tienda/catalogo.html",
                            productos=productos,
@@ -104,7 +104,8 @@ def catalogo():
 @tienda.route("/tienda/<int:id>")
 def producto(id):
     p = db.get_producto(id)
-    if not p or not p.get("precio_venta") or p["precio_venta"] <= 0:
+    if not p or not (p.get("es_afiliado")
+                     or (p.get("precio_venta") and p["precio_venta"] > 0)):
         flash("Producto no disponible.", "error")
         return redirect(url_for("tienda.catalogo"))
     imgs = db.get_imagenes(id)
@@ -117,7 +118,8 @@ def producto(id):
 def enlace_corto(id):
     """URL corta para compartir: redirige a la ficha del producto."""
     p = db.get_producto(id)
-    if not p or not p.get("precio_venta") or p["precio_venta"] <= 0:
+    if not p or not (p.get("es_afiliado")
+                     or (p.get("precio_venta") and p["precio_venta"] > 0)):
         abort(404)
     return redirect(url_for("tienda.producto", id=id))
 

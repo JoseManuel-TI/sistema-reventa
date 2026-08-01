@@ -52,6 +52,12 @@
                 </form>
                 {% endif %}
             </dd>
+            {% if p.es_afiliado %}
+            <dt>Amazon / Afiliado</dt>
+            <dd>
+                ✅ Sí — <a href="{{ p.link_afiliado }}" target="_blank" rel="noopener">{{ p.link_afiliado or 'sin link' }}</a>
+            </dd>
+            {% endif %}
         </dl>
         <div class="prod-actions btn-group">
             <a href="/exportar/ml" class="btn btn-success btn-sm">📤 Publicar en ML</a>

@@ -11,14 +11,22 @@
   "@type": "Product",
   "name": {{ p.nombre|tojson }},
   "description": {{ (p.descripcion or '')[:300]|tojson }},
-  "image": {{ (imagenes[0].archivo if imagenes else '')|tojson }},
-  "offers": {
+  "image": {{ (imagenes[0].archivo if imagenes else '')|tojson }}
+  {% if p.es_afiliado %}
+  ,"offers": {
+    "@type": "Offer",
+    "url": {{ p.link_afiliado|tojson }},
+    "availability": "https://schema.org/InStock"
+  }
+  {% else %}
+  ,"offers": {
     "@type": "Offer",
     "price": "{{ p.precio_venta }}",
     "priceCurrency": "ARS",
     "availability": "{% if p.stock and p.stock > 0 %}https://schema.org/InStock{% else %}https://schema.org/OutOfStock{% endif %}",
     "url": "{{ request.url }}"
   }
+  {% endif %}
 }
 </script>
 <div class="product-detail">
@@ -44,6 +52,11 @@
 
     <div class="detail-info">
         <h1>{{ p.nombre }}</h1>
+        {% if p.es_afiliado %}
+        <div class="big-price afiliado">Consultar precio en Amazon</div>
+        <div class="price-shipping">Precio actualizado en el sitio de Amazon</div>
+        <a href="{{ p.link_afiliado }}" class="btn-buy btn-buy-afiliado" target="_blank" rel="nofollow noopener">Ver precio en Amazon 🛒</a>
+        {% else %}
         <div class="big-price">$ {{ p.precio_venta|fmt_pesos }}</div>
         <div class="price-shipping">Envío gratis</div>
 
@@ -68,6 +81,7 @@
         {% endif %}
 
         <div class="delivery-badge">🚚 Envío gratis. {% if entrega_estimada == "hoy" %}Llega <strong>hoy</strong>{% else %}Llega el <strong>{{ entrega_estimada }}</strong>{% endif %}</div>
+        {% endif %}
 
         <div class="share-section">
             <button type="button" class="btn-share" id="btn-share" aria-haspopup="true" aria-expanded="false">
@@ -122,7 +136,11 @@ document.querySelectorAll('.qty-picker button').forEach(b => {
     var url = window.location.origin + '/s/' + {{ p.id }};
     var titulo = {{ p.nombre|tojson }};
     if (titulo.length > 60) titulo = titulo.slice(0, 57) + '…';
+    {% if p.es_afiliado %}
+    var precio = 'Consultar precio en Amazon';
+    {% else %}
     var precio = {{ ('$ ' + (p.precio_venta|fmt_pesos))|tojson }};
+    {% endif %}
     var texto = titulo + ' — ' + precio + '\n' + url;
 
     function cerrar() {

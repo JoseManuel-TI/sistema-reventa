@@ -16,10 +16,18 @@
         {% endif %}
         <div class="info">
             <h3>{{ p.nombre[:50] }}</h3>
+            {% if p.es_afiliado %}
+            <div class="price afiliado">Consultar precio en Amazon</div>
+            {% else %}
             <div class="price">$ {{ p.precio_venta|fmt_pesos }}</div>
+            {% endif %}
             {% if p.categoria %}<div class="cat-label">{{ p.categoria }}</div>{% endif %}
+            {% if p.es_afiliado %}
+            <div class="shipping-badge">Ver en Amazon</div>
+            {% else %}
             <div class="shipping-badge">Envío gratis</div>
-            {% if p.stock == 0 %}<div class="agotado-badge">Agotado</div>{% endif %}
+            {% endif %}
+            {% if p.stock == 0 and not p.es_afiliado %}<div class="agotado-badge">Agotado</div>{% endif %}
         </div>
     </a>
     {% endfor %}

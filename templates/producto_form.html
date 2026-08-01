@@ -66,6 +66,17 @@
             <span class="form-hint">Solo los productos marcados aparecen en el catálogo público.</span>
         </div>
         <div class="form-group">
+            <label>
+                <input type="checkbox" id="es_afiliado" name="es_afiliado" value="1" {{ 'checked' if producto and producto.es_afiliado else '' }}>
+                Amazon / Afiliado
+            </label>
+            <span class="form-hint">Redirige a Amazon en lugar del carrito local. No requiere precio ni stock.</span>
+        </div>
+        <div class="form-group" id="afiliado-link-wrap" {% if not (producto and producto.es_afiliado) %}style="display:none;"{% endif %}>
+            <label for="link_afiliado">Link de afiliado (Amazon) <span class="form-hint">obligatorio si es afiliado</span></label>
+            <input type="url" id="link_afiliado" name="link_afiliado" class="form-control" placeholder="https://amzn.to/..." value="{{ producto.link_afiliado if producto and producto.link_afiliado else '' }}">
+        </div>
+        <div class="form-group">
             <label for="imagen">Imagen del producto</label>
             <input type="file" id="imagen" name="imagen" class="form-control" accept="image/*">
             <span class="form-hint">Formatos: JPG, PNG. Se copiará a la carpeta del proveedor.</span>
@@ -93,6 +104,36 @@ const MARGEN = 35;
 const costoUsdInput = document.getElementById('costo_usd');
 const costoArsInput = document.getElementById('costo');
 const precioVentaInput = document.getElementById('precio_venta');
+
+const esAfiliadoInput = document.getElementById('es_afiliado');
+const afiliadoLinkWrap = document.getElementById('afiliado-link-wrap');
+const afiliadoLinkInput = document.getElementById('link_afiliado');
+const formProducto = document.querySelector('form[method="POST"]');
+
+function toggleAfiliado() {
+    const activo = esAfiliadoInput.checked;
+    afiliadoLinkWrap.style.display = activo ? '' : 'none';
+    if (activo) {
+        costoUsdInput.disabled = true;
+        costoArsInput.disabled = true;
+        precioVentaInput.disabled = true;
+    } else {
+        costoUsdInput.disabled = false;
+        costoArsInput.disabled = false;
+        precioVentaInput.disabled = false;
+    }
+}
+
+esAfiliadoInput.addEventListener('change', toggleAfiliado);
+toggleAfiliado();
+
+formProducto.addEventListener('submit', function (e) {
+    if (esAfiliadoInput.checked && !afiliadoLinkInput.value.trim()) {
+        e.preventDefault();
+        afiliadoLinkInput.focus();
+        alert('Si el producto es de Amazon/Afiliado, el link de afiliado es obligatorio.');
+    }
+});
 
 function calcularPrecioVenta(costoArs) {
     const c = parseFloat(costoArs);
