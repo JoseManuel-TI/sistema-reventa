@@ -57,7 +57,10 @@
 </header>
 
 <div class="cat-bar">
-    <a href="/tienda">Todas las categorías</a>
+    <a href="/tienda" class="{{ 'active' if not cat_activa else '' }}">Todas las categorías</a>
+    {% for c in categorias %}
+    <a href="/tienda?cat={{ c|urlencode }}" class="{{ 'active' if cat_activa and cat_activa|lower == c|lower else '' }}">{{ c }}</a>
+    {% endfor %}
 </div>
 
 {% with messages = get_flashed_messages(with_categories=true) %}

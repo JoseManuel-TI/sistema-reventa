@@ -331,6 +331,22 @@ def get_producto(producto_id):
         conn.close()
 
 
+def get_categorias(publicado_only=False):
+    """Devuelve las categorías distintas de productos, ordenadas."""
+    conn = get_connection()
+    try:
+        query = """SELECT DISTINCT categoria FROM productos
+                   WHERE categoria IS NOT NULL AND categoria != ''"""
+        params = []
+        if publicado_only:
+            query += " AND activo = 1 AND publicar = 1"
+        query += " ORDER BY categoria"
+        rows = conn.execute(_sql(query), params).fetchall()
+        return [r[0] for r in rows if r[0]]
+    finally:
+        conn.close()
+
+
 def update_producto(producto_id, **kwargs):
     allowed = {"nombre", "descripcion", "costo", "precio_venta", "margen_porcentaje",
                "iva_porcentaje", "categoria", "stock", "activo", "proveedor_id", "publicar",

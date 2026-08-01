@@ -109,6 +109,7 @@ const esAfiliadoInput = document.getElementById('es_afiliado');
 const afiliadoLinkWrap = document.getElementById('afiliado-link-wrap');
 const afiliadoLinkInput = document.getElementById('link_afiliado');
 const formProducto = document.querySelector('form[method="POST"]');
+const categoriaInput = document.querySelector('input[name="categoria"]');
 
 function toggleAfiliado() {
     const activo = esAfiliadoInput.checked;
@@ -117,6 +118,7 @@ function toggleAfiliado() {
         costoUsdInput.disabled = true;
         costoArsInput.disabled = true;
         precioVentaInput.disabled = true;
+        if (categoriaInput && !categoriaInput.value.trim()) categoriaInput.value = 'Amazon';
     } else {
         costoUsdInput.disabled = false;
         costoArsInput.disabled = false;

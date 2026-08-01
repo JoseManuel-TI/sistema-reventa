@@ -283,6 +283,9 @@ def productos_nuevo():
                 flash("Si el producto es de Amazon/Afiliado, el link de afiliado es obligatorio.", "error")
                 return redirect(url_for("productos_nuevo"))
 
+            if es_afiliado and not categoria:
+                categoria = "Amazon"
+
             pid = db.add_producto(
                 nombre=nombre, descripcion=descripcion,
                 proveedor_id=proveedor_id, costo=costo,
@@ -367,6 +370,10 @@ def productos_editar(id):
                 flash("Si el producto es de Amazon/Afiliado, el link de afiliado es obligatorio.", "error")
                 return redirect(url_for("productos_editar", id=id))
 
+            categoria = request.form.get("categoria", "").strip()
+            if es_afiliado and not categoria:
+                categoria = "Amazon"
+
             costo_cambiado = costo != p.get("costo", 0)
             costo_usd_cambiado = costo_usd != p.get("costo_usd", 0)
             pv_original = p.get("precio_venta")
@@ -389,7 +396,7 @@ def productos_editar(id):
                 costo_usd=costo_usd,
                 precio_venta=precio_venta,
                 margen_porcentaje=margen,
-                categoria=request.form.get("categoria", "").strip(),
+                categoria=categoria,
                 stock=stock,
                 iva_porcentaje=iva,
                 publicar=1 if request.form.get("publicar") else 0,

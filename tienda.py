@@ -72,6 +72,7 @@ def inject_globals():
         "cant_carrito": _cant_carrito(),
         "public_url": (config.get("PUBLIC_URL") or "").rstrip("/"),
         "css_version": CSS_VERSION,
+        "categorias": db.get_categorias(publicado_only=True),
     }
 
 
@@ -92,13 +93,23 @@ def _productos_con_imagen(productos):
 
 @tienda.route("/tienda")
 def catalogo():
+    import unicodedata
+    cat = request.args.get("cat", "").strip()
+
+    def _norm(s):
+        return unicodedata.normalize("NFD", s).encode("ascii", "ignore").decode().lower()
+
     productos = db.get_productos(publicado_only=True)
     productos = [p for p in productos
                  if p.get("es_afiliado") or (p.get("precio_venta") and p["precio_venta"] > 0)]
+    if cat:
+        productos = [p for p in productos
+                     if _norm(p.get("categoria") or "") == _norm(cat)]
     _productos_con_imagen(productos)
     return render_template("tienda/catalogo.html",
                            productos=productos,
-                           store_name=STORE_NAME)
+                           store_name=STORE_NAME,
+                           cat_activa=cat)
 
 
 @tienda.route("/tienda/<int:id>")

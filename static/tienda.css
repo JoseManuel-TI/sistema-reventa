@@ -25,6 +25,7 @@ img{max-width:100%;height:auto}
 .cat-bar{background:#fff;border-bottom:1px solid #e5e5e5;padding:0 16px;display:flex;gap:16px;overflow-x:auto;font-size:13px;color:#666}
 .cat-bar a{padding:10px 0;color:#666;white-space:nowrap;border-bottom:2px solid transparent;transition:all .2s}
 .cat-bar a:hover{color:#3483fa;border-bottom-color:#3483fa;text-decoration:none}
+.cat-bar a.active{color:#3483fa;border-bottom-color:#3483fa;font-weight:600}
 .cat-bar a:first-child{font-weight:600;color:#333}
 
 /* ── Flashes ── */
