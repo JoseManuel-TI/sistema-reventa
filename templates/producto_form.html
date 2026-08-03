@@ -110,6 +110,7 @@ const afiliadoLinkWrap = document.getElementById('afiliado-link-wrap');
 const afiliadoLinkInput = document.getElementById('link_afiliado');
 const formProducto = document.querySelector('form[method="POST"]');
 const categoriaInput = document.querySelector('input[name="categoria"]');
+const proveedorSelect = document.getElementById('proveedor_id');
 
 function toggleAfiliado() {
     const activo = esAfiliadoInput.checked;
@@ -118,11 +119,19 @@ function toggleAfiliado() {
         costoUsdInput.disabled = true;
         costoArsInput.disabled = true;
         precioVentaInput.disabled = true;
-        if (categoriaInput && !categoriaInput.value.trim()) categoriaInput.value = 'Amazon';
+        categoriaInput.value = 'Amazon';
+        if (proveedorSelect) {
+            const opt = Array.from(proveedorSelect.options).find(o => o.text.trim().toLowerCase() === 'amazon');
+            if (opt) {
+                proveedorSelect.value = opt.value;
+                proveedorSelect.disabled = true;
+            }
+        }
     } else {
         costoUsdInput.disabled = false;
         costoArsInput.disabled = false;
         precioVentaInput.disabled = false;
+        if (proveedorSelect) proveedorSelect.disabled = false;
     }
 }
 

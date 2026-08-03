@@ -212,6 +212,7 @@ def init_db():
                 conn.commit()
             except Exception:
                 pass
+        ensure_proveedor_amazon()
     except Exception:
         conn.rollback()
         raise
@@ -244,6 +245,24 @@ def get_proveedores():
         return [dict(r) for r in rows]
     finally:
         conn.close()
+
+
+def get_proveedor_por_nombre(nombre):
+    conn = get_connection()
+    try:
+        row = conn.execute(
+            "SELECT * FROM proveedores WHERE nombre = ? COLLATE NOCASE LIMIT 1", (nombre,)
+        ).fetchone()
+        return dict(row) if row else None
+    finally:
+        conn.close()
+
+
+def ensure_proveedor_amazon():
+    prov = get_proveedor_por_nombre("Amazon")
+    if prov:
+        return prov
+    return add_proveedor("Amazon", contacto="", notas="Afiliados Amazon")
 
 
 def update_proveedor(proveedor_id, nombre=None, contacto=None, notas=None):
