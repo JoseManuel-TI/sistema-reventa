@@ -6,6 +6,7 @@ __pycache__/
 *.db-wal
 data/config.json
 data/import_state.json
+data/schedule.log
 exports/
 .env
 venv/
