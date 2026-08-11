@@ -1,35 +1,69 @@
 {% extends "tienda/layout.html" %}
-{% set og_title = store_name ~ ' - Todos los productos' %}
-{% set og_desc = 'Descubrí todos nuestros productos con envío gratis. Comprá online desde tu casa.' %}
+{% set og_title = store_name ~ ' - Productos recomendados' %}
+{% set og_desc = 'Descubrí productos recomendados con envío a Argentina y comprá desde Amazon de forma segura.' %}
 {% block content %}
-<h1 class="page-title">Productos</h1>
+{% if grupo %}
+<section class="hero">
+    <div class="hero-icon">{{ grupo.icono }}</div>
+    <h1>{{ grupo.titulo }}</h1>
+    <p>{{ grupo.subtitulo }}</p>
+    <span class="hero-cta">{{ productos|length }} productos seleccionados</span>
+</section>
+{% else %}
+<h1 class="page-title">Productos recomendados</h1>
+{% endif %}
+
 {% if not productos %}
-<div class="empty">Próximamente disponibles.</div>
+<div class="empty">
+    <div class="big">🛒</div>
+    <p>Próximamente disponibles.</p>
+    <a href="{{ url_for('tienda.index') }}" class="btn-primary">Volver al inicio</a>
+</div>
 {% else %}
 <div class="product-grid">
     {% for p in productos %}
-    <a href="/tienda/{{ p.id }}" class="product-card {% if p.stock == 0 %}agotado{% endif %}" data-categoria="{{ (p.categoria or '')|lower }}" data-nombre="{{ p.nombre|lower }}">
-        {% if p.imagen %}
-        <img src="/{{ p.imagen }}" alt="{{ p.nombre }}" loading="lazy">
-        {% else %}
-        <div class="no-img">📷</div>
-        {% endif %}
-        <div class="info">
-            <h3>{{ p.nombre[:50] }}</h3>
-            {% if p.es_afiliado %}
-            <div class="price afiliado">Consultar precio en Amazon</div>
+    {% set badge = producto_badge(p) %}
+    <article class="product-card {% if p.stock == 0 and not p.es_afiliado %}agotado{% endif %}"
+             data-categoria="{{ (p.categoria or '')|lower }}"
+             data-nombre="{{ p.nombre|lower }}">
+        <a href="/tienda/{{ p.id }}" class="card-media" aria-label="{{ p.nombre }}">
+            {% set bclase = 'env' %}
+            {% if badge == 'Top Ventas' %}{% set bclase = 'top' %}{% elif badge == 'Recomendado' %}{% set bclase = 'rec' %}{% elif badge == 'Nuevo Ingreso' %}{% set bclase = 'new' %}{% endif %}
+            <span class="badge {{ bclase }}">{{ badge }}</span>
+            {% if p.imagen %}
+            <img src="/{{ p.imagen }}" alt="{{ p.nombre }}" loading="lazy">
             {% else %}
-            <div class="price">$ {{ p.precio_venta|fmt_pesos }}</div>
+            <div class="no-img">📷</div>
             {% endif %}
-            {% if p.categoria %}<div class="cat-label">{{ p.categoria }}</div>{% endif %}
-            {% if p.es_afiliado %}
-            <div class="shipping-badge">Ver en Amazon</div>
-            {% else %}
-            <div class="shipping-badge">Envío gratis</div>
+        </a>
+        <div class="card-body">
+            <h3 class="card-title"><a href="/tienda/{{ p.id }}">{{ p.nombre[:60] }}</a></h3>
+            {% if p.categoria and not p.es_afiliado %}
+            <span class="card-cat">{{ p.categoria }}</span>
             {% endif %}
-            {% if p.stock == 0 and not p.es_afiliado %}<div class="agotado-badge">Agotado</div>{% endif %}
+            <ul class="card-benefits">
+                {% for b in producto_beneficios(p) %}
+                <li>{{ b }}</li>
+                {% endfor %}
+            </ul>
+            <div class="card-cta">
+                {% if p.es_afiliado %}
+                {% if p.link_afiliado %}
+                <a href="{{ p.link_afiliado }}" target="_blank" rel="noopener noreferrer" class="btn-cta amazon">
+                    <span class="kicker">Precio actualizado en</span>Ver precio en Amazon 🛒
+                </a>
+                {% else %}
+                <a href="/tienda/{{ p.id }}" class="btn-cta amazon">
+                    <span class="kicker">Oferta verificada</span>Consultar Oferta 🛒
+                </a>
+                {% endif %}
+                {% else %}
+                <div class="card-price"><span class="cur">$</span> {{ p.precio_venta|fmt_pesos }}</div>
+                <a href="/tienda/{{ p.id }}" class="btn-cta primary">Ver producto</a>
+                {% endif %}
+            </div>
         </div>
-    </a>
+    </article>
     {% endfor %}
 </div>
 {% endif %}

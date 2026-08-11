@@ -3,24 +3,26 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="description" content="{{ meta_desc or tienda_descripcion or 'Compra online los mejores productos con envío gratis.' }}">
+<meta name="description" content="{{ meta_desc or tienda_descripcion or 'Descubrí productos recomendados con envío a Argentina.' }}">
 <meta name="theme-color" content="{{ tienda_color }}">
+<meta name="color-scheme" content="light">
 <meta property="og:site_name" content="{{ store_name }}">
 <meta property="og:locale" content="es_AR">
 <meta property="og:title" content="{{ og_title or store_name }}">
-<meta property="og:description" content="{{ og_desc or tienda_descripcion or 'Compra online los mejores productos con envío gratis.' }}">
+<meta property="og:description" content="{{ og_desc or tienda_descripcion or 'Descubrí productos recomendados con envío a Argentina.' }}">
 <meta property="og:image" content="{{ og_image or '' }}">
 <meta property="og:image:alt" content="{{ og_image_alt or og_title or store_name }}">
 <meta property="og:url" content="{{ request.url }}">
 <meta property="og:type" content="{{ og_type or 'website' }}">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="{{ og_title or store_name }}">
-<meta name="twitter:description" content="{{ og_desc or tienda_descripcion or 'Compra online los mejores productos con envío gratis.' }}">
+<meta name="twitter:description" content="{{ og_desc or tienda_descripcion or 'Descubrí productos recomendados con envío a Argentina.' }}">
 <meta name="twitter:image" content="{{ og_image or '' }}">
 <link rel="canonical" href="{{ request.url }}">
 <title>{{ og_title or store_name }} · {{ store_name }}</title>
-<style>:root{--primary:{{ tienda_color }};--primary-dark:{{ tienda_color }};}</style>
+<link rel="icon" href="/static/brand/logo.svg">
 <link rel="stylesheet" href="/static/tienda.css?v={{ css_version }}">
+<style>:root{--primary:{{ tienda_color }};--primary-600:{{ tienda_color }};}</style>
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -29,7 +31,6 @@
   "url": "{{ request.host_url }}",
   "description": "{{ tienda_descripcion or 'Tienda online' }}",
   "currenciesAccepted": "ARS",
-  "paymentAccepted": ["Transferencia bancaria", "Efectivo"],
   "contactPoint": {
     "@type": "ContactPoint",
     "telephone": "{{ wa_link|replace('https://wa.me/','')|replace('549','+54 9 ') }}",
@@ -40,14 +41,18 @@
 </head>
 <body>
 <header class="topbar">
-    <a href="/tienda" class="logo"><span class="logo-icon">🛒</span>{{ tienda_logo }}</a>
-    <form class="search-bar" action="/tienda" method="GET" onsubmit="return false;">
+    <a href="{{ url_for('tienda.index') }}" class="logo">
+        <span class="logo-icon">⚡</span>
+        <span>{{ tienda_logo }}<span class="logo-sub">Todo · Rápido · Fácil</span></span>
+    </a>
+    <form class="search-bar" action="{{ url_for('tienda.catalogo') }}" method="GET" onsubmit="return false;">
         <input type="text" name="q" placeholder="Buscar productos..." id="search-input" autocomplete="off">
         <button type="button" onclick="buscarProductos()">🔍</button>
     </form>
     <nav>
-        <a href="/tienda">Productos</a>
-        <a href="/carrito" class="cart-link">
+        <a href="{{ url_for('tienda.index') }}">Inicio</a>
+        <a href="{{ url_for('tienda.catalogo') }}">Productos</a>
+        <a href="{{ url_for('tienda.ver_carrito') }}" class="cart-link" aria-label="Carrito">
             🛒
             {% if cant_carrito > 0 %}
             <span class="cart-badge">{{ cant_carrito }}</span>
@@ -57,9 +62,9 @@
 </header>
 
 <div class="cat-bar">
-    <a href="/tienda" class="{{ 'active' if not cat_activa else '' }}">Todas las categorías</a>
-    {% for c in categorias %}
-    <a href="/tienda?cat={{ c|urlencode }}" class="{{ 'active' if cat_activa and cat_activa|lower == c|lower else '' }}">{{ c }}</a>
+    <a href="{{ url_for('tienda.catalogo') }}" class="{{ 'active' if cat_activa == '' else '' }}">Todos</a>
+    {% for c in nav_categorias %}
+    <a href="/{{ c.slug }}" class="{{ 'active' if cat_activa == c.slug else '' }}">{{ c.titulo }}</a>
     {% endfor %}
 </div>
 
@@ -78,11 +83,13 @@
 </main>
 
 <footer class="footer">
-    <p>{{ store_name }}</p>
-    <p class="disclaimer-amazon" style="font-size: 11px; color: #888; text-align: center; margin-top: 20px;">En calidad de Afiliado de Amazon, ClickYa obtiene ingresos por las compras adscritas que cumplen los requisitos aplicables.</p>
+    <p class="f-brand">{{ store_name }} · Todo, rápido y fácil</p>
+    <a href="{{ url_for('tienda.index') }}">Inicio</a>
+    {% for c in nav_categorias %} · <a href="/{{ c.slug }}">{{ c.titulo }}</a>{% endfor %}
+    <p class="disclaimer-amazon">En calidad de Afiliado de Amazon, {{ store_name }} obtiene ingresos por las compras adscritas que cumplen los requisitos aplicables.</p>
 </footer>
 
-<a class="wa-float" href="{{ wa_link }}" target="_blank" rel="noopener" aria-label="Contactar por WhatsApp">
+<a class="wa-float" href="{{ wa_link }}" target="_blank" rel="noopener noreferrer" aria-label="Contactar por WhatsApp">
     <svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path fill="#fff" d="M16.004 3.2C9.385 3.2 4 8.585 4 15.204c0 2.42.634 4.79 1.839 6.879L4 28.8l6.828-1.794a11.94 11.94 0 0 0 5.176 1.198h.005c6.617 0 12.002-5.386 12.002-12.005 0-3.207-1.249-6.222-3.516-8.49a11.94 11.94 0 0 0-8.491-3.509zm0 22.197h-.004a9.93 9.93 0 0 1-5.06-1.385l-.363-.215-4.178 1.098 1.115-4.073-.237-.377a9.93 9.93 0 0 1-1.52-5.24c0-5.512 4.486-9.998 10.003-9.998 2.671 0 5.181 1.041 7.068 2.93a9.93 9.93 0 0 1 2.929 7.069c0 5.512-4.487 9.999-9.999 9.999zm5.486-7.486c-.301-.15-1.779-.878-2.055-.978-.276-.101-.477-.15-.678.151-.201.3-.778.978-.954 1.178-.176.201-.352.226-.653.075-.301-.15-1.27-.468-2.42-1.493-.894-.798-1.498-1.783-1.674-2.084-.176-.301-.019-.464.132-.614.136-.135.301-.351.452-.527.151-.176.201-.301.301-.502.101-.201.05-.376-.025-.527-.075-.151-.678-1.634-.929-2.238-.245-.586-.494-.507-.678-.516-.174-.009-.373-.011-.573-.011-.201 0-.527.075-.803.376s-1.054 1.03-1.054 2.512 1.079 2.914 1.229 3.115c.15.201 2.123 3.241 5.143 4.545.719.31 1.28.495 1.718.634.722.229 1.379.197 1.897.119.58-.087 1.779-.727 2.03-1.43.251-.703.251-1.305.175-1.43-.075-.126-.276-.201-.577-.352z"/></svg>
 </a>
 
@@ -95,10 +102,8 @@ var CATEGORY_SYNONYMS = {
     'consolas': ['consola','consolas','playstation','xbox','ps5','videojuego','juegos','gaming'],
     'hogar': ['hogar','cocina','electrodomestico','sillon','silla','mesa','mueble','cava','cafetera','pava','estufa'],
     'deportes': ['deporte','deportes','bicicleta','gimnasio','fitness','bici'],
-    'proyectores': ['proyector','proyectores','proyector gamer','proyectores'],
     'electronica': ['electronica','electrónico','electronico','electrónicos'],
-    'indumentaria': ['indumentaria','ropa','remera','vestimenta','remeras','calzado'],
-    'test': []
+    'indumentaria': ['indumentaria','ropa','remera','vestimenta','remeras','calzado']
 };
 
 function _normalize(s) {
@@ -142,7 +147,7 @@ document.addEventListener('DOMContentLoaded', function() {
         inp.addEventListener('input', buscarProductos);
         var params = new URLSearchParams(window.location.search);
         if (params.get('q')) inp.value = params.get('q');
-        if (inp.value) buscarProductos();
+        if (inp.value && document.querySelector('.product-card')) buscarProductos();
     }
 });
 </script>

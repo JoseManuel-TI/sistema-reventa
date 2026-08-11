@@ -1,6 +1,8 @@
 """Public shop: catalog, cart, checkout, bank transfer payment."""
 
 import os
+import re
+import unicodedata
 from datetime import datetime, timedelta
 from flask import (
     Blueprint, render_template, request, redirect, url_for,
@@ -14,6 +16,35 @@ tienda = Blueprint("tienda", __name__, template_folder="templates")
 
 STORE_NAME = config.get("TIENDA_NOMBRE")
 STORE_WA = config.get("TIENDA_WA")
+
+# ─── Auditorio público: categorías por slug (ClickYa) ──────────────
+GRUPOS_CATEGORIAS = {
+    "tech": {
+        "titulo": "Tech & Celulares",
+        "subtitulo": "Smartphones, audio y accesorios de última generación.",
+        "icono": "📱",
+        "categorias": ["Celulares", "Audio", "Accesorios"],
+    },
+    "gadgets": {
+        "titulo": "Gadgets & Accesorios",
+        "subtitulo": "Accesorios, audio y wearables que simplifican tu día.",
+        "icono": "⌚",
+        "categorias": ["Accesorios", "Audio", "Celulares"],
+    },
+    "hogar-inteligente": {
+        "titulo": "Hogar Inteligente",
+        "subtitulo": "Electrodomésticos y calefacción para un hogar más cómodo.",
+        "icono": "🏠",
+        "categorias": ["Hogar", "Calefacción"],
+    },
+    "deportes": {
+        "titulo": "Deportes & Fitness",
+        "subtitulo": "Equipamiento para entrenar en casa sin excusas.",
+        "icono": "💪",
+        "categorias": ["Deportes"],
+    },
+}
+NAV_CATEGORIAS = list(GRUPOS_CATEGORIAS)
 
 _CSS_PATH = os.path.join(os.path.dirname(__file__), "static", "tienda.css")
 CSS_VERSION = str(int(os.path.getmtime(_CSS_PATH))) if os.path.exists(_CSS_PATH) else "1"
@@ -34,21 +65,15 @@ def _cant_carrito():
     return sum(i["cantidad"] for i in _get_carrito().values())
 
 
-def _estimar_entrega(hora_corte=14):
-    """Calcula fecha estimada con corte a las 2 PM.
-    Antes de las 2 PM en día hábil → hoy.
-    Después de las 2 PM o fin de semana → próximo día hábil.
+def _estimar_entrega():
+    """Entrega según el momento del día (hora local):
+    - Entre 12:00 AM y 11:59 AM (antes del mediodía) → 'hoy'
+    - El resto del día → 'mañana'
     """
     ahora = datetime.now()
-    if ahora.hour < hora_corte and ahora.weekday() < 5:
+    if ahora.hour < 12:
         return "hoy"
-    habiles = 0
-    d = ahora
-    while habiles < 1:
-        d += timedelta(days=1)
-        if d.weekday() < 5:
-            habiles += 1
-    return d.strftime("%d/%m")
+    return "mañana"
 
 DELIVERY_INFO = config.get("DELIVERY_INFO") or "Se entrega dentro de las 24 hs hábiles posteriores a la confirmación del pago."
 
@@ -73,7 +98,96 @@ def inject_globals():
         "public_url": (config.get("PUBLIC_URL") or "").rstrip("/"),
         "css_version": CSS_VERSION,
         "categorias": db.get_categorias(publicado_only=True),
+        "nav_categorias": [
+            {"slug": slug, **GRUPOS_CATEGORIAS[slug]} for slug in NAV_CATEGORIAS
+        ],
+        "producto_beneficios": producto_beneficios,
+        "producto_badge": producto_badge,
     }
+
+
+# ─── Helpers de card (afiliado/Amazon) ─────────────────────────────
+
+def _norm_texto(s):
+    """Normaliza texto: minúsculas y sin acentos (para comparar categorías)."""
+    return unicodedata.normalize("NFD", s).encode("ascii", "ignore").decode().lower()
+
+
+def _segmentos_beneficios(nombre):
+    """Extrae frases de beneficio del nombre del producto.
+
+    Los nombres suelen venir con ' - ' o ' | ' separando features:
+        'Smartwatch Serie 10 - Pantalla Infinita + Notificaciones y Llamadas'
+    Se toman los fragmentos descriptivos (todo menos la marca/nombre base).
+    """
+    if not nombre:
+        return []
+    partes = re.split(r"\s*-\s*|\s*\|\s*", nombre)
+    beneficios = []
+    for i, parte in enumerate(partes):
+        if i == 0:
+            continue
+        for frag in re.split(r"\s*\+\s*|\s*/\s*", parte):
+            frag = frag.strip(" (),;•")
+            if not frag:
+                continue
+            clave = _norm_texto(frag)
+            if not any(_norm_texto(b) == clave for b in beneficios):
+                beneficios.append(frag)
+    return beneficios
+
+
+def producto_beneficios(p, cantidad=3):
+    """Devuelve una lista corta (3) de beneficios clave para la card.
+
+    Prioridad: campo manual `beneficios` (1 por línea o separados por ' | ')
+    → descripción curada (por línea) → inferido del nombre.
+    Completa con propuestas de valor genéricas.
+    """
+    def _limpiar(lineas):
+        out = []
+        for l in lineas:
+            l = l.strip(" -•\t·|").strip()
+            if l:
+                out.append(l)
+        return out
+
+    manual = (p.get("beneficios") or "").strip()
+    if manual:
+        lineas = []
+        for parte in re.split(r"[|\n]", manual):
+            lineas.extend(_limpiar([parte]))
+        if lineas:
+            return lineas[:cantidad]
+
+    descripcion = (p.get("descripcion") or "").strip()
+    if descripcion:
+        lineas = _limpiar(descripcion.split("\n"))
+        if len(lineas) >= cantidad:
+            return lineas[:cantidad]
+
+    ben = _segmentos_beneficios(p.get("nombre") or "")
+    extras = ["Compra 100% segura vía Amazon",
+              "Envío a Argentina disponible",
+              "Atención y soporte ClickYa"]
+    i = 0
+    while len(ben) < cantidad and i < len(extras):
+        if extras[i] not in ben:
+            ben.append(extras[i])
+        i += 1
+    return ben[:cantidad]
+
+
+def producto_badge(p):
+    """Etiqueta flotante de la card según categoría."""
+    cat = _norm_texto(p.get("categoria") or "")
+    if cat in ("celulares", "deportes", "consolas"):
+        return "Top Ventas"
+    if cat in ("audio", "hogar", "calefacción", "calefaccion"):
+        return "Recomendado"
+    if cat in ("accesorios", "gadgets"):
+        return "Nuevo Ingreso"
+    return "Envío a Argentina disponible"
 
 
 def _pesos(val):
@@ -89,27 +203,59 @@ def _productos_con_imagen(productos):
     return productos
 
 
+# ─── Landing / Link-in-bio ─────────────────────────────────────────
+
+@tienda.route("/")
+def index():
+    """Landing estilo Link-in-bio: punto de entrada desde redes sociales."""
+    productos = _productos_publicados()
+    _productos_con_imagen(productos)
+    return render_template("tienda/landing.html",
+                           store_name=STORE_NAME,
+                           destacados=productos[:6],
+                           total_productos=len(productos))
+
+
 # ─── Catálogo ──────────────────────────────────────────────────────
+
+def _productos_publicados():
+    productos = db.get_productos(publicado_only=True)
+    return [p for p in productos
+            if p.get("es_afiliado") or (p.get("precio_venta") and p["precio_venta"] > 0)]
+
 
 @tienda.route("/tienda")
 def catalogo():
-    import unicodedata
     cat = request.args.get("cat", "").strip()
-
-    def _norm(s):
-        return unicodedata.normalize("NFD", s).encode("ascii", "ignore").decode().lower()
-
-    productos = db.get_productos(publicado_only=True)
-    productos = [p for p in productos
-                 if p.get("es_afiliado") or (p.get("precio_venta") and p["precio_venta"] > 0)]
+    productos = _productos_publicados()
     if cat:
         productos = [p for p in productos
-                     if _norm(p.get("categoria") or "") == _norm(cat)]
+                     if _norm_texto(p.get("categoria") or "") == _norm_texto(cat)]
     _productos_con_imagen(productos)
     return render_template("tienda/catalogo.html",
                            productos=productos,
                            store_name=STORE_NAME,
-                           cat_activa=cat)
+                           cat_activa="",
+                           grupo=None)
+
+
+@tienda.route("/<slug>")
+def categoria(slug):
+    """Página de categoría destacada: /tech, /gadgets, /hogar-inteligente, /deportes."""
+    grupo = GRUPOS_CATEGORIAS.get(slug)
+    if not grupo:
+        return redirect(url_for("tienda.index"))
+    cats = [_norm_texto(c) for c in grupo["categorias"]]
+    productos = [
+        p for p in _productos_publicados()
+        if cats and _norm_texto(p.get("categoria") or "") in cats
+    ]
+    _productos_con_imagen(productos)
+    return render_template("tienda/catalogo.html",
+                           productos=productos,
+                           store_name=STORE_NAME,
+                           cat_activa=slug,
+                           grupo=grupo)
 
 
 @tienda.route("/tienda/<int:id>")

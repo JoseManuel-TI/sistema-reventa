@@ -26,6 +26,12 @@
             <label for="descripcion">Descripción</label>
             <textarea id="descripcion" name="descripcion" class="form-control" rows="3">{{ producto.descripcion if producto else '' }}</textarea>
         </div>
+        <div class="form-group">
+            <label for="beneficios">Beneficios clave <span class="form-hint">se muestran como bullets en la card de la tienda · 1 por línea o separados por "|"</span></label>
+            <textarea id="beneficios" name="beneficios" class="form-control" rows="3" placeholder="Ej: Pantalla infinita AMOLED
+Carga rápida 33W
+Garantía de 12 meses">{{ producto.beneficios if producto and producto.beneficios else '' }}</textarea>
+        </div>
         <div class="form-row">
             <div class="form-group">
                 <label for="costo">Costo ($)</label>
@@ -43,7 +49,14 @@
         <div class="form-row">
             <div class="form-group">
                 <label for="categoria">Categoría</label>
-                <input type="text" id="categoria" name="categoria" class="form-control" value="{{ producto.categoria if producto else '' }}" placeholder="ej: Electrónica, Indumentaria">
+                <select id="categoria" name="categoria" class="form-control">
+                    <option value="">Seleccionar...</option>
+                    {% for cat in categorias %}
+                    <option value="{{ cat.nombre }}" {{ 'selected' if producto and producto.categoria == cat.nombre else '' }}>{{ cat.nombre }}</option>
+                    {% endfor %}
+                    <option value="__nueva__">➕ Nueva categoría...</option>
+                </select>
+                <input type="text" id="categoria_nueva" name="categoria_nueva" class="form-control" style="display:none;margin-top:6px;" placeholder="Nombre de la nueva categoría">
             </div>
             <div class="form-group">
                 <label for="stock">Stock</label>
@@ -109,8 +122,18 @@ const esAfiliadoInput = document.getElementById('es_afiliado');
 const afiliadoLinkWrap = document.getElementById('afiliado-link-wrap');
 const afiliadoLinkInput = document.getElementById('link_afiliado');
 const formProducto = document.querySelector('form[method="POST"]');
-const categoriaInput = document.querySelector('input[name="categoria"]');
+const categoriaSelect = document.getElementById('categoria');
+const categoriaNuevaInput = document.getElementById('categoria_nueva');
 const proveedorSelect = document.getElementById('proveedor_id');
+
+function toggleNuevaCategoria() {
+    categoriaNuevaInput.style.display = categoriaSelect && categoriaSelect.value === '__nueva__' ? '' : 'none';
+    if (categoriaSelect && categoriaSelect.value === '__nueva__') categoriaNuevaInput.focus();
+}
+if (categoriaSelect) {
+    categoriaSelect.addEventListener('change', toggleNuevaCategoria);
+    toggleNuevaCategoria();
+}
 
 function toggleAfiliado() {
     const activo = esAfiliadoInput.checked;
@@ -119,11 +142,18 @@ function toggleAfiliado() {
         costoUsdInput.disabled = true;
         costoArsInput.disabled = true;
         precioVentaInput.disabled = true;
-        categoriaInput.value = 'Amazon';
-        if (proveedorSelect) {
-            const opt = Array.from(proveedorSelect.options).find(o => o.text.trim().toLowerCase() === 'amazon');
+        if (categoriaSelect) {
+            const opt = Array.from(categoriaSelect.options).find(o => o.value === 'Amazon');
             if (opt) {
-                proveedorSelect.value = opt.value;
+                categoriaSelect.value = 'Amazon';
+                categoriaSelect.disabled = true;
+                toggleNuevaCategoria();
+            }
+        }
+        if (proveedorSelect) {
+            const p = Array.from(proveedorSelect.options).find(o => o.text.trim().toLowerCase() === 'amazon');
+            if (p) {
+                proveedorSelect.value = p.value;
                 proveedorSelect.disabled = true;
             }
         }
@@ -131,6 +161,7 @@ function toggleAfiliado() {
         costoUsdInput.disabled = false;
         costoArsInput.disabled = false;
         precioVentaInput.disabled = false;
+        if (categoriaSelect) categoriaSelect.disabled = false;
         if (proveedorSelect) proveedorSelect.disabled = false;
     }
 }

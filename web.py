@@ -92,7 +92,7 @@ def login():
 @app.route("/logout")
 def logout():
     session.pop("admin", None)
-    return redirect(url_for("tienda.catalogo"))
+    return redirect(url_for("tienda.index"))
 
 
 # ─── Helpers ──────────────────────────────────────────────────────
@@ -160,6 +160,34 @@ def _parsear_numero_form(valor, default=None):
         raise ValueError("Valor numérico inválido")
 
 
+def _parsear_categoria_form(form):
+    """Devuelve (categoria, nueva) a partir del select de categorías.
+
+    Si se eligió la opción '__nueva__', toma el texto libre de categoria_nueva
+    y lo registra en la tabla de categorías.
+    """
+    categoria = (form.get("categoria") or "").strip()
+    nueva = ""
+    if categoria == "__nueva__":
+        nueva = (form.get("categoria_nueva") or "").strip()
+        categoria = nueva
+        if nueva:
+            db.add_categoria(nueva)
+    return categoria, nueva
+
+
+def _categorias_form(producto_categoria=None):
+    """Categorías para el select del formulario, garantizando que aparezcan
+    la categoría actual del producto y 'Amazon'."""
+    cats = db.get_categorias_admin()
+    nombres = {c["nombre"] for c in cats}
+    for extra in [producto_categoria, "Amazon"]:
+        if extra and extra not in nombres:
+            cats.append({"id": None, "nombre": extra, "cantidad_productos": 0})
+            nombres.add(extra)
+    return cats
+
+
 def _fmt_pesos(valor):
     if valor is None or valor == 0:
         return "-"
@@ -202,10 +230,6 @@ def inject_globals():
 
 
 # ─── Dashboard ────────────────────────────────────────────────────
-
-@app.route("/")
-def index():
-    return redirect(url_for("tienda.catalogo"))
 
 @app.route("/dashboard")
 @login_required
@@ -272,12 +296,13 @@ def productos_nuevo():
             costo = _parsear_numero_form(request.form.get("costo"), default=0)
             costo_usd = _parsear_numero_form(request.form.get("costo_usd"), default=None)
             precio_venta = _parsear_numero_form(request.form.get("precio_venta"), default=None)
-            categoria = request.form.get("categoria", "").strip()
+            categoria, categoria_nueva = _parsear_categoria_form(request.form)
             stock = int(request.form.get("stock", 0) or 0)
             iva = _parsear_numero_form(request.form.get("iva_porcentaje"), default=21)
             publicar = 1 if request.form.get("publicar") else 0
             es_afiliado = 1 if request.form.get("es_afiliado") else 0
             link_afiliado = request.form.get("link_afiliado", "").strip()
+            beneficios = request.form.get("beneficios", "").strip()
 
             if es_afiliado and not link_afiliado:
                 flash("Si el producto es de Amazon/Afiliado, el link de afiliado es obligatorio.", "error")
@@ -293,7 +318,7 @@ def productos_nuevo():
                 proveedor_id=proveedor_id, costo=costo,
                 categoria=categoria, stock=stock, iva_porcentaje=iva,
                 publicar=publicar, es_afiliado=es_afiliado,
-                link_afiliado=link_afiliado,
+                link_afiliado=link_afiliado, beneficios=beneficios,
             )
             if costo_usd is not None and costo_usd > 0:
                 db.update_producto(pid, costo_usd=costo_usd)
@@ -315,7 +340,7 @@ def productos_nuevo():
 
         dolar_blue = pcalc.get_dolar_blue()
         return render_template("producto_form.html", producto=None, proveedores=proveedores,
-                               dolar_blue=dolar_blue, **_ruta("/productos"))
+                               dolar_blue=dolar_blue, categorias=_categorias_form(), **_ruta("/productos"))
     except Exception as e:
         logging.error("Error en productos_nuevo: %s", traceback.format_exc())
         flash(f"Error inesperado: {e}", "error")
@@ -372,7 +397,7 @@ def productos_editar(id):
                 flash("Si el producto es de Amazon/Afiliado, el link de afiliado es obligatorio.", "error")
                 return redirect(url_for("productos_editar", id=id))
 
-            categoria = request.form.get("categoria", "").strip()
+            categoria, categoria_nueva = _parsear_categoria_form(request.form)
             if es_afiliado:
                 categoria = "Amazon"
                 amazon = db.ensure_proveedor_amazon()
@@ -406,6 +431,7 @@ def productos_editar(id):
                 publicar=1 if request.form.get("publicar") else 0,
                 es_afiliado=1 if request.form.get("es_afiliado") else 0,
                 link_afiliado=request.form.get("link_afiliado", "").strip(),
+                beneficios=request.form.get("beneficios", "").strip(),
             )
 
             imagen = request.files.get("imagen")
@@ -416,7 +442,7 @@ def productos_editar(id):
 
         dolar_blue = pcalc.get_dolar_blue()
         return render_template("producto_form.html", producto=p, proveedores=proveedores,
-                               dolar_blue=dolar_blue, **_ruta("/productos"))
+                               dolar_blue=dolar_blue, categorias=_categorias_form(p.get("categoria")), **_ruta("/productos"))
     except Exception as e:
         logging.error("Error en productos_editar(%s): %s", id, traceback.format_exc())
         flash(f"Error inesperado: {e}", "error")
@@ -508,6 +534,45 @@ def proveedores_editar(id):
         flash("Proveedor actualizado.", "success")
         return redirect(url_for("proveedores_listar"))
     return render_template("proveedor_form.html", proveedor=proveedor, **_ruta("/proveedores"))
+
+
+@app.route("/proveedores/<int:id>/eliminar", methods=["POST"])
+@login_required
+def proveedores_eliminar(id):
+    proveedores = db.get_proveedores()
+    proveedor = next((p for p in proveedores if p["id"] == id), None)
+    if not proveedor:
+        flash("Proveedor no encontrado.", "error")
+        return redirect(url_for("proveedores_listar"))
+    db.delete_proveedor(id)
+    flash(f"Proveedor '{proveedor['nombre']}' eliminado.", "success")
+    return redirect(url_for("proveedores_listar"))
+
+
+# ─── Categorías ──────────────────────────────────────────────────
+
+@app.route("/categorias", methods=["GET", "POST"])
+@login_required
+def categorias_listar():
+    if request.method == "POST":
+        nombre = request.form.get("nombre", "").strip()
+        if not nombre:
+            flash("Ingresá un nombre de categoría.", "error")
+        elif db.add_categoria(nombre):
+            flash(f"Categoría '{nombre}' creada.", "success")
+        else:
+            flash(f"La categoría '{nombre}' ya existe.", "error")
+        return redirect(url_for("categorias_listar"))
+    categorias = db.get_categorias_admin()
+    return render_template("categorias.html", categorias=categorias, **_ruta("/categorias"))
+
+
+@app.route("/categorias/eliminar/<nombre>", methods=["POST"])
+@login_required
+def categorias_eliminar(nombre):
+    db.delete_categoria(nombre)
+    flash(f"Categoría '{nombre}' eliminada.", "success")
+    return redirect(url_for("categorias_listar"))
 
 
 # ─── Precios ──────────────────────────────────────────────────────

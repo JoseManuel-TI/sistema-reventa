@@ -39,7 +39,7 @@
             <span>Total</span>
             <strong>{{ peso(total) }}</strong>
         </div>
-        <div class="delivery-badge" style="margin-top:12px;">🚚 Envío gratis. {% if entrega_estimada == "hoy" %}Llega <strong>hoy</strong>{% else %}Llega el <strong>{{ entrega_estimada }}</strong>{% endif %}</div>
+        <div class="delivery-badge" style="margin-top:12px;">🚚 Envío gratis. {% if entrega_estimada == "hoy" %}Llega <strong>hoy</strong>{% elif entrega_estimada == "mañana" %}Llega <strong>mañana</strong>{% else %}Llega el <strong>{{ entrega_estimada }}</strong>{% endif %}</div>
         {% if banco_configurado %}
         <div class="bank-info">
             <p class="bank-title">📲 Transferencia bancaria</p>

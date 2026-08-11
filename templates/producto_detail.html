@@ -19,6 +19,13 @@
     {% endif %}
     <div class="prod-info">
         <p class="desc">{{ p.descripcion or 'Sin descripción' }}</p>
+        {% if p.beneficios %}
+        <ul style="list-style:none;margin:8px 0;padding:0;">
+            {% for b in p.beneficios.replace('\n', '|').split('|') %}
+            <li style="font-size:13px;color:#374151;padding:2px 0;">✓ {{ b.strip() }}</li>
+            {% endfor %}
+        </ul>
+        {% endif %}
         <dl class="prod-meta">
             <dt>Proveedor</dt>
             <dd>{{ p.proveedor_nombre or '-' }}</dd>

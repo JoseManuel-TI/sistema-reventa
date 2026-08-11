@@ -97,6 +97,11 @@ def init_db():
                     notas TEXT DEFAULT '',
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )""",
+                """CREATE TABLE IF NOT EXISTS categorias (
+                    id SERIAL PRIMARY KEY,
+                    nombre TEXT NOT NULL UNIQUE,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )""",
                 """CREATE TABLE IF NOT EXISTS productos (
                     id SERIAL PRIMARY KEY,
                     nombre TEXT NOT NULL,
@@ -155,6 +160,11 @@ def init_db():
                     notas TEXT,
                     created_at TEXT DEFAULT (datetime('now','localtime'))
                 );
+                CREATE TABLE IF NOT EXISTS categorias (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    nombre TEXT NOT NULL UNIQUE,
+                    created_at TEXT DEFAULT (datetime('now','localtime'))
+                );
                 CREATE TABLE IF NOT EXISTS productos (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     nombre TEXT NOT NULL,
@@ -206,7 +216,8 @@ def init_db():
         conn.commit()
 
         for col, typ in [("publicar", "INTEGER DEFAULT 0"), ("costo_usd", "REAL DEFAULT 0"), ("referencia", "TEXT DEFAULT ''"),
-                         ("es_afiliado", "INTEGER DEFAULT 0"), ("link_afiliado", "TEXT DEFAULT ''")]:
+                         ("es_afiliado", "INTEGER DEFAULT 0"), ("link_afiliado", "TEXT DEFAULT ''"),
+                         ("beneficios", "TEXT DEFAULT ''")]:
             try:
                 conn.execute(f"ALTER TABLE productos ADD COLUMN {col} {typ}")
                 conn.commit()
@@ -286,21 +297,81 @@ def update_proveedor(proveedor_id, nombre=None, contacto=None, notas=None):
         conn.close()
 
 
+def delete_proveedor(proveedor_id):
+    """Elimina un proveedor, desvinculando primero sus productos."""
+    conn = get_connection()
+    try:
+        conn.execute(_sql("UPDATE productos SET proveedor_id = NULL WHERE proveedor_id = ?"), (proveedor_id,))
+        conn.execute(_sql("DELETE FROM proveedores WHERE id = ?"), (proveedor_id,))
+        conn.commit()
+        return True
+    finally:
+        conn.close()
+
+
+# ─── Categorías ──────────────────────────────────────────────────
+
+def add_categoria(nombre):
+    nombre = (nombre or "").strip()
+    if not nombre:
+        return None
+    conn = get_connection()
+    try:
+        new_id = _insert_and_get_id(
+            conn,
+            "INSERT INTO categorias (nombre) VALUES (?)",
+            (nombre,),
+        )
+        conn.commit()
+        return new_id
+    except IntegrityError:
+        return None
+    finally:
+        conn.close()
+
+
+def get_categorias_admin():
+    """Categorías de la tabla manual, con cantidad de productos asignados."""
+    conn = get_connection()
+    try:
+        rows = conn.execute(_sql("""
+            SELECT c.id, c.nombre,
+                   (SELECT COUNT(*) FROM productos p WHERE p.categoria = c.nombre) as cantidad_productos
+            FROM categorias c
+            ORDER BY c.nombre
+        """)).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+def delete_categoria(nombre):
+    """Borra la categoría y limpia el campo categoria de los productos que la usen."""
+    conn = get_connection()
+    try:
+        conn.execute(_sql("UPDATE productos SET categoria = '' WHERE categoria = ?"), (nombre,))
+        conn.execute(_sql("DELETE FROM categorias WHERE nombre = ?"), (nombre,))
+        conn.commit()
+        return True
+    finally:
+        conn.close()
+
+
 # ─── Productos ────────────────────────────────────────────────────
 
 def add_producto(nombre, descripcion, proveedor_id, costo, categoria="",
                  stock=0, iva_porcentaje=21, publicar=0,
-                 es_afiliado=0, link_afiliado=""):
+                 es_afiliado=0, link_afiliado="", beneficios=""):
     conn = get_connection()
     try:
         product_id = _insert_and_get_id(
             conn,
             """INSERT INTO productos
                (nombre, descripcion, proveedor_id, costo, categoria, stock, iva_porcentaje, publicar,
-                es_afiliado, link_afiliado)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                es_afiliado, link_afiliado, beneficios)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (nombre, descripcion, proveedor_id, costo, categoria, stock, iva_porcentaje, publicar,
-             es_afiliado, link_afiliado),
+             es_afiliado, link_afiliado, beneficios),
         )
         conn.commit()
         return product_id
@@ -369,7 +440,7 @@ def get_categorias(publicado_only=False):
 def update_producto(producto_id, **kwargs):
     allowed = {"nombre", "descripcion", "costo", "precio_venta", "margen_porcentaje",
                "iva_porcentaje", "categoria", "stock", "activo", "proveedor_id", "publicar",
-               "costo_usd", "es_afiliado", "link_afiliado"}
+               "costo_usd", "es_afiliado", "link_afiliado", "beneficios"}
     updates = {k: v for k, v in kwargs.items() if k in allowed and v is not None}
     if not updates:
         return False

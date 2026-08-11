@@ -1,0 +1,89 @@
+{% extends "tienda/layout.html" %}
+{% set og_title = store_name ~ ' · Todo, rápido y fácil' %}
+{% set og_desc = 'Productos seleccionados con envío a Argentina. Comprá seguro desde Amazon.' %}
+{% block content %}
+<div class="bio-wrap">
+    <div class="bio-card">
+        <div class="bio-cover"></div>
+        <div class="bio-avatar-wrapper">
+            <div class="bio-avatar"><span class="ln">⚡</span></div>
+        </div>
+        <div class="bio-head">
+            <div class="bio-handle">@{{ store_name | lower }}</div>
+            <div class="bio-name">{{ store_name }}</div>
+            <div class="bio-slogan">Todo · Rápido · Fácil</div>
+        </div>
+        <p class="bio-bio">Selecciono los mejores productos con envío a Argentina. Tocá en cada enlace y mirá el precio en Amazon. 🔥</p>
+        <div class="bio-stats">
+            <div class="bio-stat"><b>{{ total_productos }}</b><span>productos</span></div>
+            <div class="bio-stat"><b>4</b><span>categorías</span></div>
+            <div class="bio-stat"><b>24/7</b><span>disponible</span></div>
+        </div>
+
+        <div class="bio-links">
+            {% for c in nav_categorias %}
+            <a href="/{{ c.slug }}" class="bio-btn">
+                <span class="ic primary">{{ c.icono }}</span>
+                <span class="tx"><b>{{ c.titulo }}</b><span>{{ c.subtitulo }}</span></span>
+                <span class="go">→</span>
+            </a>
+            {% endfor %}
+            <a href="{{ url_for('tienda.catalogo') }}" class="bio-btn">
+                <span class="ic navy">🛒</span>
+                <span class="tx"><b>Ver todos los productos</b><span>Catálogo completo recomendado</span></span>
+                <span class="go">→</span>
+            </a>
+        </div>
+
+        <div class="bio-social">
+            <a class="social-link" href="{{ wa_link }}" target="_blank" rel="noopener noreferrer" aria-label="WhatsApp">💬</a>
+            <a class="social-link" href="https://www.instagram.com/clickya.ar/" target="_blank" rel="noopener noreferrer" aria-label="Instagram">📸</a>
+        </div>
+    </div>
+
+    {% if destacados %}
+    <section>
+        <div class="section-head">
+            <h2>⚡ Top selecciones</h2>
+            <a href="{{ url_for('tienda.catalogo') }}">Ver todo →</a>
+        </div>
+        <div class="product-grid">
+            {% for p in destacados %}
+            {% set badge = producto_badge(p) %}
+            <article class="product-card" data-categoria="{{ (p.categoria or '')|lower }}" data-nombre="{{ p.nombre|lower }}">
+                <a href="/tienda/{{ p.id }}" class="card-media" aria-label="{{ p.nombre }}">
+                    {% set bclase = 'env' %}
+                    {% if badge == 'Top Ventas' %}{% set bclase = 'top' %}{% elif badge == 'Recomendado' %}{% set bclase = 'rec' %}{% elif badge == 'Nuevo Ingreso' %}{% set bclase = 'new' %}{% endif %}
+                    <span class="badge {{ bclase }}">{{ badge }}</span>
+                    {% if p.imagen %}
+                    <img src="/{{ p.imagen }}" alt="{{ p.nombre }}" loading="lazy">
+                    {% else %}
+                    <div class="no-img">📷</div>
+                    {% endif %}
+                </a>
+                <div class="card-body">
+                    <h3 class="card-title"><a href="/tienda/{{ p.id }}">{{ p.nombre[:60] }}</a></h3>
+                    <ul class="card-benefits">
+                        {% for b in producto_beneficios(p) %}
+                        <li>{{ b }}</li>
+                        {% endfor %}
+                    </ul>
+                    <div class="card-cta">
+                        {% if p.es_afiliado and p.link_afiliado %}
+                        <a href="{{ p.link_afiliado }}" target="_blank" rel="noopener noreferrer" class="btn-cta amazon">
+                            <span class="kicker">Precio actualizado en</span>Ver precio en Amazon 🛒
+                        </a>
+                        {% else %}
+                        <a href="/tienda/{{ p.id }}" class="btn-cta {{ 'amazon' if p.es_afiliado else 'primary' }}">
+                            <span class="kicker">{{ 'Oferta verificada' if p.es_afiliado else '' }}</span>{{ 'Consultar Oferta 🛒' if p.es_afiliado else 'Ver producto' }}
+                        </a>
+                        {% endif %}
+                    </div>
+                </div>
+            </article>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+</div>
+{% endblock %}

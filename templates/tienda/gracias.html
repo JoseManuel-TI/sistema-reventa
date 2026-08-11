@@ -60,7 +60,7 @@
 
     {% if not pedido.estado == "pagado" %}
     <div class="delivery-badge" style="display:block;text-align:center;margin-bottom:16px;">
-        🚚 Envío gratis. {% if entrega_estimada == "hoy" %}Llega <strong>hoy</strong>{% else %}Llega el <strong>{{ entrega_estimada }}</strong>{% endif %} después de la confirmación del pago.
+        🚚 Envío gratis. {% if entrega_estimada == "hoy" %}Llega <strong>hoy</strong>{% elif entrega_estimada == "mañana" %}Llega <strong>mañana</strong>{% else %}Llega el <strong>{{ entrega_estimada }}</strong>{% endif %} después de la confirmación del pago.
     </div>
     {% endif %}
 

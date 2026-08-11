@@ -1,0 +1,51 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="page-header">
+    <h2>🏷️ Categorías</h2>
+</div>
+
+<div class="card">
+    <form method="POST" action="/categorias" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <input type="text" name="nombre" class="form-control" placeholder="Nombre de la nueva categoría" required style="flex:1;min-width:220px;">
+        <button type="submit" class="btn btn-primary">+ Agregar</button>
+    </form>
+</div>
+
+<div class="card">
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr><th>ID</th><th>Nombre</th><th>Productos</th><th></th></tr>
+            </thead>
+            <tbody>
+                {% for cat in categorias %}
+                <tr>
+                    <td>{{ cat.id }}</td>
+                    <td><strong>{{ cat.nombre }}</strong></td>
+                    <td><span class="badge badge-stock">{{ cat.cantidad_productos }} prod.</span></td>
+                    <td>
+                        <div class="btn-group">
+                            <a href="/productos?categoria={{ cat.nombre }}" class="btn btn-outline btn-sm">Ver productos</a>
+                            {% if cat.cantidad_productos == 0 %}
+                            <form method="POST" action="/categorias/eliminar/{{ cat.nombre }}" style="display:inline;"
+                                  onsubmit="return confirm('¿Eliminar la categoría \"{{ cat.nombre }}\"?');">
+                                <button type="submit" class="btn btn-danger btn-sm">Eliminar</button>
+                            </form>
+                            {% else %}
+                            <form method="POST" action="/categorias/eliminar/{{ cat.nombre }}" style="display:inline;"
+                                  onsubmit="return confirm('¿Eliminar la categoría \"{{ cat.nombre }}\"? Se limpiará la categoría de sus {{ cat.cantidad_productos }} productos.');">
+                                <button type="submit" class="btn btn-danger btn-sm">Eliminar</button>
+                            </form>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+                {% if not categorias %}
+                <tr><td colspan="4" style="text-align:center;padding:32px;color:#94a3b8;">No hay categorías. Agregá la primera arriba.</td></tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

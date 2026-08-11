@@ -52,10 +52,24 @@
 
     <div class="detail-info">
         <h1>{{ p.nombre }}</h1>
+        {% set badge = producto_badge(p) %}
+        {% set bclase = 'env' %}
+        {% if badge == 'Top Ventas' %}{% set bclase = 'top' %}{% elif badge == 'Recomendado' %}{% set bclase = 'rec' %}{% elif badge == 'Nuevo Ingreso' %}{% set bclase = 'new' %}{% endif %}
+        <span class="badge inline {{ bclase }}">{{ badge }}</span>
         {% if p.es_afiliado %}
-        <div class="big-price afiliado">Consultar precio en Amazon</div>
-        <div class="price-shipping">Precio actualizado en el sitio de Amazon</div>
-        <a href="{{ p.link_afiliado }}" class="btn-buy btn-buy-afiliado" target="_blank" rel="nofollow noopener">Ver precio en Amazon 🛒</a>
+        <div class="big-price afiliado">Precio disponible en Amazon</div>
+        <div class="price-shipping">Precio siempre actualizado en el sitio de Amazon 🛒</div>
+
+        <ul class="card-benefits">
+            {% for b in producto_beneficios(p) %}
+            <li>{{ b }}</li>
+            {% endfor %}
+        </ul>
+
+        <a href="{{ p.link_afiliado or '/tienda/' ~ p.id }}" class="btn-cta amazon" target="_blank" rel="noopener noreferrer">
+            <span class="kicker">Precio actualizado en</span>Ver precio en Amazon 🛒
+        </a>
+        <div class="price-shipping afiliado" style="text-align:center;">Comprá 100% seguro con la garantía de Amazon</div>
         {% else %}
         <div class="big-price">$ {{ p.precio_venta|fmt_pesos }}</div>
         <div class="price-shipping">Envío gratis</div>
@@ -80,7 +94,13 @@
         </form>
         {% endif %}
 
-        <div class="delivery-badge">🚚 Envío gratis. {% if entrega_estimada == "hoy" %}Llega <strong>hoy</strong>{% else %}Llega el <strong>{{ entrega_estimada }}</strong>{% endif %}</div>
+        <ul class="card-benefits">
+            {% for b in producto_beneficios(p) %}
+            <li>{{ b }}</li>
+            {% endfor %}
+        </ul>
+
+        <div class="delivery-badge">🚚 Envío gratis. {% if entrega_estimada == "hoy" %}Llega <strong>hoy</strong>{% elif entrega_estimada == "mañana" %}Llega <strong>mañana</strong>{% else %}Llega el <strong>{{ entrega_estimada }}</strong>{% endif %}</div>
         {% endif %}
 
         <div class="share-section">
