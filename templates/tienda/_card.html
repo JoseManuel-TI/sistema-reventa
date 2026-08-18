@@ -1,0 +1,49 @@
+{% macro product_card(p) %}
+{% set badge = producto_badge(p) %}
+{% set cta = cta_producto(p) %}
+<article class="product-card {% if p.stock == 0 and not cta.externo %}agotado{% endif %}"
+         data-categoria="{{ (p.categoria or '')|lower }}"
+         data-nombre="{{ p.nombre|lower }}">
+    <a href="{{ cta.url }}" class="card-media" aria-label="{{ p.nombre }}"
+       {% if cta.externo %}target="_blank" rel="sponsored nofollow noopener"{% endif %}>
+        {% if badge %}
+        {% set bclase = 'env' %}
+        {% if badge == 'Top Ventas' %}{% set bclase = 'top' %}
+        {% elif badge == 'Recomendado' %}{% set bclase = 'rec' %}
+        {% elif badge == 'Nuevo Ingreso' %}{% set bclase = 'new' %}{% endif %}
+        <span class="badge {{ bclase }}">{{ badge }}</span>
+        {% endif %}
+        <span class="badge tipo {{ 'tipo-digital' if p.tipo_producto == 'afiliado_digital' else ('tipo-amazon' if p.tipo_producto == 'amazon_affiliate' else 'tipo-local') }}">{{ producto_tipo_label(p) }}</span>
+        {% if p.imagen %}
+        <img src="/{{ p.imagen }}" alt="{{ p.nombre }}" loading="lazy">
+        {% else %}
+        <div class="no-img">📷</div>
+        {% endif %}
+    </a>
+    <div class="card-body">
+        <h3 class="card-title"><a href="{{ cta.url }}" {% if cta.externo %}target="_blank" rel="sponsored nofollow noopener"{% endif %}>{{ p.nombre[:60] }}</a></h3>
+        {% if p.categoria and not cta.externo %}
+        <span class="card-cat">{{ p.categoria }}</span>
+        {% endif %}
+        <ul class="card-benefits">
+            {% for b in producto_beneficios(p) %}
+            <li>{{ b }}</li>
+            {% endfor %}
+        </ul>
+        <div class="card-cta">
+            {% if cta.externo %}
+            <div class="offer-tags">
+                <span class="offer-tag">Oferta disponible</span>
+                <span class="offer-tag envio">Envío a Argentina</span>
+            </div>
+            <a href="{{ cta.url }}" target="_blank" rel="sponsored nofollow noopener" class="btn-cta amazon">
+                <span class="kicker">{{ cta.kicker }}</span>{{ cta.label }} 🛒
+            </a>
+            {% else %}
+            <div class="card-price"><span class="cur">$</span> {{ p.precio_venta|fmt_pesos }}</div>
+            <a href="/tienda/{{ p.id }}" class="btn-cta primary">Ver producto</a>
+            {% endif %}
+        </div>
+    </div>
+</article>
+{% endmacro %}

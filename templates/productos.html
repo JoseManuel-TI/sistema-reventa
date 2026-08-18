@@ -40,7 +40,9 @@
                 {% for p in productos %}
                 <tr data-categoria="{{ (p.categoria or '')|lower }}" data-nombre="{{ p.nombre|lower }}" data-proveedor="{{ (p.proveedor_nombre or '')|lower }}">
                     <td>{% if p.imagen %}<img src="/{{ p.imagen }}" style="width:48px;height:48px;object-fit:cover;border-radius:6px;display:block;">{% else %}<div style="width:48px;height:48px;background:#f1f5f9;border-radius:6px;"></div>{% endif %}</td>
-                    <td><a href="/productos/{{ p.id }}" style="font-weight:500;">{{ p.nombre }}</a>{% if p.es_afiliado %} <span class="badge badge-amazon">Amazon</span>{% endif %}</td>
+                    <td><a href="/productos/{{ p.id }}" style="font-weight:500;">{{ p.nombre }}</a>
+                        {% if p.tipo_producto == 'amazon_affiliate' %}<span class="badge badge-amazon">📦 Amazon</span>{% elif p.tipo_producto == 'afiliado_digital' %}<span class="badge badge-digital">💻 Digital</span>{% elif p.tipo_producto == 'fisico_local' %}<span class="badge badge-local">🏪 Local</span>{% elif p.es_afiliado %}<span class="badge badge-amazon">Amazon</span>{% endif %}
+                    </td>
                     <td>{% if p.categoria %}<span class="badge badge-cat">{{ p.categoria }}</span>{% else %}—{% endif %}</td>
                     <td>{% if p.publicar %}✅{% else %}—{% endif %}</td>
                     <td>{{ p.proveedor_nombre or '-' }}</td>
@@ -138,5 +140,7 @@ document.addEventListener('DOMContentLoaded', function() {
 .search-bar-admin select{padding:8px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:14px;background:#fff;cursor:pointer;outline:none}
 .badge-cat{display:inline-block;padding:2px 8px;border-radius:4px;background:#eff6ff;color:#1d4ed8;font-size:12px;font-weight:500}
 .badge-amazon{display:inline-block;padding:2px 8px;border-radius:4px;background:#ff9900;color:#232f3e;font-size:11px;font-weight:600}
+.badge-digital{display:inline-block;padding:2px 8px;border-radius:4px;background:#ede9fe;color:#6d28d9;font-size:11px;font-weight:600}
+.badge-local{display:inline-block;padding:2px 8px;border-radius:4px;background:#ecfdf5;color:#047857;font-size:11px;font-weight:600}
 </style>
 {% endblock %}

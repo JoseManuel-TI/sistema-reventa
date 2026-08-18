@@ -1,0 +1,46 @@
+{% extends "tienda/layout.html" %}
+{% set og_title = store_name ~ ' · Enlaces' %}
+{% set og_desc = 'Recomendaciones y tecnología con envío a Argentina.' %}
+{% block body_class %}bio-page{% endblock %}
+{% block site_header %}{% endblock %}
+{% block content %}
+<div class="bio-wrap">
+    <div class="bio-profile">
+        <div class="bio-avatar"><img src="/static/brand/logo.svg" alt="Logo ClickYa"></div>
+        <div class="bio-name">{{ store_name }}</div>
+        <div class="bio-handle">@{{ store_name | lower }}</div>
+        <p class="bio-bio">Recomendaciones y tecnología con envío a Argentina.</p>
+    </div>
+
+    {% if destacados %}
+    <ul class="bio-list">
+        {% for p in destacados %}
+        {% set cta = cta_producto(p) %}
+        {% set badge = 'Amazon' if cta.externo else (producto_badge(p) or 'Recomendado') %}
+        <li class="bio-item">
+            {% if p.imagen %}
+            <img class="bio-thumb" src="/{{ p.imagen }}" alt="{{ p.nombre }}" loading="lazy">
+            {% else %}
+            <div class="bio-thumb no-img">📷</div>
+            {% endif %}
+            <div class="bio-item-body">
+                <h3 class="bio-item-title">{{ p.nombre[:60] }}</h3>
+                <span class="bio-item-badge {{ 'amazon' if badge == 'Amazon' else '' }}">{{ badge }}</span>
+            </div>
+            <a href="{{ cta.url }}" class="bio-item-btn"
+               {% if cta.externo %}target="_blank" rel="noopener noreferrer"{% endif %}>
+                {{ 'Ver en Amazon' if badge == 'Amazon' else cta.label }} ↗
+            </a>
+        </li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+
+    <a href="{{ url_for('tienda.catalogo') }}" class="bio-all">Ver catálogo completo →</a>
+
+    <div class="bio-social">
+        <a class="social-link" href="{{ wa_link }}" target="_blank" rel="noopener noreferrer" aria-label="WhatsApp">💬</a>
+        <a class="social-link" href="https://www.instagram.com/clickya.ar/" target="_blank" rel="noopener noreferrer" aria-label="Instagram">📸</a>
+    </div>
+</div>
+{% endblock %}

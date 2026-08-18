@@ -11,6 +11,7 @@ from flask import (
 
 import db
 import config
+import integraciones as itgr
 
 tienda = Blueprint("tienda", __name__, template_folder="templates")
 
@@ -101,8 +102,55 @@ def inject_globals():
         "nav_categorias": [
             {"slug": slug, **GRUPOS_CATEGORIAS[slug]} for slug in NAV_CATEGORIAS
         ],
+        "origen_nav": ORIGEN_NAV,
+        "origen_activa": request.args.get("origen", ""),
         "producto_beneficios": producto_beneficios,
         "producto_badge": producto_badge,
+        "cta_producto": cta_producto,
+        "producto_tipo_label": producto_tipo_label,
+    }
+
+
+# ─── Helpers de tipo de producto (local / digital / amazon) ────────
+
+def _es_externo(p):
+    """Un producto es externo si está marcado como afiliado o su tipo es digital/amazon."""
+    return bool(p.get("es_afiliado")) or itgr.es_externo(p.get("tipo_producto"))
+
+
+def producto_tipo_label(p):
+    """Etiqueta corta del tipo de producto (para chips y cards)."""
+    if _es_externo(p):
+        tipo = p.get("tipo_producto")
+        if tipo == "afiliado_digital":
+            return "Curso / Digital"
+        return "Importado Amazon"
+    return "Stock Local (AMBA)"
+
+
+def cta_producto(p):
+    """Devuelve los datos del botón de compra según el tipo de producto."""
+    tipo = p.get("tipo_producto")
+    if _es_externo(p):
+        url = itgr.producto_url_externa(p)
+        plataforma = p.get("plataforma_afiliado") or itgr.detectar_plataforma(url or "")
+        if tipo == "afiliado_digital" and plataforma == "hotmart":
+            label, kicker = "Acceder al curso", "Curso digital de acceso inmediato"
+        elif plataforma == "aliexpress":
+            label, kicker = "Ver precio en AliExpress", "Precio actualizado en AliExpress"
+        elif plataforma == "mercadolibre":
+            label, kicker = "Ver oferta en Mercado Libre", "Precio actualizado en Mercado Libre"
+        else:
+            label, kicker = "Ver en Amazon", "Precio y envío calculados en Amazon"
+        return {
+            "url": url or url_for("tienda.producto", id=p["id"]),
+            "label": label, "kicker": kicker, "externo": True,
+            "tipo": tipo, "plataforma": plataforma,
+        }
+    return {
+        "url": url_for("tienda.producto", id=p["id"]),
+        "label": "Ver producto", "kicker": None, "externo": False,
+        "tipo": tipo or "fisico_local", "plataforma": "",
     }
 
 
@@ -179,7 +227,11 @@ def producto_beneficios(p, cantidad=3):
 
 
 def producto_badge(p):
-    """Etiqueta flotante de la card según categoría."""
+    """Etiqueta promocional de la card según categoría (solo prop, no canal).
+
+    El canal (Local / Amazon Importado / Digital) se muestra aparte en el badge
+    de tipo para no mezclar mensajes en la misma tarjeta.
+    """
     cat = _norm_texto(p.get("categoria") or "")
     if cat in ("celulares", "deportes", "consolas"):
         return "Top Ventas"
@@ -187,7 +239,7 @@ def producto_badge(p):
         return "Recomendado"
     if cat in ("accesorios", "gadgets"):
         return "Nuevo Ingreso"
-    return "Envío a Argentina disponible"
+    return ""
 
 
 def _pesos(val):
@@ -207,10 +259,16 @@ def _productos_con_imagen(productos):
 
 @tienda.route("/")
 def index():
-    """Landing estilo Link-in-bio: punto de entrada desde redes sociales."""
+    """Raíz: redirige directo al catálogo (sin página de inicio)."""
+    return redirect(url_for("tienda.catalogo"))
+
+
+@tienda.route("/bio")
+def bio():
+    """Vista móvil estilo Link-in-bio, separada de la home (punto de entrada desde redes sociales)."""
     productos = _productos_publicados()
     _productos_con_imagen(productos)
-    return render_template("tienda/landing.html",
+    return render_template("tienda/bio.html",
                            store_name=STORE_NAME,
                            destacados=productos[:6],
                            total_productos=len(productos))
@@ -221,21 +279,51 @@ def index():
 def _productos_publicados():
     productos = db.get_productos(publicado_only=True)
     return [p for p in productos
-            if p.get("es_afiliado") or (p.get("precio_venta") and p["precio_venta"] > 0)]
+            if _es_externo(p) or (p.get("precio_venta") and p["precio_venta"] > 0)]
+
+
+ORIGEN_LABELS = {
+    "local": "Productos",
+    "digital": "Cursos Digitales",
+    "amazon": "Amazon Importados",
+}
+
+ORIGEN_NAV = [
+    {"key": "local", "label": "Productos", "icono": "🚚"},
+    {"key": "digital", "label": "Cursos Digitales", "icono": "💻"},
+    {"key": "amazon", "label": "Amazon Importados", "icono": "📦"},
+]
+
+
+def _filtrar_origen(productos, origen):
+    def tipo_de(p):
+        tipo = p.get("tipo_producto")
+        if tipo == "afiliado_digital" or (p.get("es_afiliado") and tipo != "amazon_affiliate"):
+            return "digital"
+        if tipo == "amazon_affiliate" or (p.get("es_afiliado") and p.get("plataforma_afiliado") == "amazon"):
+            return "amazon"
+        return "local"
+    if not origen:
+        return productos
+    return [p for p in productos if tipo_de(p) == origen]
 
 
 @tienda.route("/tienda")
 def catalogo():
     cat = request.args.get("cat", "").strip()
+    origen = request.args.get("origen", "").strip()
     productos = _productos_publicados()
     if cat:
         productos = [p for p in productos
                      if _norm_texto(p.get("categoria") or "") == _norm_texto(cat)]
+    productos = _filtrar_origen(productos, origen)
     _productos_con_imagen(productos)
     return render_template("tienda/catalogo.html",
                            productos=productos,
                            store_name=STORE_NAME,
                            cat_activa="",
+                           origen_activa=origen,
+                           origen_labels=ORIGEN_LABELS,
                            grupo=None)
 
 
@@ -244,7 +332,7 @@ def categoria(slug):
     """Página de categoría destacada: /tech, /gadgets, /hogar-inteligente, /deportes."""
     grupo = GRUPOS_CATEGORIAS.get(slug)
     if not grupo:
-        return redirect(url_for("tienda.index"))
+        return redirect(url_for("tienda.catalogo"))
     cats = [_norm_texto(c) for c in grupo["categorias"]]
     productos = [
         p for p in _productos_publicados()
@@ -255,13 +343,15 @@ def categoria(slug):
                            productos=productos,
                            store_name=STORE_NAME,
                            cat_activa=slug,
+                           origen_activa="",
+                           origen_labels=ORIGEN_LABELS,
                            grupo=grupo)
 
 
 @tienda.route("/tienda/<int:id>")
 def producto(id):
     p = db.get_producto(id)
-    if not p or not (p.get("es_afiliado")
+    if not p or not (_es_externo(p)
                      or (p.get("precio_venta") and p["precio_venta"] > 0)):
         flash("Producto no disponible.", "error")
         return redirect(url_for("tienda.catalogo"))
@@ -275,7 +365,7 @@ def producto(id):
 def enlace_corto(id):
     """URL corta para compartir: redirige a la ficha del producto."""
     p = db.get_producto(id)
-    if not p or not (p.get("es_afiliado")
+    if not p or not (_es_externo(p)
                      or (p.get("precio_venta") and p["precio_venta"] > 0)):
         abort(404)
     return redirect(url_for("tienda.producto", id=id))
@@ -298,6 +388,9 @@ def carrito_agregar(id):
     if not p or not p.get("precio_venta") or p["precio_venta"] <= 0:
         flash("Producto no disponible.", "error")
         return redirect(url_for("tienda.catalogo"))
+    if _es_externo(p):
+        flash("Este producto se compra en la plataforma externa.", "error")
+        return redirect(url_for("tienda.producto", id=id))
 
     cantidad = max(int(request.form.get("cantidad", 1)), 1)
     stock = p.get("stock") or 0
@@ -356,6 +449,9 @@ def comprar_ahora(id):
     if not p or not p.get("precio_venta") or p["precio_venta"] <= 0:
         flash("Producto no disponible.", "error")
         return redirect(url_for("tienda.catalogo"))
+    if _es_externo(p):
+        flash("Este producto se compra en la plataforma externa.", "error")
+        return redirect(url_for("tienda.producto", id=id))
 
     cantidad = max(int(request.form.get("cantidad", 1)), 1)
     stock = p.get("stock") or 0

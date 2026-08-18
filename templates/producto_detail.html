@@ -59,10 +59,16 @@
                 </form>
                 {% endif %}
             </dd>
+            {% if p.tipo_producto %}
+            <dt>Tipo</dt>
+            <dd>{{ p.tipo_producto|replace('fisico_local','🏪 Stock Local (AMBA)')|replace('afiliado_digital','💻 Curso / Digital')|replace('amazon_affiliate','📦 Importado Amazon')|replace('otro','Otro') }}</dd>
+            <dt>Moneda</dt>
+            <dd>{{ p.moneda or 'ARS' }}</dd>
+            {% endif %}
             {% if p.es_afiliado %}
             <dt>Amazon / Afiliado</dt>
             <dd>
-                ✅ Sí — <a href="{{ p.link_afiliado }}" target="_blank" rel="noopener">{{ p.link_afiliado or 'sin link' }}</a>
+                ✅ Sí — <a href="{{ p.link_afiliado }}" target="_blank" rel="sponsored nofollow noopener">{{ p.link_afiliado or 'sin link' }}</a>
             </dd>
             {% endif %}
         </dl>

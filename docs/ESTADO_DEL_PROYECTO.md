@@ -7,7 +7,7 @@
 | **Nombre** | ClickYa |
 | **Eslogan** | Todo · Rápido · Fácil |
 | **URL producción** | https://clickya.net/tienda |
-| **Admin** | https://clickya.net/dashboard |
+| **Admin** | https://clickya.net/productos |
 | **Repositorio** | https://github.com/JoseManuel-TI/sistema-reventa.git |
 | **Hosting** | ClickYa.net (Railway-like) |
 | **Stack** | Python 3.12 + Flask + SQLite3 + Jinja2 |
@@ -126,7 +126,7 @@ ClickYa.net es la plataforma donde está hosteada la app. Se desconoce el mecani
 - Panel web con botón "Deploy" / "Restart"
 - FTP / SCP
 
-Para acceder al panel admin: https://clickya.net/dashboard (requiere contraseña).
+Para acceder al panel admin: https://clickya.net/productos (requiere contraseña).
 
 ## Próximos pasos documentados en SALIR_AL_MERCADO.md
 

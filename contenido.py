@@ -19,6 +19,7 @@ SCHEDULE_DB = os.path.join(DATA_DIR, "contenido.db")
 import db as app_db
 import config
 import instagram_api
+import integraciones as itgr
 
 _TELEGRAM_API = "https://api.telegram.org/bot{token}/{method}"
 
@@ -60,6 +61,33 @@ def _get_conn():
 def generar_caption(producto):
     nombre = producto["nombre"]
     desc = (producto.get("descripcion") or "")[:200]
+    tipo = producto.get("tipo_producto")
+    es_externo = itgr.es_externo(tipo) or bool(producto.get("es_afiliado"))
+    url_ext = itgr.producto_url_externa(producto)
+
+    if es_externo:
+        plataforma = producto.get("plataforma_afiliado") or itgr.detectar_plataforma(url_ext or "")
+        if tipo == "afiliado_digital" and plataforma == "hotmart":
+            cta = f"🎓 <a href='{url_ext}'>Acceder al curso</a>"
+            tag = "#CursoOnline #Formacion"
+        elif plataforma == "aliexpress":
+            cta = f"🛒 <a href='{url_ext}'>Ver precio en AliExpress</a>"
+            tag = "#AliExpress #Importado"
+        elif plataforma == "mercadolibre":
+            cta = f"🛒 <a href='{url_ext}'>Ver oferta en Mercado Libre</a>"
+            tag = "#MercadoLibre #Oferta"
+        else:
+            cta = f"🛒 <a href='{url_ext}'>Ver precio en Amazon</a>"
+            tag = "#Amazon #Importado"
+        caption = (
+            f"🛒 <b>{nombre}</b>\n\n"
+            f"{desc}\n\n"
+            f"{cta}\n\n"
+            f"✅ Compra 100% segura con garantía de la plataforma\n\n"
+            f"{tag} #ClickYa"
+        )
+        return caption
+
     pv = producto.get("precio_venta") or 0
     precio = f"$ {pv:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
     wa = config.get("TIENDA_WA") or "https://wa.me/5491126268359"
@@ -151,7 +179,9 @@ def programar_publicacion(producto_id, fecha=None):
 def programar_todos(fecha_inicio=None):
     _init_db()
     productos = app_db.get_productos(publicado_only=True)
-    productos = [p for p in productos if p.get("precio_venta") and p["precio_venta"] > 0]
+    productos = [p for p in productos
+                 if itgr.es_externo(p.get("tipo_producto")) or p.get("es_afiliado")
+                 or (p.get("precio_venta") and p["precio_venta"] > 0)]
     random.shuffle(productos)
 
     conn = _get_conn()

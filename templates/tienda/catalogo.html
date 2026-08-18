@@ -1,4 +1,5 @@
 {% extends "tienda/layout.html" %}
+{% from "tienda/_card.html" import product_card with context %}
 {% set og_title = store_name ~ ' - Productos recomendados' %}
 {% set og_desc = 'Descubrí productos recomendados con envío a Argentina y comprá desde Amazon de forma segura.' %}
 {% block content %}
@@ -9,61 +10,18 @@
     <p>{{ grupo.subtitulo }}</p>
     <span class="hero-cta">{{ productos|length }} productos seleccionados</span>
 </section>
-{% else %}
-<h1 class="page-title">Productos recomendados</h1>
 {% endif %}
 
 {% if not productos %}
 <div class="empty">
     <div class="big">🛒</div>
     <p>Próximamente disponibles.</p>
-    <a href="{{ url_for('tienda.index') }}" class="btn-primary">Volver al inicio</a>
+    <a href="{{ url_for('tienda.catalogo') }}" class="btn-primary">Ver todos los productos</a>
 </div>
 {% else %}
 <div class="product-grid">
     {% for p in productos %}
-    {% set badge = producto_badge(p) %}
-    <article class="product-card {% if p.stock == 0 and not p.es_afiliado %}agotado{% endif %}"
-             data-categoria="{{ (p.categoria or '')|lower }}"
-             data-nombre="{{ p.nombre|lower }}">
-        <a href="/tienda/{{ p.id }}" class="card-media" aria-label="{{ p.nombre }}">
-            {% set bclase = 'env' %}
-            {% if badge == 'Top Ventas' %}{% set bclase = 'top' %}{% elif badge == 'Recomendado' %}{% set bclase = 'rec' %}{% elif badge == 'Nuevo Ingreso' %}{% set bclase = 'new' %}{% endif %}
-            <span class="badge {{ bclase }}">{{ badge }}</span>
-            {% if p.imagen %}
-            <img src="/{{ p.imagen }}" alt="{{ p.nombre }}" loading="lazy">
-            {% else %}
-            <div class="no-img">📷</div>
-            {% endif %}
-        </a>
-        <div class="card-body">
-            <h3 class="card-title"><a href="/tienda/{{ p.id }}">{{ p.nombre[:60] }}</a></h3>
-            {% if p.categoria and not p.es_afiliado %}
-            <span class="card-cat">{{ p.categoria }}</span>
-            {% endif %}
-            <ul class="card-benefits">
-                {% for b in producto_beneficios(p) %}
-                <li>{{ b }}</li>
-                {% endfor %}
-            </ul>
-            <div class="card-cta">
-                {% if p.es_afiliado %}
-                {% if p.link_afiliado %}
-                <a href="{{ p.link_afiliado }}" target="_blank" rel="noopener noreferrer" class="btn-cta amazon">
-                    <span class="kicker">Precio actualizado en</span>Ver precio en Amazon 🛒
-                </a>
-                {% else %}
-                <a href="/tienda/{{ p.id }}" class="btn-cta amazon">
-                    <span class="kicker">Oferta verificada</span>Consultar Oferta 🛒
-                </a>
-                {% endif %}
-                {% else %}
-                <div class="card-price"><span class="cur">$</span> {{ p.precio_venta|fmt_pesos }}</div>
-                <a href="/tienda/{{ p.id }}" class="btn-cta primary">Ver producto</a>
-                {% endif %}
-            </div>
-        </div>
-    </article>
+    {{ product_card(p) }}
     {% endfor %}
 </div>
 {% endif %}

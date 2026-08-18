@@ -38,7 +38,6 @@
     <aside class="sidebar">
         <h1><span>🛒</span> ClickYa</h1>
         <nav>
-            <a href="/dashboard" class="{{ 'active' if ruta == '/dashboard' else '' }}">📊 Dashboard</a>
             <a href="/productos" class="{{ 'active' if ruta.startswith('/productos') else '' }}">📦 Productos</a>
             <a href="/proveedores" class="{{ 'active' if ruta.startswith('/proveedores') else '' }}">🏭 Proveedores</a>
             <a href="/categorias" class="{{ 'active' if ruta == '/categorias' else '' }}">🏷️ Categorías</a>
@@ -52,6 +51,7 @@
             <a href="/exportar/ml" class="{{ 'active' if ruta == '/exportar/ml' else '' }}">📤 Exportar ML</a>
             <a href="/exportar/catalogo" class="{{ 'active' if ruta == '/exportar/catalogo' else '' }}">📤 Exportar Catálogo</a>
             <a href="/exportar/instagram" class="{{ 'active' if ruta == '/exportar/instagram' else '' }}">📤 Exportar Instagram</a>
+            <a href="/exportar/whatsapp" class="{{ 'active' if ruta == '/exportar/whatsapp' else '' }}">📤 Exportar WhatsApp</a>
             <a href="/exportar/json" class="{{ 'active' if ruta == '/exportar/json' else '' }}">📤 Exportar JSON</a>
             <hr style="border:none;border-top:1px solid rgba(255,255,255,0.1);margin:8px 20px;">
             <a href="/logout">🚪 Salir</a>

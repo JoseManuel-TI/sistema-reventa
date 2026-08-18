@@ -146,6 +146,7 @@ def exportar_instagram_html(productos, nombre_archivo=None, base_url="https://cl
     Ideal para capturar pantalla y subir a Instagram / WhatsApp.
     """
     from config import get as cfg_get
+    import integraciones as itgr
     if not nombre_archivo:
         fecha = datetime.now().strftime("%Y%m%d_%H%M")
         nombre_archivo = f"instagram_{fecha}.html"
@@ -172,8 +173,34 @@ def exportar_instagram_html(productos, nombre_archivo=None, base_url="https://cl
             else:
                 img = img.lstrip("/")
         desc = p.get("descripcion", "")[:120]
-        pv = p.get("precio_venta")
-        precio = f"$ {pv:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".") if pv else "Consultar"
+
+        es_ext = itgr.es_externo(p.get("tipo_producto")) or bool(p.get("es_afiliado"))
+        if es_ext:
+            url_ext = itgr.producto_url_externa(p)
+            plataforma = p.get("plataforma_afiliado") or itgr.detectar_plataforma(url_ext or "")
+            if p.get("tipo_producto") == "afiliado_digital" and plataforma == "hotmart":
+                cta_label, cta_link, cta_wa = "🎓 Acceder al curso", url_ext or wa_link, url_ext or wa_link
+                tipo_badge = "CURSO DIGITAL"
+            elif plataforma == "aliexpress":
+                cta_label, cta_link, cta_wa = "Ver precio en AliExpress", url_ext or wa_link, url_ext or wa_link
+                tipo_badge = "IMPORTADO"
+            elif plataforma == "mercadolibre":
+                cta_label, cta_link, cta_wa = "Ver oferta en Mercado Libre", url_ext or wa_link, url_ext or wa_link
+                tipo_badge = "OFERTA ML"
+            else:
+                cta_label, cta_link, cta_wa = "🛒 Ver precio en Amazon", url_ext or wa_link, url_ext or wa_link
+                tipo_badge = "IMPORTADO AMAZON"
+            precio = "Consultar precio"
+            cta_clase = "cta amazon"
+        else:
+            pv = p.get("precio_venta")
+            precio = f"$ {pv:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".") if pv else "Consultar"
+            cta_label = "Comprar por WhatsApp"
+            cta_link = f"{wa_link}?text=Hola%2C+quiero+{p['nombre'].replace(' ', '%20')}"
+            cta_wa = wa_link
+            tipo_badge = "STOCK LOCAL (AMBA)"
+            cta_clase = "cta"
+
         card = template
         card = card.replace("{{IMAGEN}}", img)
         card = card.replace("{{NOMBRE}}", p["nombre"])
@@ -181,6 +208,10 @@ def exportar_instagram_html(productos, nombre_archivo=None, base_url="https://cl
         card = card.replace("{{DESCRIPCION}}", desc)
         card = card.replace("{{PRECIO}}", precio)
         card = card.replace("{{WA_LINK}}", wa_link)
+        card = card.replace("{{TIPO_BADGE}}", tipo_badge)
+        card = card.replace("{{CTA_LABEL}}", cta_label)
+        card = card.replace("{{CTA_LINK}}", cta_link)
+        card = card.replace("{{CTA_CLASS}}", cta_clase)
         tarjetas += card + "\n"
 
     html = f"""<!DOCTYPE html>
@@ -197,6 +228,9 @@ body {{ background:#111; display:flex; flex-direction:column; align-items:center
 .tarjeta .precio {{ padding:15px 20px; font-size:32px; font-weight:800; color:#00a650; }}
 .tarjeta .cta {{ display:block; margin:10px 20px; padding:14px; background:#25D366; color:#fff;
                 text-align:center; border-radius:30px; font-weight:700; font-size:18px; text-decoration:none; }}
+.tarjeta .cta.amazon {{ background:#ff9900; color:#232f3e; }}
+.tarjeta .badge {{ position:absolute; top:16px; left:16px; background:#232f3e; color:#ff9900;
+                  padding:6px 12px; border-radius:20px; font-size:12px; font-weight:800; letter-spacing:.5px; }}
 .tarjeta .watermark {{ position:absolute; bottom:15px; right:20px; font-size:11px; color:#bbb; }}
 </style>
 </head>
@@ -210,13 +244,57 @@ body {{ background:#111; display:flex; flex-direction:column; align-items:center
 def _instagram_default_template():
     return """
 <div class="tarjeta">
+    <span class="badge">{{TIPO_BADGE}}</span>
     <img src="{{IMAGEN}}" alt="{{NOMBRE}}">
     <h2>{{NOMBRE}}</h2>
     <p class="desc">{{DESCRIPCION}}</p>
     <p class="precio">{{PRECIO}}</p>
-    <a class="cta" href="{{WA_LINK}}?text=Hola%2C+quiero+{{NOMBRE_WA}}">Consultar por WhatsApp</a>
+    <a class="{{CTA_CLASS}}" href="{{CTA_LINK}}" target="_blank">{{CTA_LABEL}}</a>
     <div class="watermark">@clickya.ar</div>
 </div>"""
+
+
+# ─── WhatsApp Business (Catálogo) ─────────────────────────────────
+
+def exportar_whatsapp_csv(productos, nombre_archivo=None, base_url=""):
+    """
+    Genera CSV compatible con la carga masiva de catálogo de
+    WhatsApp Business / Meta Commerce Manager.
+    Columnas: title, description, link, image_link, price, currency, availability.
+    Solo productos locales (físicos) con precio definido.
+    """
+    import integraciones as itgr
+    if not nombre_archivo:
+        fecha = datetime.now().strftime("%Y%m%d_%H%M")
+        nombre_archivo = f"whatsapp_{fecha}.csv"
+
+    ruta = os.path.join(EXPORTS_DIR, nombre_archivo)
+    os.makedirs(EXPORTS_DIR, exist_ok=True)
+
+    productos = [p for p in _preparar_productos(productos)
+                 if not itgr.es_externo(p.get("tipo_producto"))
+                 and not p.get("es_afiliado")
+                 and (p.get("precio_venta") or 0) > 0]
+
+    campos = ["title", "description", "link", "image_link", "price", "currency", "availability"]
+    with open(ruta, "w", newline="", encoding="utf-8-sig") as f:
+        writer = csv.DictWriter(f, fieldnames=campos)
+        writer.writeheader()
+        for p in productos:
+            img = p.get("imagen_principal") or ""
+            if img and not img.startswith(("http://", "https://")):
+                img = f"{base_url.rstrip('/')}/{img.lstrip('/')}" if base_url else ""
+            link = p.get("link_catalogo") or ""
+            writer.writerow({
+                "title": p["nombre"],
+                "description": (p.get("descripcion") or "")[:1000],
+                "link": link,
+                "image_link": img,
+                "price": f"{p['precio_venta']:.2f}",
+                "currency": "ARS",
+                "availability": "in stock",
+            })
+    return ruta
 
 
 # ─── JSON ─────────────────────────────────────────────────────────

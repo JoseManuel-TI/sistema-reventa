@@ -118,6 +118,10 @@ def init_db():
                     costo_usd DOUBLE PRECISION DEFAULT 0,
                     es_afiliado BOOLEAN DEFAULT FALSE,
                     link_afiliado TEXT DEFAULT '',
+                    plataforma_afiliado TEXT DEFAULT 'amazon',
+                    tipo_producto TEXT DEFAULT 'fisico_local',
+                    moneda TEXT DEFAULT 'ARS',
+                    external_url TEXT DEFAULT '',
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )""",
@@ -181,6 +185,10 @@ def init_db():
                     costo_usd REAL DEFAULT 0,
                     es_afiliado INTEGER DEFAULT 0,
                     link_afiliado TEXT DEFAULT '',
+                    plataforma_afiliado TEXT DEFAULT 'amazon',
+                    tipo_producto TEXT DEFAULT 'fisico_local',
+                    moneda TEXT DEFAULT 'ARS',
+                    external_url TEXT DEFAULT '',
                     created_at TEXT DEFAULT (datetime('now','localtime')),
                     updated_at TEXT DEFAULT (datetime('now','localtime'))
                 );
@@ -216,8 +224,12 @@ def init_db():
         conn.commit()
 
         for col, typ in [("publicar", "INTEGER DEFAULT 0"), ("costo_usd", "REAL DEFAULT 0"), ("referencia", "TEXT DEFAULT ''"),
-                         ("es_afiliado", "INTEGER DEFAULT 0"), ("link_afiliado", "TEXT DEFAULT ''"),
-                         ("beneficios", "TEXT DEFAULT ''")]:
+                        ("es_afiliado", "INTEGER DEFAULT 0"), ("link_afiliado", "TEXT DEFAULT ''"),
+                        ("plataforma_afiliado", "TEXT DEFAULT 'amazon'"),
+                        ("tipo_producto", "TEXT DEFAULT 'fisico_local'"),
+                        ("moneda", "TEXT DEFAULT 'ARS'"),
+                        ("external_url", "TEXT DEFAULT ''"),
+                        ("beneficios", "TEXT DEFAULT ''")]:
             try:
                 conn.execute(f"ALTER TABLE productos ADD COLUMN {col} {typ}")
                 conn.commit()
@@ -361,17 +373,19 @@ def delete_categoria(nombre):
 
 def add_producto(nombre, descripcion, proveedor_id, costo, categoria="",
                  stock=0, iva_porcentaje=21, publicar=0,
-                 es_afiliado=0, link_afiliado="", beneficios=""):
+                 es_afiliado=0, link_afiliado="", beneficios="", plataforma_afiliado="amazon",
+                 tipo_producto="fisico_local", moneda="ARS", external_url=""):
     conn = get_connection()
     try:
         product_id = _insert_and_get_id(
             conn,
             """INSERT INTO productos
                (nombre, descripcion, proveedor_id, costo, categoria, stock, iva_porcentaje, publicar,
-                es_afiliado, link_afiliado, beneficios)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                es_afiliado, link_afiliado, beneficios, plataforma_afiliado, tipo_producto, moneda, external_url)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (nombre, descripcion, proveedor_id, costo, categoria, stock, iva_porcentaje, publicar,
-             es_afiliado, link_afiliado, beneficios),
+             es_afiliado, link_afiliado, beneficios, plataforma_afiliado or "amazon",
+             tipo_producto or "fisico_local", moneda or "ARS", external_url or link_afiliado or ""),
         )
         conn.commit()
         return product_id
@@ -440,7 +454,8 @@ def get_categorias(publicado_only=False):
 def update_producto(producto_id, **kwargs):
     allowed = {"nombre", "descripcion", "costo", "precio_venta", "margen_porcentaje",
                "iva_porcentaje", "categoria", "stock", "activo", "proveedor_id", "publicar",
-               "costo_usd", "es_afiliado", "link_afiliado", "beneficios"}
+               "costo_usd", "es_afiliado", "link_afiliado", "beneficios", "plataforma_afiliado",
+               "tipo_producto", "moneda", "external_url"}
     updates = {k: v for k, v in kwargs.items() if k in allowed and v is not None}
     if not updates:
         return False

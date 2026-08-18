@@ -495,6 +495,8 @@ def cmd_exportar(args):
         ruta = exportar.exportar_catalogo_html(productos, args.output)
     elif args.formato == "instagram":
         ruta = exportar.exportar_instagram_html(productos, args.output, base_url="https://clickya.net")
+    elif args.formato == "whatsapp":
+        ruta = exportar.exportar_whatsapp_csv(productos, args.output, base_url="https://clickya.net")
     elif args.formato == "json":
         ruta = exportar.exportar_json(productos, args.output)
     else:
@@ -642,7 +644,7 @@ Ejemplos:
 
     # exportar
     p = sub.add_parser("exportar", help="Exportar productos")
-    p.add_argument("formato", choices=["ml", "catalogo", "instagram", "json"],
+    p.add_argument("formato", choices=["ml", "catalogo", "instagram", "whatsapp", "json"],
                    help="Formato de exportación")
     p.add_argument("--output", help="Nombre del archivo de salida")
     p.add_argument("--proveedor", type=int, help="Filtrar por proveedor")

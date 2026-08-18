@@ -12,10 +12,11 @@
   "name": {{ p.nombre|tojson }},
   "description": {{ (p.descripcion or '')[:300]|tojson }},
   "image": {{ (imagenes[0].archivo if imagenes else '')|tojson }}
-  {% if p.es_afiliado %}
+  {% set es_ext = p.tipo_producto in ('afiliado_digital', 'amazon_affiliate') or p.es_afiliado %}
+  {% if es_ext %}
   ,"offers": {
     "@type": "Offer",
-    "url": {{ p.link_afiliado|tojson }},
+    "url": {{ (p.external_url or p.link_afiliado or '')|tojson }},
     "availability": "https://schema.org/InStock"
   }
   {% else %}
@@ -53,12 +54,29 @@
     <div class="detail-info">
         <h1>{{ p.nombre }}</h1>
         {% set badge = producto_badge(p) %}
+        {% if badge %}
         {% set bclase = 'env' %}
         {% if badge == 'Top Ventas' %}{% set bclase = 'top' %}{% elif badge == 'Recomendado' %}{% set bclase = 'rec' %}{% elif badge == 'Nuevo Ingreso' %}{% set bclase = 'new' %}{% endif %}
         <span class="badge inline {{ bclase }}">{{ badge }}</span>
-        {% if p.es_afiliado %}
+        {% endif %}
+        <span class="badge inline tipo {{ 'tipo-digital' if p.tipo_producto == 'afiliado_digital' else ('tipo-amazon' if p.tipo_producto == 'amazon_affiliate' else 'tipo-local') }}">{{ producto_tipo_label(p) }}</span>
+        {% set es_ext = p.tipo_producto in ('afiliado_digital', 'amazon_affiliate') or p.es_afiliado %}
+        {% if es_ext %}
+        {% set plataforma = p.plataforma_afiliado or 'amazon' %}
+        {% set url_ext = p.external_url or p.link_afiliado or '' %}
+        {% if p.tipo_producto == 'afiliado_digital' and plataforma == 'hotmart' %}
+        <div class="big-price afiliado">Curso digital</div>
+        <div class="price-shipping">Acceso inmediato luego de la compra 🚀</div>
+        {% elif plataforma == 'aliexpress' %}
+        <div class="big-price afiliado">Precio en AliExpress</div>
+        <div class="price-shipping">Precio siempre actualizado en la plataforma</div>
+        {% elif plataforma == 'mercadolibre' %}
+        <div class="big-price afiliado">Precio en Mercado Libre</div>
+        <div class="price-shipping">Precio siempre actualizado en la plataforma</div>
+        {% else %}
         <div class="big-price afiliado">Precio disponible en Amazon</div>
         <div class="price-shipping">Precio siempre actualizado en el sitio de Amazon 🛒</div>
+        {% endif %}
 
         <ul class="card-benefits">
             {% for b in producto_beneficios(p) %}
@@ -66,10 +84,11 @@
             {% endfor %}
         </ul>
 
-        <a href="{{ p.link_afiliado or '/tienda/' ~ p.id }}" class="btn-cta amazon" target="_blank" rel="noopener noreferrer">
-            <span class="kicker">Precio actualizado en</span>Ver precio en Amazon 🛒
+        {% set cta = cta_producto(p) %}
+        <a href="{{ cta.url }}" class="btn-cta amazon" target="_blank" rel="sponsored nofollow noopener">
+            <span class="kicker">{{ cta.kicker }}</span>{{ cta.label }} 🛒
         </a>
-        <div class="price-shipping afiliado" style="text-align:center;">Comprá 100% seguro con la garantía de Amazon</div>
+        <div class="price-shipping afiliado" style="text-align:center;">Compra 100% segura con la garantía de {{ 'Hotmart' if plataforma == 'hotmart' else 'Amazon' }}</div>
         {% else %}
         <div class="big-price">$ {{ p.precio_venta|fmt_pesos }}</div>
         <div class="price-shipping">Envío gratis</div>
@@ -156,8 +175,8 @@ document.querySelectorAll('.qty-picker button').forEach(b => {
     var url = window.location.origin + '/s/' + {{ p.id }};
     var titulo = {{ p.nombre|tojson }};
     if (titulo.length > 60) titulo = titulo.slice(0, 57) + '…';
-    {% if p.es_afiliado %}
-    var precio = 'Consultar precio en Amazon';
+    {% if es_ext %}
+    var precio = 'Consultar precio en la plataforma';
     {% else %}
     var precio = {{ ('$ ' + (p.precio_venta|fmt_pesos))|tojson }};
     {% endif %}

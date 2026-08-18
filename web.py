@@ -22,6 +22,7 @@ import config
 import precios as pcalc
 import exportar
 import contenido as cnt
+import integraciones as itgr
 from tienda import tienda
 import notificaciones
 from flask import (
@@ -83,7 +84,7 @@ def login():
             flash("ADMIN_PASSWORD no configurada. Configurala via ADMIN_PASSWORD env var o data/config.json", "error")
         elif password == admin_pass:
             session["admin"] = True
-            next_page = request.args.get("next") or url_for("dashboard")
+            next_page = request.args.get("next") or url_for("productos_listar")
             return redirect(next_page)
         flash("Contraseña incorrecta.", "error")
     return render_template("login.html", **_ruta("/login"))
@@ -92,7 +93,7 @@ def login():
 @app.route("/logout")
 def logout():
     session.pop("admin", None)
-    return redirect(url_for("tienda.index"))
+    return redirect(url_for("tienda.catalogo"))
 
 
 # ─── Helpers ──────────────────────────────────────────────────────
@@ -229,36 +230,10 @@ def inject_globals():
     return {"ruta": request.path, "persist_ok": persist_ok, "persist_msg": persist_msg}
 
 
-# ─── Dashboard ────────────────────────────────────────────────────
-
 @app.route("/dashboard")
 @login_required
 def dashboard():
-    productos = db.get_productos()
-    proveedores = db.get_proveedores()
-    inversion_total = sum(p["costo"] * max(p["stock"], 1) for p in productos if p.get("costo"))
-    venta_potencial = sum(
-        (p["precio_venta"] or 0) * max(p["stock"], 1) for p in productos
-    )
-    ganancia_estimada = venta_potencial - inversion_total
-    sin_precio = sum(1 for p in productos if not p.get("precio_venta"))
-    ultimos = sorted(productos, key=lambda x: x.get("created_at") or "", reverse=True)[:6]
-
-    # get images for ultimos
-    for p in ultimos:
-        imgs = db.get_imagenes(p["id"])
-        p["imagen"] = imgs[0]["archivo"] if imgs else None
-
-    stats = {
-        "productos_activos": len(productos),
-        "proveedores": len(proveedores),
-        "inversion_total": inversion_total,
-        "venta_potencial": venta_potencial,
-        "ganancia_estimada": max(0, ganancia_estimada),
-        "sin_precio": sin_precio,
-        "ultimos_productos": ultimos,
-    }
-    return render_template("index.html", stats=stats, **_ruta("/dashboard"))
+    return redirect(url_for("productos_listar"))
 
 
 # ─── Productos ────────────────────────────────────────────────────
@@ -274,6 +249,22 @@ def productos_listar():
         p["imagen"] = imgs[0]["archivo"] if imgs else None
     categorias = sorted(set(p.get("categoria") for p in productos if p.get("categoria")))
     return render_template("productos.html", productos=productos, categorias=categorias, **_ruta("/productos"))
+
+
+@app.route("/productos/fetch-metadata", methods=["POST"])
+@login_required
+def productos_fetch_metadata():
+    try:
+        url = request.form.get("url", "").strip()
+        if not url:
+            return jsonify({"error": "URL vacía"}), 400
+        data = itgr.fetch_metadata(url)
+        data["plataforma"] = itgr.detectar_plataforma(url)
+        data["tipo_producto"] = itgr.inferir_tipo_producto(url)
+        return jsonify(data)
+    except Exception as e:
+        logging.error("Error en fetch-metadata: %s", traceback.format_exc())
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route("/productos/nuevo", methods=["GET", "POST"])
@@ -300,18 +291,37 @@ def productos_nuevo():
             stock = int(request.form.get("stock", 0) or 0)
             iva = _parsear_numero_form(request.form.get("iva_porcentaje"), default=21)
             publicar = 1 if request.form.get("publicar") else 0
-            es_afiliado = 1 if request.form.get("es_afiliado") else 0
+            tipo_producto_form = request.form.get("tipo_producto", "").strip()
+            es_afiliado = 1 if (
+                request.form.get("es_afiliado") or (tipo_producto_form and tipo_producto_form != "fisico_local")
+            ) else 0
             link_afiliado = request.form.get("link_afiliado", "").strip()
+            plataforma_afiliado = request.form.get("plataforma_afiliado", "amazon").strip()
             beneficios = request.form.get("beneficios", "").strip()
+            tipo_producto = tipo_producto_form or None
+            moneda = request.form.get("moneda", "").strip() or None
+            external_url = request.form.get("external_url", "").strip()
 
             if es_afiliado and not link_afiliado:
-                flash("Si el producto es de Amazon/Afiliado, el link de afiliado es obligatorio.", "error")
+                flash("Si el producto es de afiliación, el link de afiliado es obligatorio.", "error")
                 return redirect(url_for("productos_nuevo"))
 
             if es_afiliado:
-                categoria = "Amazon"
-                amazon = db.ensure_proveedor_amazon()
-                proveedor_id = amazon["id"]
+                prov_nombre = "Afiliados " + plataforma_afiliado.capitalize()
+                prov = db.get_proveedor_por_nombre(prov_nombre)
+                if not prov:
+                    prov_id = db.add_proveedor(prov_nombre, notas=f"Afiliados {plataforma_afiliado.capitalize()}")
+                else:
+                    prov_id = prov["id"]
+                proveedor_id = prov_id
+
+            tipo_producto = tipo_producto or itgr.inferir_tipo_producto(link_afiliado)
+            if tipo_producto == "fisico_local":
+                moneda = moneda or "ARS"
+            elif tipo_producto == "amazon_affiliate":
+                moneda = moneda or "USD"
+            else:
+                moneda = moneda or "ARS"
 
             pid = db.add_producto(
                 nombre=nombre, descripcion=descripcion,
@@ -319,6 +329,9 @@ def productos_nuevo():
                 categoria=categoria, stock=stock, iva_porcentaje=iva,
                 publicar=publicar, es_afiliado=es_afiliado,
                 link_afiliado=link_afiliado, beneficios=beneficios,
+                plataforma_afiliado=plataforma_afiliado,
+                tipo_producto=tipo_producto, moneda=moneda,
+                external_url=external_url or link_afiliado
             )
             if costo_usd is not None and costo_usd > 0:
                 db.update_producto(pid, costo_usd=costo_usd)
@@ -393,15 +406,27 @@ def productos_editar(id):
 
             es_afiliado = 1 if request.form.get("es_afiliado") else 0
             link_afiliado = request.form.get("link_afiliado", "").strip()
+            plataforma_afiliado = request.form.get("plataforma_afiliado", "amazon").strip()
+            tipo_producto = (request.form.get("tipo_producto", "").strip()
+                             or p.get("tipo_producto") or "fisico_local")
+            if tipo_producto != "fisico_local":
+                es_afiliado = 1
+            moneda = (request.form.get("moneda", "").strip()
+                      or p.get("moneda") or "ARS")
+            external_url = request.form.get("external_url", "").strip()
             if es_afiliado and not link_afiliado:
-                flash("Si el producto es de Amazon/Afiliado, el link de afiliado es obligatorio.", "error")
+                flash("Si el producto es de afiliación, el link de afiliado es obligatorio.", "error")
                 return redirect(url_for("productos_editar", id=id))
 
             categoria, categoria_nueva = _parsear_categoria_form(request.form)
             if es_afiliado:
-                categoria = "Amazon"
-                amazon = db.ensure_proveedor_amazon()
-                proveedor_id = amazon["id"]
+                prov_nombre = "Afiliados " + plataforma_afiliado.capitalize()
+                prov = db.get_proveedor_por_nombre(prov_nombre)
+                if not prov:
+                    prov_id = db.add_proveedor(prov_nombre, notas=f"Afiliados {plataforma_afiliado.capitalize()}")
+                else:
+                    prov_id = prov["id"]
+                proveedor_id = prov_id
 
             costo_cambiado = costo != p.get("costo", 0)
             costo_usd_cambiado = costo_usd != p.get("costo_usd", 0)
@@ -431,7 +456,11 @@ def productos_editar(id):
                 publicar=1 if request.form.get("publicar") else 0,
                 es_afiliado=1 if request.form.get("es_afiliado") else 0,
                 link_afiliado=request.form.get("link_afiliado", "").strip(),
+                plataforma_afiliado=plataforma_afiliado,
                 beneficios=request.form.get("beneficios", "").strip(),
+                tipo_producto=tipo_producto,
+                moneda=moneda,
+                external_url=external_url or link_afiliado,
             )
 
             imagen = request.files.get("imagen")
@@ -643,7 +672,7 @@ def exportar_ruta(formato):
     productos = db.get_productos()
     if not productos:
         flash("No hay productos para exportar.", "error")
-        return redirect(url_for("dashboard"))
+        return redirect(url_for("productos_listar"))
 
     try:
         if formato == "ml":
@@ -654,18 +683,22 @@ def exportar_ruta(formato):
             ruta = exportar.exportar_catalogo_html(productos)
         elif formato == "instagram":
             ruta = exportar.exportar_instagram_html(productos, base_url=request.host_url.rstrip("/"))
+        elif formato == "whatsapp":
+            ruta = exportar.exportar_whatsapp_csv(productos, base_url=request.host_url.rstrip("/"))
+            with open(ruta, encoding="utf-8-sig") as f:
+                return f.read(), 200, {"Content-Type": "text/csv; charset=utf-8-sig", "Content-Disposition": f"attachment; filename={os.path.basename(ruta)}"}
         elif formato == "json":
             ruta = exportar.exportar_json(productos)
             with open(ruta, encoding="utf-8") as f:
                 return f.read(), 200, {"Content-Type": "application/json; charset=utf-8", "Content-Disposition": f"attachment; filename={os.path.basename(ruta)}"}
         else:
             flash("Formato no soportado.", "error")
-            return redirect(url_for("dashboard"))
+            return redirect(url_for("productos_listar"))
         with open(ruta, encoding="utf-8") as f:
             return f.read(), 200, {"Content-Type": "text/html; charset=utf-8"}
     except Exception as e:
         flash(f"Error al exportar: {e}", "error")
-        return redirect(url_for("dashboard"))
+        return redirect(url_for("productos_listar"))
 
 
 # ─── Contenido / Redes ──────────────────────────────────────────────

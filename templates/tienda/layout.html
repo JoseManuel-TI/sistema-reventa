@@ -39,34 +39,34 @@
 }
 </script>
 </head>
-<body>
-<header class="topbar">
-    <a href="{{ url_for('tienda.index') }}" class="logo">
-        <span class="logo-icon">⚡</span>
-        <span>{{ tienda_logo }}<span class="logo-sub">Todo · Rápido · Fácil</span></span>
-    </a>
-    <form class="search-bar" action="{{ url_for('tienda.catalogo') }}" method="GET" onsubmit="return false;">
-        <input type="text" name="q" placeholder="Buscar productos..." id="search-input" autocomplete="off">
-        <button type="button" onclick="buscarProductos()">🔍</button>
-    </form>
-    <nav>
-        <a href="{{ url_for('tienda.index') }}">Inicio</a>
-        <a href="{{ url_for('tienda.catalogo') }}">Productos</a>
-        <a href="{{ url_for('tienda.ver_carrito') }}" class="cart-link" aria-label="Carrito">
-            🛒
-            {% if cant_carrito > 0 %}
-            <span class="cart-badge">{{ cant_carrito }}</span>
-            {% endif %}
+<body class="{% block body_class %}{% endblock %}">
+{% block site_header %}
+<header class="site-header">
+    <div class="header-row">
+        <a href="{{ url_for('tienda.catalogo') }}" class="logo" aria-label="Catálogo">
+            <span class="logo-icon">⚡</span>
+            <span>{{ tienda_logo }}<span class="logo-sub">Todo · Rápido · Fácil</span></span>
         </a>
+        <form class="search-bar" action="{{ url_for('tienda.catalogo') }}" method="GET" onsubmit="return false;" role="search">
+            <input type="text" name="q" placeholder="Buscar productos..." id="search-input" autocomplete="off" aria-label="Buscar productos">
+            <button type="button" onclick="buscarProductos()">🔍</button>
+        </form>
+        <nav class="header-actions" aria-label="Acciones">
+            <a href="{{ url_for('tienda.ver_carrito') }}" class="cart-link" aria-label="Carrito">
+                🛒
+                {% if cant_carrito > 0 %}
+                <span class="cart-badge">{{ cant_carrito }}</span>
+                {% endif %}
+            </a>
+        </nav>
+    </div>
+    <nav class="cat-bar" aria-label="Categorías">
+        {% for o in origen_nav %}
+        <a href="{{ url_for('tienda.catalogo', origen=o.key) }}" class="{{ 'active' if origen_activa == o.key else '' }}">{{ o.label }}</a>
+        {% endfor %}
     </nav>
 </header>
-
-<div class="cat-bar">
-    <a href="{{ url_for('tienda.catalogo') }}" class="{{ 'active' if cat_activa == '' else '' }}">Todos</a>
-    {% for c in nav_categorias %}
-    <a href="/{{ c.slug }}" class="{{ 'active' if cat_activa == c.slug else '' }}">{{ c.titulo }}</a>
-    {% endfor %}
-</div>
+{% endblock %}
 
 {% with messages = get_flashed_messages(with_categories=true) %}
 {% if messages %}
@@ -84,8 +84,7 @@
 
 <footer class="footer">
     <p class="f-brand">{{ store_name }} · Todo, rápido y fácil</p>
-    <a href="{{ url_for('tienda.index') }}">Inicio</a>
-    {% for c in nav_categorias %} · <a href="/{{ c.slug }}">{{ c.titulo }}</a>{% endfor %}
+    {% for o in origen_nav %}<a href="{{ url_for('tienda.catalogo', origen=o.key) }}">{{ o.label }}</a>{% if not loop.last %} · {% endif %}{% endfor %}
     <p class="disclaimer-amazon">En calidad de Afiliado de Amazon, {{ store_name }} obtiene ingresos por las compras adscritas que cumplen los requisitos aplicables.</p>
 </footer>
 

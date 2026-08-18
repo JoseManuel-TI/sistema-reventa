@@ -79,15 +79,52 @@ Garantía de 12 meses">{{ producto.beneficios if producto and producto.beneficio
             <span class="form-hint">Solo los productos marcados aparecen en el catálogo público.</span>
         </div>
         <div class="form-group">
-            <label>
-                <input type="checkbox" id="es_afiliado" name="es_afiliado" value="1" {{ 'checked' if producto and producto.es_afiliado else '' }}>
-                Amazon / Afiliado
-            </label>
-            <span class="form-hint">Redirige a Amazon en lugar del carrito local. No requiere precio ni stock.</span>
+            <label for="tipo_producto">Tipo de producto</label>
+            <select id="tipo_producto" name="tipo_producto" class="form-control">
+                <option value="fisico_local" {{ 'selected' if not producto or producto.tipo_producto in ('fisico_local', None, '') else '' }}>🏪 Stock Local (AMBA)</option>
+                <option value="afiliado_digital" {{ 'selected' if producto and producto.tipo_producto == 'afiliado_digital' else '' }}>💻 Curso / Afiliado Digital</option>
+                <option value="amazon_affiliate" {{ 'selected' if producto and producto.tipo_producto == 'amazon_affiliate' else '' }}>📦 Importado Amazon / Afiliado</option>
+                <option value="otro" {{ 'selected' if producto and producto.tipo_producto == 'otro' else '' }}>Otro</option>
+            </select>
+            <span class="form-hint">Local: usa carrito y entrega en AMBA. Digital/Amazon: redirige a un enlace externo (no usa stock).</span>
         </div>
-        <div class="form-group" id="afiliado-link-wrap" {% if not (producto and producto.es_afiliado) %}style="display:none;"{% endif %}>
-            <label for="link_afiliado">Link de afiliado (Amazon) <span class="form-hint">obligatorio si es afiliado</span></label>
-            <input type="url" id="link_afiliado" name="link_afiliado" class="form-control" placeholder="https://amzn.to/..." value="{{ producto.link_afiliado if producto and producto.link_afiliado else '' }}">
+        <div class="form-row" id="tipo-externo-wrap" {% if not producto or producto.tipo_producto in ('fisico_local', None, '') %}style="display:none;"{% endif %}>
+            <div class="form-group">
+                <label for="plataforma_afiliado">Plataforma</label>
+                <select id="plataforma_afiliado" name="plataforma_afiliado" class="form-control">
+                    <option value="amazon" {{ 'selected' if not producto or producto.plataforma_afiliado == 'amazon' else '' }}>Amazon</option>
+                    <option value="aliexpress" {{ 'selected' if producto and producto.plataforma_afiliado == 'aliexpress' else '' }}>AliExpress</option>
+                    <option value="mercadolibre" {{ 'selected' if producto and producto.plataforma_afiliado == 'mercadolibre' else '' }}>Mercado Libre Afiliados</option>
+                    <option value="hotmart" {{ 'selected' if producto and producto.plataforma_afiliado == 'hotmart' else '' }}>Hotmart</option>
+                    <option value="otro" {{ 'selected' if producto and producto.plataforma_afiliado == 'otro' else '' }}>Otra plataforma</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="moneda">Moneda de precio</label>
+                <select id="moneda" name="moneda" class="form-control">
+                    <option value="ARS" {{ 'selected' if not producto or producto.moneda in ('ARS', None, '') else '' }}>ARS (pesos)</option>
+                    <option value="USD" {{ 'selected' if producto and producto.moneda == 'USD' else '' }}>USD (dólares)</option>
+                </select>
+            </div>
+        </div>
+        <div class="form-group" id="url-wrap" {% if not producto or producto.tipo_producto in ('fisico_local', None, '') %}style="display:none;"{% endif %}>
+            <label for="link_afiliado">Link de afiliado / externo <span class="form-hint">obligatorio si es externo</span></label>
+            <div style="display:flex;gap:8px;align-items:flex-start;">
+                <input type="url" id="link_afiliado" name="link_afiliado" class="form-control" placeholder="https://amzn.to/... / https://s.click.aliexpress.com/..." value="{{ producto.link_afiliado if producto and producto.link_afiliado else '' }}">
+                <button type="button" id="btn-fetch-meta" class="btn btn-outline" style="white-space:nowrap;">✨ Autocompletar</button>
+            </div>
+            <span class="form-hint" id="fetch-hint"></span>
+        </div>
+        <div class="form-group" id="url-externa-wrap" {% if not producto or producto.tipo_producto in ('fisico_local', None, '') %}style="display:none;"{% endif %}>
+            <label for="external_url">URL externa visible (opcional)</label>
+            <input type="url" id="external_url" name="external_url" class="form-control" placeholder="Si no se completa, se usa el link de afiliado." value="{{ producto.external_url if producto and producto.external_url else '' }}">
+        </div>
+        <div class="form-group">
+            <label>
+                <input type="checkbox" id="es_afiliado" name="es_afiliado" value="1" {{ 'checked' if producto and (producto.es_afiliado or producto.tipo_producto in ('afiliado_digital', 'amazon_affiliate')) else '' }}>
+                Producto Afiliado (Externo)
+            </label>
+            <span class="form-hint">Se marca automáticamente al elegir tipo Digital/Amazon.</span>
         </div>
         <div class="form-group">
             <label for="imagen">Imagen del producto</label>
@@ -119,12 +156,18 @@ const costoArsInput = document.getElementById('costo');
 const precioVentaInput = document.getElementById('precio_venta');
 
 const esAfiliadoInput = document.getElementById('es_afiliado');
-const afiliadoLinkWrap = document.getElementById('afiliado-link-wrap');
+const tipoProductoSelect = document.getElementById('tipo_producto');
+const monedaSelect = document.getElementById('moneda');
+const tipoExternoWrap = document.getElementById('tipo-externo-wrap');
+const urlWrap = document.getElementById('url-wrap');
+const urlExternaWrap = document.getElementById('url-externa-wrap');
 const afiliadoLinkInput = document.getElementById('link_afiliado');
 const formProducto = document.querySelector('form[method="POST"]');
 const categoriaSelect = document.getElementById('categoria');
 const categoriaNuevaInput = document.getElementById('categoria_nueva');
 const proveedorSelect = document.getElementById('proveedor_id');
+const btnFetchMeta = document.getElementById('btn-fetch-meta');
+const fetchHint = document.getElementById('fetch-hint');
 
 function toggleNuevaCategoria() {
     categoriaNuevaInput.style.display = categoriaSelect && categoriaSelect.value === '__nueva__' ? '' : 'none';
@@ -135,28 +178,25 @@ if (categoriaSelect) {
     toggleNuevaCategoria();
 }
 
-function toggleAfiliado() {
-    const activo = esAfiliadoInput.checked;
-    afiliadoLinkWrap.style.display = activo ? '' : 'none';
-    if (activo) {
+function esExterno(tipo) {
+    return tipo === 'afiliado_digital' || tipo === 'amazon_affiliate';
+}
+
+function toggleTipoProducto() {
+    const tipo = tipoProductoSelect.value;
+    const externo = esExterno(tipo);
+    tipoExternoWrap.style.display = externo ? '' : 'none';
+    urlWrap.style.display = externo ? '' : 'none';
+    urlExternaWrap.style.display = externo ? '' : 'none';
+    esAfiliadoInput.checked = externo;
+    const esActivo = externo;
+    if (esActivo) {
         costoUsdInput.disabled = true;
         costoArsInput.disabled = true;
         precioVentaInput.disabled = true;
-        if (categoriaSelect) {
-            const opt = Array.from(categoriaSelect.options).find(o => o.value === 'Amazon');
-            if (opt) {
-                categoriaSelect.value = 'Amazon';
-                categoriaSelect.disabled = true;
-                toggleNuevaCategoria();
-            }
-        }
-        if (proveedorSelect) {
-            const p = Array.from(proveedorSelect.options).find(o => o.text.trim().toLowerCase() === 'amazon');
-            if (p) {
-                proveedorSelect.value = p.value;
-                proveedorSelect.disabled = true;
-            }
-        }
+        if (categoriaSelect) categoriaSelect.disabled = true;
+        if (proveedorSelect) proveedorSelect.disabled = true;
+        if (monedaSelect && tipo === 'amazon_affiliate' && !monedaSelect.value) monedaSelect.value = 'USD';
     } else {
         costoUsdInput.disabled = false;
         costoArsInput.disabled = false;
@@ -166,16 +206,69 @@ function toggleAfiliado() {
     }
 }
 
-esAfiliadoInput.addEventListener('change', toggleAfiliado);
-toggleAfiliado();
+tipoProductoSelect.addEventListener('change', toggleTipoProducto);
+toggleTipoProducto();
 
-formProducto.addEventListener('submit', function (e) {
-    if (esAfiliadoInput.checked && !afiliadoLinkInput.value.trim()) {
-        e.preventDefault();
-        afiliadoLinkInput.focus();
-        alert('Si el producto es de Amazon/Afiliado, el link de afiliado es obligatorio.');
+esAfiliadoInput.addEventListener('change', function () {
+    if (esAfiliadoInput.checked && !esExterno(tipoProductoSelect.value)) {
+        tipoProductoSelect.value = 'afiliado_digital';
+        toggleTipoProducto();
     }
 });
+
+formProducto.addEventListener('submit', function (e) {
+    const externo = esExterno(tipoProductoSelect.value);
+    if (externo && !afiliadoLinkInput.value.trim()) {
+        e.preventDefault();
+        afiliadoLinkInput.focus();
+        alert('Si el producto es externo (Digital/Amazon), el link de afiliado es obligatorio.');
+    }
+});
+
+if (btnFetchMeta) {
+    btnFetchMeta.addEventListener('click', async function () {
+        const url = afiliadoLinkInput.value.trim();
+        if (!url) {
+            fetchHint.textContent = 'Pegá primero una URL.';
+            return;
+        }
+        btnFetchMeta.disabled = true;
+        btnFetchMeta.textContent = 'Buscando...';
+        fetchHint.textContent = '';
+        try {
+            const resp = await fetch('/productos/fetch-metadata', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                body: 'url=' + encodeURIComponent(url),
+            });
+            const data = await resp.json();
+            if (data.error) throw new Error(data.error);
+            const nombreInput = document.getElementById('nombre');
+            if (data.nombre && !nombreInput.value.trim()) nombreInput.value = data.nombre;
+            if (data.descripcion) {
+                const desc = document.getElementById('descripcion');
+                if (desc && !desc.value.trim()) desc.value = data.descripcion;
+            }
+            if (data.plataforma) document.getElementById('plataforma_afiliado').value = data.plataforma;
+            if (data.tipo_producto) {
+                tipoProductoSelect.value = data.tipo_producto;
+                toggleTipoProducto();
+            }
+            if (data.precio) {
+                const costoUsd = document.getElementById('costo_usd');
+                if (costoUsd && !costoUsd.value && data.plataforma === 'amazon') {
+                    costoUsd.value = data.precio;
+                }
+            }
+            fetchHint.textContent = data.imagen ? '✅ Metadata cargada. Imagen detectada: ' + data.imagen.slice(0, 60) + '…' : '✅ Metadata cargada.';
+        } catch (err) {
+            fetchHint.textContent = '⚠️ No se pudo autocompletar: ' + err.message;
+        } finally {
+            btnFetchMeta.disabled = false;
+            btnFetchMeta.textContent = '✨ Autocompletar';
+        }
+    });
+}
 
 function calcularPrecioVenta(costoArs) {
     const c = parseFloat(costoArs);
