@@ -215,9 +215,14 @@ def producto_beneficios(p, cantidad=3):
             return lineas[:cantidad]
 
     ben = _segmentos_beneficios(p.get("nombre") or "")
-    extras = ["Compra 100% segura vía Amazon",
-              "Envío a Argentina disponible",
-              "Atención y soporte ClickYa"]
+    if _es_externo(p):
+        extras = ["Compra 100% segura vía Amazon",
+                  "Envío a Argentina disponible",
+                  "Atención y soporte ClickYa"]
+    else:
+        extras = ["Stock disponible en AMBA",
+                  "Entrega en 24 hs hábiles",
+                  "Atención y soporte ClickYa"]
     i = 0
     while len(ben) < cantidad and i < len(extras):
         if extras[i] not in ben:
@@ -251,7 +256,7 @@ def _pesos(val):
 def _productos_con_imagen(productos):
     for p in productos:
         imgs = db.get_imagenes(p["id"])
-        p["imagen"] = imgs[0]["archivo"] if imgs else None
+        p["imagen"] = db.normalizar_imagen(imgs[0]["archivo"]) if imgs else None
     return productos
 
 
@@ -272,6 +277,12 @@ def bio():
                            store_name=STORE_NAME,
                            destacados=productos[:6],
                            total_productos=len(productos))
+
+
+@tienda.route("/nosotros")
+def nosotros():
+    """Página institucional: quiénes somos, pilares y compromisos."""
+    return render_template("tienda/nosotros.html", store_name=STORE_NAME)
 
 
 # ─── Catálogo ──────────────────────────────────────────────────────
@@ -356,6 +367,8 @@ def producto(id):
         flash("Producto no disponible.", "error")
         return redirect(url_for("tienda.catalogo"))
     imgs = db.get_imagenes(id)
+    for i, img in enumerate(imgs):
+        imgs[i]["archivo"] = db.normalizar_imagen(img["archivo"])
     return render_template("tienda/producto.html",
                            p=p, imagenes=imgs,
                            store_name=STORE_NAME, peso=_pesos)
@@ -412,7 +425,7 @@ def carrito_agregar(id):
             "nombre": p["nombre"],
             "precio": p["precio_venta"],
             "cantidad": cantidad,
-            "imagen": imgs[0]["archivo"] if imgs else None,
+            "imagen": db.normalizar_imagen(imgs[0]["archivo"]) if imgs else None,
             "stock": stock,
             "producto_id": id,
         }
@@ -467,7 +480,7 @@ def comprar_ahora(id):
         "nombre": p["nombre"],
         "precio": p["precio_venta"],
         "cantidad": cantidad,
-        "imagen": imgs[0]["archivo"] if imgs else None,
+        "imagen": db.normalizar_imagen(imgs[0]["archivo"]) if imgs else None,
         "stock": stock,
         "producto_id": id,
     }})
@@ -526,7 +539,7 @@ def merchant_feed():
     items = []
     for p in productos:
         imgs = db.get_imagenes(p["id"])
-        img = imgs[0]["archivo"] if imgs else ""
+        img = db.normalizar_imagen(imgs[0]["archivo"]) if imgs else ""
         if img and not img.startswith("http"):
             img = request.host_url.rstrip("/") + "/" + img
         link = url_for("tienda.producto", id=p["id"], _external=True)

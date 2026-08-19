@@ -136,6 +136,7 @@ def _guardar_imagen_producto(producto_id, nombre_producto, proveedor_id, imagen)
 
         rel_path = _image_web_path(ruta_img)
         db.add_imagen(producto_id, rel_path, es_principal=True)
+        db.invalidar_index_imagenes()
         logging.info("Imagen guardada: %s (producto %s)", rel_path, producto_id)
         return rel_path
     except Exception as exc:
@@ -515,6 +516,7 @@ def imagen_eliminar(id):
         fpath = img["archivo"]
         if os.path.exists(fpath) and os.path.isfile(fpath):
             os.remove(fpath)
+        db.invalidar_index_imagenes()
         flash("Imagen eliminada.", "success")
         return redirect(url_for("productos_detalle", id=pid))
     finally:
@@ -994,6 +996,13 @@ def handle_404(e):
 
 # ─── Init ──────────────────────────────────────────────────────
 db.init_db()
+
+try:
+    corregidas = db.normalizar_imagenes_db()
+    if corregidas:
+        logging.info("Rutas de imagen normalizadas: %s", corregidas)
+except Exception:
+    logging.error("Error normalizando rutas de imagen: %s", traceback.format_exc())
 
 admin_pass = config.get("ADMIN_PASSWORD")
 if not admin_pass:

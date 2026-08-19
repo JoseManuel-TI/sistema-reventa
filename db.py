@@ -511,6 +511,87 @@ def get_imagenes(producto_id):
         conn.close()
 
 
+def imagenes_dir():
+    """Directorio real de las imágenes (persistente en Railway, local en dev)."""
+    if os.environ.get("IMAGES_DIR"):
+        return os.environ["IMAGES_DIR"]
+    if os.environ.get("RAILWAY_ENVIRONMENT"):
+        return os.path.join(DATA_DIR, "imagenes")
+    return os.path.join(BASE_DIR, "imagenes")
+
+
+_IMAGEN_INDEX = None
+
+
+def _reindex_imagenes():
+    """Indexa (basename → rel) de todas las imágenes en disco, una sola vez."""
+    global _IMAGEN_INDEX
+    if _IMAGEN_INDEX is not None:
+        return _IMAGEN_INDEX
+    raiz = imagenes_dir()
+    indice = {}
+    if os.path.isdir(raiz):
+        for root, _, files in os.walk(raiz):
+            for fname in files:
+                indice.setdefault(fname, os.path.join("imagenes", os.path.relpath(root, raiz), fname))
+    _IMAGEN_INDEX = indice
+    return indice
+
+
+def invalidar_index_imagenes():
+    """Forza re-lectura del índice (después de subir/borrar imágenes)."""
+    global _IMAGEN_INDEX
+    _IMAGEN_INDEX = None
+
+
+def normalizar_imagen(archivo):
+    """Devuelve la ruta web canónica de una imagen.
+
+    Corrige rutas rotas en la DB (mayúsculas/espacios en la carpeta de proveedor,
+    ej. 'PM IMPORTADOS' en vez de la carpeta real). Si no encuentra el archivo,
+    busca por nombre de archivo en todo el árbol de imágenes.
+    """
+    if not archivo:
+        return archivo
+    if archivo.startswith("http://") or archivo.startswith("https://"):
+        return archivo
+
+    basename = os.path.basename(archivo)
+    fpath = os.path.join(imagenes_dir(), archivo[len("imagenes/"):] if archivo.startswith("imagenes/") else archivo)
+    if os.path.exists(fpath):
+        return archivo
+
+    indice = _reindex_imagenes()
+    rel = indice.get(basename)
+    if rel:
+        return rel
+    return archivo
+
+
+def normalizar_imagenes_db():
+    """Corrige en la DB las rutas de imagen que no apuntan al archivo real en disco.
+
+    Devuelve la cantidad de rutas corregidas. Idempotente.
+    """
+    conn = get_connection()
+    corregidas = 0
+    try:
+        rows = conn.execute(_sql("SELECT id, archivo FROM imagenes")).fetchall()
+        for row in rows:
+            original = row["archivo"]
+            corregido = normalizar_imagen(original)
+            if corregido != original:
+                conn.execute(
+                    _sql("UPDATE imagenes SET archivo = ? WHERE id = ?"),
+                    (corregido, row["id"]),
+                )
+                corregidas += 1
+        conn.commit()
+    finally:
+        conn.close()
+    return corregidas
+
+
 # ─── Pedidos ──────────────────────────────────────────────────────
 
 def crear_pedido(cliente_nombre, cliente_email, cliente_telefono,
