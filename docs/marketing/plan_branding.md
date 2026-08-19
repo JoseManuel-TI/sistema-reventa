@@ -90,7 +90,7 @@ Exclusiones (si aplica negocio B2B): puestos ejecutivos, profesiones de venta de
 
 ## 7. Estructura de la campaña en Meta
 
-```
+```text
 CAMPAÑA "ClickYa Branding · Ago 2026"
 ├── Objetivo: Notoriedad / Visualizaciones de video (o Alcance)
 ├── Ad Set 1 · AMBA Oeste   [video 9:16 + imagen 1:1]

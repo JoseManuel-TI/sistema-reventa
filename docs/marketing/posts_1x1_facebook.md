@@ -91,35 +91,35 @@ Piezas listas para capturar en `exports/marketing/capturas.html` (#p9..#p13) y
 ### P9 · Samsung T7 SSD 1TB
 - **Imagen:** `exports/marketing/img/Samsung_T7_SSD.jpg`
 - **Título:** "Samsung T7 · SSD 1TB portátil" · **Sub:** "9,5x más rápido que un disco común. 1TB que viaja en el bolsillo."
-- **Link:** https://amzn.to/4gfdlk5
+- **Link:** <https://amzn.to/4gfdlk5>
 - **Caption FB:** Tu próxima compra: acá el precio local vs Amazon puede duplicarse. Este SSD llega directo a tu puerta con garantía Amazon. 🔗 Link con precio actualizado en el primer comentario / bio.
 - **Hashtags:** #amazon #ssd #samsung #importado #clickya
 
 ### P10 · Cámara TP-Link Tapo 360°
 - **Imagen:** `exports/marketing/img/Tapo_Camara.jpg`
 - **Título:** "Cámara Tapo 360° · Wi-Fi" · **Sub:** "Mirá tu casa en vivo desde el celu, incluso de noche."
-- **Link:** https://amzn.to/4ih3tcf
+- **Link:** <https://amzn.to/4ih3tcf>
 - **Caption FB:** Seguridad real desde pocos dólares. Rota 360°, visión nocturna y alertas al teléfono sin mensualidad. 🔗 Envía a Argentina, link en bio.
 - **Hashtags:** #camaradeseguridad #tapo #hogarinteligente #importado #clickya
 
 ### P11 · Amazon Echo Dot 5ª gen
 - **Imagen:** `exports/marketing/img/Echo_Dot5.jpg`
 - **Título:** "Echo Dot 5 · parlante con Alexa" · **Sub:** "Casa inteligente desde cero: música, clima y recordatorios por voz."
-- **Link:** https://amzn.to/3Slf67w
+- **Link:** <https://amzn.to/3Slf67w>
 - **Caption FB:** ¿Alexa en tu casa? Esta va con base de batería: la llevás al patio, al balcón o de habitación. 🔗 Envío a Argentina, link en bio.
 - **Hashtags:** #alexa #echodot #parlanteinteligente #hogarinteligente #clickya
 
 ### P12 · Amazon Kindle Paperwhite
 - **Imagen:** `exports/marketing/img/Kindle_Paperwhite.jpg`
 - **Título:** "Kindle Paperwhite · sin distracciones" · **Sub:** "Pantalla antirreflejo y luz cálida. Leé en el sol o de noche."
-- **Link:** https://amzn.to/4xd1ri0
+- **Link:** <https://amzn.to/4xd1ri0>
 - **Caption FB:** Pantalla tipo papel, semanas de batería y sin notificaciones. El regalo ideal para quien lee mucho. 🔗 Envío a Argentina, link en bio.
 - **Hashtags:** #kindle #lectura #ebook #importado #clickya
 
 ### P13 · DJI Mic Mini
 - **Imagen:** `exports/marketing/img/DJI_Mic_Mini.webp`
 - **Título:** "DJI Mic Mini · micro inalámbrico" · **Sub:** "Audio de creador en la palma. Ideal para reels y entrevistas."
-- **Link:** https://amzn.to/4yUGCsZ
+- **Link:** <https://amzn.to/4yUGCsZ>
 - **Caption FB:** Si hacés contenido, tu audio vende. Dos micrófonos, cancelación de ruido y sin cables. 🔗 Envío a Argentina, link en bio.
 - **Hashtags:** #dji #micmini #creadores #contenido #clickya
 

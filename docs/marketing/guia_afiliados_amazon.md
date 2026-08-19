@@ -1,7 +1,7 @@
 # Guía: Afiliarse a Amazon Associates y cargar productos en ClickYa
 
-### Paso 0 — Crear la cuenta de afiliado (una sola vez)
-1. Ir a https://affiliate-program.amazon.com → **Sign up**.
+## Paso 0 — Crear la cuenta de afiliado (una sola vez)
+1. Ir a <https://affiliate-program.amazon.com> → **Sign up**.
 2. Completar datos (usar los datos de ClickYa, no personales si preferís).
 3. En la parte del **sitio web/app**, poner `https://clickya.net`.
 4. En "Cómo llegarás tráfico", marcar redes sociales + sitio propio.
