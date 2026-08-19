@@ -1,0 +1,68 @@
+{% extends "tienda/layout.html" %}
+{% set og_title = store_name ~ ' · Quiénes Somos' %}
+{% set og_desc = 'Conocé ClickYa: curamos tecnología, hogar y productos recomendados con envío a Argentina.' %}
+{% block content %}
+
+<section class="nosotros-hero" aria-labelledby="nosotros-titulo">
+    <span class="nosotros-hero-badge">⚡ Conoce nuestra propuesta</span>
+    <h1 id="nosotros-titulo">Impulsando tus elecciones: tecnología y soluciones al alcance de un clic.</h1>
+    <p class="nosotros-hero-sub">En {{ store_name }} filtramos, comparamos y curamos las mejores opciones en tecnología, hogar y más — combinando stock local con entrega inmediata y la garantía de importados seleccionados de Amazon.</p>
+</section>
+
+<section class="nosotros-about" aria-labelledby="que-es-clickya">
+    <div class="nosotros-about-text">
+        <span class="nosotros-eyebrow">¿Qué es ClickYa?</span>
+        <h2 id="que-es-clickya">Menos búsqueda, mejor decisión.</h2>
+        <p>Vivimos conectados, pero elegir bien sigue siendo difícil: precios, calidad, tiempos de entrega, garantías. {{ store_name }} nació para resolver eso.</p>
+        <p>Hacemos el trabajo de investigación por vos: seleccionamos productos con buena relación precio-calidad, verificamos disponibilidad y te acercamos lo que realmente conviene — desde un accesorio puntual hasta el electrodoméstico del hogar.</p>
+    </div>
+    <aside class="nosotros-about-card">
+        <h3>Nuestra promesa</h3>
+        <ul>
+            <li>Recomendamos solo lo que compraríamos para nosotros.</li>
+            <li>Precios claros, sin sorpresas a la hora de pagar.</li>
+            <li>Atención personalizada de principio a fin.</li>
+            <li>Compromiso con el envío: sabés exactamente qué esperar.</li>
+        </ul>
+    </aside>
+</section>
+
+<section class="nosotros-pilares" aria-labelledby="pilares">
+    <h2 id="pilares">Tres pilares que nos definen</h2>
+    <div class="pilares-grid">
+        <article class="pilar-card">
+            <div class="pilar-icon" aria-hidden="true">⚡</div>
+            <h3>Entrega Inmediata AMBA</h3>
+            <p>Envíos express en CABA y GBA. Coordinamos con vos el día y horario para que tu compra llegue rápido y sin vueltas.</p>
+        </article>
+        <article class="pilar-card">
+            <div class="pilar-icon" aria-hidden="true">🌎</div>
+            <h3>Selección Global Amazon</h3>
+            <p>Accedé a tecnología importada con garantía y seguro de compra de Amazon, gestionada como afiliados para que consigas mejores precios.</p>
+        </article>
+        <article class="pilar-card">
+            <div class="pilar-icon" aria-hidden="true">🔍</div>
+            <h3>Asesoramiento Transparente</h3>
+            <p>Atención personalizada y honesta: te contamos pros, contras y entregas reales para que decidas con toda la información.</p>
+        </article>
+    </div>
+</section>
+
+<section class="nosotros-compromiso" aria-label="Compromiso y transparencia">
+    <div class="compromiso-box">
+        <h3>🛡️ Compromiso y transparencia</h3>
+        <p>Como afiliados de Amazon, {{ store_name }} obtiene ingresos por las compras adscritas que cumplen los requisitos aplicables. Esto <strong>no modifica el precio</strong> que pagás vos: la recomendación es valiosa para ambos, y por eso solo sugerimos productos que realmente valen la pena.</p>
+        <p>Los pagos se procesan por <strong>canales seguros</strong> (Mercado Pago o transferencia bancaria con confirmación), y tu inversión está cubierta por las garantías de cada plataforma de venta.</p>
+    </div>
+</section>
+
+<section class="nosotros-cta" aria-labelledby="cta-titulo">
+    <h2 id="cta-titulo">¿Listo para tu próximo clic?</h2>
+    <p>Explorá el catálogo o hablá con nosotros para que te recomendemos al toque.</p>
+    <div class="nosotros-cta-buttons">
+        <a href="{{ url_for('tienda.catalogo') }}" class="btn-cta primary">Explorar Productos</a>
+        <a href="{{ wa_link }}" target="_blank" rel="noopener noreferrer" class="btn-cta wa">Contactar por WhatsApp</a>
+    </div>
+</section>
+
+{% endblock %}

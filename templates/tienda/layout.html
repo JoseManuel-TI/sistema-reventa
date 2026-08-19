@@ -52,6 +52,7 @@
             <button type="button" onclick="buscarProductos()">🔍</button>
         </form>
         <nav class="header-actions" aria-label="Acciones">
+            <a class="wa-header" href="{{ wa_link }}" target="_blank" rel="noopener noreferrer" aria-label="Contactar por WhatsApp">💬</a>
             <a href="{{ url_for('tienda.ver_carrito') }}" class="cart-link" aria-label="Carrito">
                 🛒
                 {% if cant_carrito > 0 %}
@@ -64,6 +65,7 @@
         {% for o in origen_nav %}
         <a href="{{ url_for('tienda.catalogo', origen=o.key) }}" class="{{ 'active' if origen_activa == o.key else '' }}">{{ o.label }}</a>
         {% endfor %}
+        <a href="{{ url_for('tienda.nosotros') }}" class="{{ 'active' if request.path == '/nosotros' else '' }}">Nosotros</a>
     </nav>
 </header>
 {% endblock %}
