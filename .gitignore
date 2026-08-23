@@ -1,6 +1,7 @@
 .DS_Store
 __pycache__/
 *.py[cod]
+.pytest_cache/
 *.db
 *.db-shm
 *.db-wal
@@ -9,5 +10,11 @@ data/import_state.json
 data/schedule.log
 exports/
 .env
+.env.*
 venv/
 .venv/
+node_modules/
+dist/
+build/
+.railway/
+*.log
