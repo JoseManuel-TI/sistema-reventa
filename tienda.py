@@ -12,6 +12,7 @@ from flask import (
 import db
 import config
 import integraciones as itgr
+import notificaciones
 
 tienda = Blueprint("tienda", __name__, template_folder="templates")
 
@@ -519,6 +520,12 @@ def checkout_procesar():
 
     total = sum(i["precio"] * i["cantidad"] for i in carrito.values())
     pedido_id = db.crear_pedido(nombre, email, telefono, direccion, total, carrito)
+    pedido = db.get_pedido(pedido_id)
+    if pedido:
+        try:
+            notificaciones.pedido_nuevo(pedido, db.get_pedido_items(pedido_id))
+        except Exception:
+            pass
 
     _save_carrito({})
 
@@ -585,6 +592,5 @@ def gracias(id):
                            store_name=STORE_NAME,
                            wa_link=STORE_WA,
                            peso=_pesos)
-
 
 

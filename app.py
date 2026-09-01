@@ -536,8 +536,16 @@ def cmd_publicar_post(args):
             print("-" * 70)
             for pub in pubs:
                 print(f"{pub['id']:>3} {pub['producto_id']:>4} {pub['estado']:12s} {pub['programada_para'] or '':14s} {(pub['producto_nombre'] or '?')[:40]}")
+    elif args.diario:
+        base_url = os.environ.get("PUBLIC_URL") or "https://clickya.net"
+        resumen = contenido.rutina_diaria(base_url=base_url)
+        print(f"Programadas nuevas: {len(resumen['programadas'])}")
+        print(f"Publicaciones procesadas: {len(resumen['publicaciones'])}")
+        print(f"Pendientes en cola: {resumen['pendientes']}")
+        print(f"Errores acumulados: {resumen['errores']}")
+        print(f"Telegram resumen: {'OK' if resumen['telegram'] else 'no enviado'}")
     else:
-        print("Usá --producto ID, --auto, --programar [fecha], o --calendario")
+        print("Usá --producto ID, --auto, --programar [fecha], --calendario o --diario")
 
 
 def cmd_publicar_programar(args):
@@ -658,6 +666,7 @@ Ejemplos:
     p.add_argument("--programar", nargs="?", const="", metavar="FECHA",
                    help="Programar todos los productos (opcional: fecha inicio YYYY-MM-DD)")
     p.add_argument("--calendario", action="store_true", help="Ver calendario de publicaciones")
+    p.add_argument("--diario", action="store_true", help="Ejecutar rutina diaria de contenido")
     p.add_argument("--guardar", action="store_true", help="Guardar en historial al publicar")
     p.set_defaults(func=cmd_publicar_post)
 

@@ -758,6 +758,19 @@ def contenido_publicar_pendientes():
     return redirect(url_for("contenido_calendario"))
 
 
+@app.route("/contenido/rutina-diaria", methods=["POST"])
+@login_required
+def contenido_rutina_diaria():
+    resumen = cnt.rutina_diaria(base_url=request.host_url.rstrip("/"))
+    ok = sum(1 for _, r, _ in resumen["publicaciones"] if r)
+    err = sum(1 for _, r, _ in resumen["publicaciones"] if not r)
+    flash(
+        f"Rutina diaria: {len(resumen['programadas'])} programadas, {ok} publicadas, {err} errores.",
+        "success" if err == 0 else "warning",
+    )
+    return redirect(url_for("contenido_calendario"))
+
+
 # ─── Imágenes (admin) ─────────────────────────────────────────────
 
 IMAGENES_PROVEEDORES_DIR = os.path.join(IMAGENES_DIR, "proveedores")

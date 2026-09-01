@@ -1,8 +1,9 @@
 """
 Script para cron/launchd — publica contenido pendiente en Telegram.
 Uso:
-    python3 schedule_publicar.py           # publica pendientes
+    python3 schedule_publicar.py           # rutina diaria completa
     python3 schedule_publicar.py --setup    # programa todos si no hay nada
+    python3 schedule_publicar.py --solo-publicar  # publica pendientes
 
 Para crontab (una vez al día):
     0 10 * * * cd /ruta/proyecto && /usr/bin/python3 schedule_publicar.py >> data/schedule.log 2>&1
@@ -31,13 +32,18 @@ if __name__ == "__main__":
     if "--setup" in sys.argv:
         count = contenido.programar_todos()
         print(f"Programadas {count} publicaciones.")
-    else:
+    elif "--solo-publicar" in sys.argv:
         result = contenido.publicar_pendientes(base_url=base_url)
         for pid, ok, msg in result:
             status = "✅" if ok else "❌"
             print(f"{status} Prod#{pid}: {msg}")
         if not result:
             print("Sin publicaciones pendientes.")
-            count = contenido.programar_todos()
-            if count:
-                print(f"Programadas {count} nuevas publicaciones.")
+    else:
+        resumen = contenido.rutina_diaria(base_url=base_url)
+        for pub in resumen["programadas"]:
+            print(f"📅 Programado Prod#{pub['producto_id']} para {pub['fecha']}: {pub['producto']}")
+        for pid, ok, msg in resumen["publicaciones"]:
+            status = "✅" if ok else "❌"
+            print(f"{status} Prod#{pid}: {msg}")
+        print(f"Pendientes: {resumen['pendientes']} | Errores: {resumen['errores']} | Telegram resumen: {'OK' if resumen['telegram'] else 'no enviado'}")

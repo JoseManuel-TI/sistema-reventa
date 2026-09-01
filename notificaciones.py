@@ -33,3 +33,30 @@ def telegram(mensaje):
     except (urllib.error.URLError, urllib.error.HTTPError, OSError) as e:
         logging.error("Telegram notification failed: %s", e)
         return False
+
+
+def _fmt_pesos(valor):
+    try:
+        return f"$ {float(valor):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    except (TypeError, ValueError):
+        return "$ 0,00"
+
+
+def pedido_nuevo(pedido, items):
+    lineas = "\n".join(
+        f"  • {i['nombre']} x{i['cantidad']} = {_fmt_pesos(i['subtotal'])}"
+        for i in items
+    )
+    telefono = pedido.get("cliente_telefono") or "—"
+    direccion = pedido.get("cliente_direccion") or "—"
+    mensaje = (
+        f"🛒 <b>Pedido nuevo #{pedido['id']}</b>\n\n"
+        f"👤 {pedido['cliente_nombre']}\n"
+        f"📧 {pedido['cliente_email']}\n"
+        f"📱 {telefono}\n"
+        f"🏠 {direccion}\n\n"
+        f"{lineas}\n\n"
+        f"<b>Total: {_fmt_pesos(pedido['total'])}</b>\n"
+        f"Estado: pendiente de confirmación"
+    )
+    return telegram(mensaje)
