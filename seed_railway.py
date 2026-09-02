@@ -67,13 +67,18 @@ def seed_database(conn, data):
             conn,
             """INSERT INTO productos (id, nombre, descripcion, proveedor_id, costo, precio_venta,
                margen_porcentaje, iva_porcentaje, categoria, stock, activo, publicar, costo_usd,
-               created_at, updated_at)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+               es_afiliado, link_afiliado, plataforma_afiliado, tipo_producto, moneda, external_url,
+               beneficios, created_at, updated_at)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             (prod["id"], prod["nombre"], prod.get("descripcion", ""),
              prod["proveedor_id"], prod["costo"], prod["precio_venta"],
              prod.get("margen_porcentaje", 0), prod.get("iva_porcentaje", 21),
              prod.get("categoria", ""), prod.get("stock", 1), prod.get("activo", 1),
              prod.get("publicar", 0), prod.get("costo_usd", 0),
+             prod.get("es_afiliado", 0), prod.get("link_afiliado", ""),
+             prod.get("plataforma_afiliado", "amazon"), prod.get("tipo_producto", "fisico_local"),
+             prod.get("moneda", "ARS"), prod.get("external_url", ""),
+             prod.get("beneficios", ""),
              prod.get("created_at", ""), prod.get("updated_at", "")),
         )
 
@@ -88,6 +93,121 @@ def seed_database(conn, data):
         conn.execute("SELECT setval('proveedores_id_seq', (SELECT COALESCE(MAX(id), 1) FROM proveedores))")
         conn.execute("SELECT setval('productos_id_seq', (SELECT COALESCE(MAX(id), 1) FROM productos))")
         conn.execute("SELECT setval('imagenes_id_seq', (SELECT COALESCE(MAX(id), 1) FROM imagenes))")
+
+
+def _provider_id_by_name(conn, nombre):
+    row = local_db.execute(conn, "SELECT id FROM proveedores WHERE nombre = ?", (nombre,)).fetchone()
+    return row["id"] if row else None
+
+
+def _ensure_provider(conn, prov):
+    existing_id = _provider_id_by_name(conn, prov["nombre"])
+    if existing_id:
+        return existing_id
+    local_db.execute(
+        conn,
+        "INSERT INTO proveedores (nombre, contacto, notas) VALUES (?,?,?)",
+        (prov["nombre"], prov.get("contacto", ""), prov.get("notas", "")),
+    )
+    return _provider_id_by_name(conn, prov["nombre"])
+
+
+def _seed_affiliate_products(conn, data):
+    """Inserta o actualiza afiliados sin tocar los productos locales existentes."""
+    proveedores = {p["id"]: p for p in data.get("proveedores", [])}
+    afiliados = [
+        p for p in data.get("productos", [])
+        if p.get("es_afiliado") or p.get("tipo_producto") in ("amazon_affiliate", "afiliado_digital")
+    ]
+    if not afiliados:
+        return 0, 0
+
+    creados = 0
+    actualizados = 0
+    id_map = {}
+    for prod in afiliados:
+        prov = proveedores.get(prod["proveedor_id"])
+        proveedor_id = _ensure_provider(conn, prov) if prov else prod["proveedor_id"]
+        destino = prod.get("external_url") or prod.get("link_afiliado") or ""
+        row = None
+        if destino:
+            row = local_db.execute(
+                conn,
+                "SELECT id FROM productos WHERE external_url = ? OR link_afiliado = ?",
+                (destino, destino),
+            ).fetchone()
+        if not row:
+            row = local_db.execute(
+                conn,
+                "SELECT id FROM productos WHERE nombre = ?",
+                (prod["nombre"],),
+            ).fetchone()
+
+        values = (
+            prod["nombre"], prod.get("descripcion", ""), proveedor_id,
+            prod.get("costo", 0), prod.get("precio_venta", 0),
+            prod.get("margen_porcentaje", 0), prod.get("iva_porcentaje", 21),
+            prod.get("categoria", ""), prod.get("stock", 0),
+            prod.get("activo", 1), prod.get("publicar", 1),
+            prod.get("costo_usd", 0), prod.get("es_afiliado", 1),
+            prod.get("link_afiliado", ""), prod.get("plataforma_afiliado", "amazon"),
+            prod.get("tipo_producto", "amazon_affiliate"), prod.get("moneda", "USD"),
+            prod.get("external_url", destino), prod.get("beneficios", ""),
+        )
+        if row:
+            local_db.execute(
+                conn,
+                """UPDATE productos SET
+                   nombre=?, descripcion=?, proveedor_id=?, costo=?, precio_venta=?,
+                   margen_porcentaje=?, iva_porcentaje=?, categoria=?, stock=?,
+                   activo=?, publicar=?, costo_usd=?, es_afiliado=?, link_afiliado=?,
+                   plataforma_afiliado=?, tipo_producto=?, moneda=?, external_url=?,
+                   beneficios=?, updated_at=CURRENT_TIMESTAMP
+                   WHERE id=?""",
+                values + (row["id"],),
+            )
+            product_id = row["id"]
+            actualizados += 1
+        else:
+            local_db.execute(
+                conn,
+                """INSERT INTO productos
+                   (nombre, descripcion, proveedor_id, costo, precio_venta,
+                    margen_porcentaje, iva_porcentaje, categoria, stock, activo, publicar,
+                    costo_usd, es_afiliado, link_afiliado, plataforma_afiliado,
+                    tipo_producto, moneda, external_url, beneficios)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                values,
+            )
+            row = local_db.execute(
+                conn,
+                "SELECT id FROM productos WHERE external_url = ? OR link_afiliado = ?",
+                (destino, destino),
+            ).fetchone()
+            product_id = row["id"]
+            creados += 1
+        id_map[prod["id"]] = product_id
+
+    for img in data.get("imagenes", []):
+        old_product_id = img.get("producto_id")
+        if old_product_id not in id_map:
+            continue
+        product_id = id_map[old_product_id]
+        archivo = img["archivo"]
+        exists = local_db.execute(
+            conn,
+            "SELECT id FROM imagenes WHERE producto_id = ? AND archivo = ?",
+            (product_id, archivo),
+        ).fetchone()
+        if exists:
+            continue
+        local_db.execute(
+            conn,
+            "INSERT INTO imagenes (producto_id, archivo, es_principal) VALUES (?,?,?)",
+            (product_id, archivo, img.get("es_principal", 1)),
+        )
+
+    return creados, actualizados
 
 
 def copy_seed_images(data):
@@ -122,7 +242,11 @@ def seed_from_file(seed_path, force=False):
         current_count = existing["c"] if existing else 0
 
         if current_count > 0 and not force:
-            print(f"DB already has {current_count} productos, skipping seed")
+            creados, actualizados = _seed_affiliate_products(conn, data)
+            conn.commit()
+            print(
+                f"DB already has {current_count} productos; affiliate sync: {creados} creados, {actualizados} actualizados"
+            )
             return
 
         if current_count > 0 and force:
