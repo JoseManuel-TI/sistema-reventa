@@ -1,0 +1,95 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="page-header">
+    <h2>Clicks afiliados</h2>
+    <div class="btn-group">
+        <a href="/contenido" class="btn btn-outline">Calendario</a>
+        <a href="/tienda?origen=amazon" target="_blank" class="btn btn-primary">Ver Amazon</a>
+    </div>
+</div>
+
+<div class="stats">
+    <div class="stat-card">
+        <div class="label">Clicks totales</div>
+        <div class="value blue">{{ resumen.total }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="label">Clicks hoy</div>
+        <div class="value green">{{ resumen.hoy }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="label">Ultimos 7 dias</div>
+        <div class="value orange">{{ resumen.ultimos_7_dias }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="label">Productos con clicks</div>
+        <div class="value">{{ resumen.productos_con_clicks }}</div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">Ranking</div>
+    {% if stats %}
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Producto</th>
+                <th>Plataforma</th>
+                <th>Total</th>
+                <th>Hoy</th>
+                <th>Ultimo click</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in stats %}
+            <tr>
+                <td>
+                    {% if row.producto_id %}
+                    <a href="/productos/{{ row.producto_id }}">{{ row.producto_nombre or ('Producto #' ~ row.producto_id) }}</a>
+                    {% else %}
+                    {{ row.producto_nombre or 'Producto eliminado' }}
+                    {% endif %}
+                </td>
+                <td>{{ row.plataforma or '-' }}</td>
+                <td><strong>{{ row.clicks_total }}</strong></td>
+                <td>{{ row.clicks_hoy or 0 }}</td>
+                <td>{{ row.ultimo_click or '-' }}</td>
+                <td>
+                    {% if row.producto_id %}
+                    <a href="/contenido/manual/{{ row.producto_id }}" class="btn btn-sm btn-outline">Manual IG/Facebook</a>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="color:#64748b;">Todavia no hay clicks registrados.</p>
+    {% endif %}
+</div>
+
+{% if sin_clicks %}
+<div class="card">
+    <div class="card-header">Afiliados sin clicks</div>
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Producto</th>
+                <th>Plataforma</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for p in sin_clicks %}
+            <tr>
+                <td><a href="/productos/{{ p.id }}">{{ p.nombre }}</a></td>
+                <td>{{ p.plataforma_afiliado or '-' }}</td>
+                <td><a href="/contenido/manual/{{ p.id }}" class="btn btn-sm btn-outline">Preparar post</a></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+{% endblock %}

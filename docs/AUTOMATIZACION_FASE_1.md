@@ -60,6 +60,27 @@ Cancela publicaciones pendientes vencidas para limpiar backlog obsoleto.
 Entrar a `/contenido` y usar el botón **Rutina diaria**.
 La pantalla también muestra diagnóstico comercial y permite reprogramar o cancelar publicaciones atrasadas.
 
+## Afiliados Amazon
+
+La tienda usa tracking interno para enlaces afiliados:
+
+- El cliente ve botones como **Ver en Amazon**.
+- El clic pasa primero por `/out/<producto_id>?src=...`.
+- El sistema registra producto, plataforma, origen del clic, referer, user-agent e IP anonimizada.
+- Luego redirige al link real de Amazon.
+
+Métricas:
+
+- `/contenido/afiliados` muestra clicks totales, clicks de hoy, últimos 7 días y ranking por producto.
+- La landing recomendada para campañas es `/tienda?origen=amazon`.
+
+Flujo manual recomendado:
+
+1. Publicar en Instagram/Facebook una recomendación concreta.
+2. Enviar tráfico a `https://clickya.net/tienda?origen=amazon` o al producto puntual.
+3. Revisar `/contenido/afiliados` para identificar qué productos reciben clicks.
+4. Repetir publicaciones de los productos con mejor CTR y reemplazar los que no reciben interés.
+
 ## Configuración necesaria para alertas
 
 En `/configuracion` o variables de entorno:

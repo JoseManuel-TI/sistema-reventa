@@ -2,6 +2,7 @@
 
 import os
 import re
+import hashlib
 import unicodedata
 from datetime import datetime, timedelta
 from flask import (
@@ -144,7 +145,7 @@ def cta_producto(p):
         else:
             label, kicker = "Ver en Amazon", "Precio y envío calculados en Amazon"
         return {
-            "url": url or url_for("tienda.producto", id=p["id"]),
+            "url": url_for("tienda.out_afiliado", id=p["id"]) if url else url_for("tienda.producto", id=p["id"]),
             "label": label, "kicker": kicker, "externo": True,
             "tipo": tipo, "plataforma": plataforma,
         }
@@ -385,6 +386,35 @@ def enlace_corto(id):
     return redirect(url_for("tienda.producto", id=id))
 
 
+@tienda.route("/out/<int:id>")
+def out_afiliado(id):
+    """Registra el clic afiliado y redirige a la plataforma externa."""
+    p = db.get_producto(id)
+    if not p or not _es_externo(p):
+        abort(404)
+    destino = itgr.producto_url_externa(p)
+    if not destino:
+        return redirect(url_for("tienda.producto", id=id))
+
+    plataforma = p.get("plataforma_afiliado") or itgr.detectar_plataforma(destino)
+    origen = request.args.get("src", "").strip()[:40]
+    ip_raw = request.headers.get("X-Forwarded-For", request.remote_addr or "").split(",")[0].strip()
+    ip_hash = hashlib.sha256(ip_raw.encode()).hexdigest()[:16] if ip_raw else ""
+    try:
+        db.registrar_click_afiliado(
+            producto_id=id,
+            plataforma=plataforma,
+            destino=destino,
+            origen=origen,
+            referer=(request.referrer or "")[:500],
+            user_agent=(request.user_agent.string or "")[:500],
+            ip_hash=ip_hash,
+        )
+    except Exception:
+        pass
+    return redirect(destino)
+
+
 # ─── Carrito ───────────────────────────────────────────────────────
 
 @tienda.route("/carrito")
@@ -592,5 +622,4 @@ def gracias(id):
                            store_name=STORE_NAME,
                            wa_link=STORE_WA,
                            peso=_pesos)
-
 

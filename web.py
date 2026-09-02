@@ -733,6 +733,12 @@ def contenido_calendario():
 
 def _caption_social_manual(producto):
     caption = cnt.generar_caption(producto)
+    caption = re.sub(
+        r"<a\s+href=['\"]([^'\"]+)['\"][^>]*>(.*?)</a>",
+        lambda m: f"{m.group(2)}: {m.group(1)}",
+        caption,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
     caption = re.sub(r"</?(b|strong|a)(?:\s+[^>]*)?>", "", caption)
     caption = re.sub(r"\n{3,}", "\n\n", caption).strip()
     return caption
@@ -756,6 +762,32 @@ def contenido_manual(id):
         caption=_caption_social_manual(p),
         tienda_url=tienda_url,
         share_url=share_url,
+        **_ruta("/contenido"),
+    )
+
+
+@app.route("/contenido/afiliados")
+@login_required
+def contenido_afiliados():
+    db.init_db()
+    resumen = db.get_clicks_afiliados_resumen()
+    stats = db.get_clicks_afiliados_stats(limit=50)
+    productos = [
+        p for p in db.get_productos(publicado_only=True)
+        if p.get("es_afiliado") or itgr.es_externo(p.get("tipo_producto"))
+    ]
+    productos_por_id = {p["id"]: p for p in productos}
+    for row in stats:
+        row["producto"] = productos_por_id.get(row["producto_id"])
+    sin_clicks = [
+        p for p in productos
+        if p["id"] not in {row["producto_id"] for row in stats}
+    ]
+    return render_template(
+        "contenido_afiliados.html",
+        resumen=resumen,
+        stats=stats,
+        sin_clicks=sin_clicks,
         **_ruta("/contenido"),
     )
 

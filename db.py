@@ -153,6 +153,17 @@ def init_db():
                     precio_unitario DOUBLE PRECISION NOT NULL,
                     subtotal DOUBLE PRECISION NOT NULL
                 )""",
+                """CREATE TABLE IF NOT EXISTS clicks_afiliados (
+                    id SERIAL PRIMARY KEY,
+                    producto_id INTEGER NOT NULL REFERENCES productos(id) ON DELETE CASCADE,
+                    plataforma TEXT DEFAULT '',
+                    destino TEXT NOT NULL,
+                    origen TEXT DEFAULT '',
+                    referer TEXT DEFAULT '',
+                    user_agent TEXT DEFAULT '',
+                    ip_hash TEXT DEFAULT '',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )""",
             ]:
                 conn.execute(ddl)
         else:
@@ -219,6 +230,17 @@ def init_db():
                     cantidad INTEGER NOT NULL,
                     precio_unitario REAL NOT NULL,
                     subtotal REAL NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS clicks_afiliados (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    producto_id INTEGER NOT NULL REFERENCES productos(id) ON DELETE CASCADE,
+                    plataforma TEXT DEFAULT '',
+                    destino TEXT NOT NULL,
+                    origen TEXT DEFAULT '',
+                    referer TEXT DEFAULT '',
+                    user_agent TEXT DEFAULT '',
+                    ip_hash TEXT DEFAULT '',
+                    created_at TEXT DEFAULT (datetime('now','localtime'))
                 );
             """)
         conn.commit()
@@ -507,6 +529,100 @@ def get_imagenes(producto_id):
             (producto_id,),
         ).fetchall()
         return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+# ─── Tracking afiliados ────────────────────────────────────────────
+
+def registrar_click_afiliado(producto_id, plataforma, destino, origen="", referer="", user_agent="", ip_hash=""):
+    conn = get_connection()
+    try:
+        _insert_and_get_id(
+            conn,
+            """
+            INSERT INTO clicks_afiliados
+                (producto_id, plataforma, destino, origen, referer, user_agent, ip_hash)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (producto_id, plataforma or "", destino, origen or "", referer or "", user_agent or "", ip_hash or ""),
+        )
+        conn.commit()
+        return True
+    finally:
+        conn.close()
+
+
+def get_clicks_afiliados_stats(limit=20):
+    conn = get_connection()
+    try:
+        if USE_POSTGRES:
+            query = """
+            SELECT
+                p.id AS producto_id,
+                p.nombre AS producto_nombre,
+                COALESCE(p.plataforma_afiliado, c.plataforma) AS plataforma,
+                COUNT(c.id) AS clicks_total,
+                SUM(CASE WHEN c.created_at::date = CURRENT_DATE THEN 1 ELSE 0 END) AS clicks_hoy,
+                MAX(c.created_at) AS ultimo_click
+            FROM clicks_afiliados c
+            LEFT JOIN productos p ON p.id = c.producto_id
+            GROUP BY p.id, p.nombre, p.plataforma_afiliado, c.plataforma
+            ORDER BY clicks_total DESC, ultimo_click DESC
+            LIMIT ?
+            """
+        else:
+            query = """
+            SELECT
+                p.id AS producto_id,
+                p.nombre AS producto_nombre,
+                COALESCE(p.plataforma_afiliado, c.plataforma) AS plataforma,
+                COUNT(c.id) AS clicks_total,
+                SUM(CASE WHEN date(c.created_at) = date('now') THEN 1 ELSE 0 END) AS clicks_hoy,
+                MAX(c.created_at) AS ultimo_click
+            FROM clicks_afiliados c
+            LEFT JOIN productos p ON p.id = c.producto_id
+            GROUP BY p.id, p.nombre, p.plataforma_afiliado, c.plataforma
+            ORDER BY clicks_total DESC, ultimo_click DESC
+            LIMIT ?
+            """
+        rows = conn.execute(
+            _sql(query),
+            (limit,),
+        ).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+def get_clicks_afiliados_resumen():
+    conn = get_connection()
+    try:
+        if USE_POSTGRES:
+            query = """
+            SELECT
+                COUNT(*) AS total,
+                SUM(CASE WHEN created_at::date = CURRENT_DATE THEN 1 ELSE 0 END) AS hoy,
+                SUM(CASE WHEN created_at >= NOW() - INTERVAL '7 days' THEN 1 ELSE 0 END) AS ultimos_7_dias,
+                COUNT(DISTINCT producto_id) AS productos_con_clicks
+            FROM clicks_afiliados
+            """
+        else:
+            query = """
+            SELECT
+                COUNT(*) AS total,
+                SUM(CASE WHEN date(created_at) = date('now') THEN 1 ELSE 0 END) AS hoy,
+                SUM(CASE WHEN created_at >= datetime('now', '-7 days') THEN 1 ELSE 0 END) AS ultimos_7_dias,
+                COUNT(DISTINCT producto_id) AS productos_con_clicks
+            FROM clicks_afiliados
+            """
+        row = conn.execute(_sql(query)).fetchone()
+        return {
+            "total": row["total"] or 0,
+            "hoy": row["hoy"] or 0,
+            "ultimos_7_dias": row["ultimos_7_dias"] or 0,
+            "productos_con_clicks": row["productos_con_clicks"] or 0,
+        }
     finally:
         conn.close()
 

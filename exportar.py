@@ -177,18 +177,19 @@ def exportar_instagram_html(productos, nombre_archivo=None, base_url="https://cl
         es_ext = itgr.es_externo(p.get("tipo_producto")) or bool(p.get("es_afiliado"))
         if es_ext:
             url_ext = itgr.producto_url_externa(p)
+            tracking_url = f"{base_url.rstrip('/')}/out/{p['id']}?src=instagram_card" if base_url and url_ext else url_ext
             plataforma = p.get("plataforma_afiliado") or itgr.detectar_plataforma(url_ext or "")
             if p.get("tipo_producto") == "afiliado_digital" and plataforma == "hotmart":
-                cta_label, cta_link, cta_wa = "🎓 Acceder al curso", url_ext or wa_link, url_ext or wa_link
+                cta_label, cta_link, cta_wa = "🎓 Acceder al curso", tracking_url or wa_link, tracking_url or wa_link
                 tipo_badge = "CURSO DIGITAL"
             elif plataforma == "aliexpress":
-                cta_label, cta_link, cta_wa = "Ver precio en AliExpress", url_ext or wa_link, url_ext or wa_link
+                cta_label, cta_link, cta_wa = "Ver precio en AliExpress", tracking_url or wa_link, tracking_url or wa_link
                 tipo_badge = "IMPORTADO"
             elif plataforma == "mercadolibre":
-                cta_label, cta_link, cta_wa = "Ver oferta en Mercado Libre", url_ext or wa_link, url_ext or wa_link
+                cta_label, cta_link, cta_wa = "Ver oferta en Mercado Libre", tracking_url or wa_link, tracking_url or wa_link
                 tipo_badge = "OFERTA ML"
             else:
-                cta_label, cta_link, cta_wa = "🛒 Ver precio en Amazon", url_ext or wa_link, url_ext or wa_link
+                cta_label, cta_link, cta_wa = "🛒 Ver precio en Amazon", tracking_url or wa_link, tracking_url or wa_link
                 tipo_badge = "IMPORTADO AMAZON"
             precio = "Consultar precio"
             cta_clase = "cta amazon"

@@ -12,6 +12,16 @@
 </section>
 {% endif %}
 
+{% if origen_activa == 'amazon' %}
+<section class="amazon-strip">
+    <div>
+        <strong>Importados recomendados</strong>
+        <span>Precio, stock y envio se confirman directamente en Amazon.</span>
+    </div>
+    <small>ClickYa puede recibir una comision sin costo extra para vos.</small>
+</section>
+{% endif %}
+
 {% if not productos %}
 <div class="empty">
     <div class="big">🛒</div>

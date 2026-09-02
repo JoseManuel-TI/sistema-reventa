@@ -28,6 +28,14 @@ import notificaciones
 _TELEGRAM_API = "https://api.telegram.org/bot{token}/{method}"
 
 
+def _tracking_url(producto, origen):
+    url_ext = itgr.producto_url_externa(producto)
+    if not url_ext:
+        return None
+    base_url = (config.get("PUBLIC_URL") or "https://clickya.net").rstrip("/")
+    return f"{base_url}/out/{producto['id']}?src={origen}"
+
+
 def _init_db():
     os.makedirs(DATA_DIR, exist_ok=True)
     conn = sqlite3.connect(SCHEDULE_DB)
@@ -67,7 +75,7 @@ def generar_caption(producto):
     desc = (producto.get("descripcion") or "")[:200]
     tipo = producto.get("tipo_producto")
     es_externo = itgr.es_externo(tipo) or bool(producto.get("es_afiliado"))
-    url_ext = itgr.producto_url_externa(producto)
+    url_ext = _tracking_url(producto, "telegram") or itgr.producto_url_externa(producto)
 
     if es_externo:
         plataforma = producto.get("plataforma_afiliado") or itgr.detectar_plataforma(url_ext or "")
