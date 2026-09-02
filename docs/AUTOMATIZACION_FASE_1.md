@@ -37,9 +37,28 @@ python3 schedule_publicar.py --solo-publicar
 Solo publica pendientes, sin rellenar calendario.
 Este modo sí procesa publicaciones atrasadas.
 
+```sh
+python3 app.py publicar --calendario
+```
+
+Muestra la cola y resume totales, pendientes, publicados, errores y atrasadas.
+
+```sh
+python3 app.py publicar --reprogramar-atrasadas
+```
+
+Mueve publicaciones pendientes vencidas a fechas futuras libres, una por día.
+
+```sh
+python3 app.py publicar --cancelar-atrasadas
+```
+
+Cancela publicaciones pendientes vencidas para limpiar backlog obsoleto.
+
 ## Panel admin
 
 Entrar a `/contenido` y usar el botón **Rutina diaria**.
+La pantalla también muestra diagnóstico comercial y permite reprogramar o cancelar publicaciones atrasadas.
 
 ## Configuración necesaria para alertas
 

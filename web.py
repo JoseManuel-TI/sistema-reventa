@@ -12,6 +12,7 @@ import shutil
 import traceback
 import logging
 import uuid
+import urllib.parse
 from datetime import datetime
 from functools import wraps
 
@@ -718,9 +719,45 @@ def api_instagram_status():
 def contenido_calendario():
     pubs = cnt.listar_publicaciones(limit=50)
     proxima = cnt.proxima_publicacion()
-    stats = {"total": len(pubs), "pendientes": sum(1 for p in pubs if p["estado"] == "pendiente"),
-             "publicados": sum(1 for p in pubs if p["estado"] == "publicado")}
-    return render_template("contenido.html", publicaciones=pubs, proxima=proxima, stats=stats, **_ruta("/contenido"))
+    stats = cnt.resumen_cola()
+    diagnostico = cnt.diagnostico_comercial()
+    return render_template(
+        "contenido.html",
+        publicaciones=pubs,
+        proxima=proxima,
+        stats=stats,
+        diagnostico=diagnostico,
+        **_ruta("/contenido"),
+    )
+
+
+def _caption_social_manual(producto):
+    caption = cnt.generar_caption(producto)
+    caption = re.sub(r"</?(b|strong|a)(?:\s+[^>]*)?>", "", caption)
+    caption = re.sub(r"\n{3,}", "\n\n", caption).strip()
+    return caption
+
+
+@app.route("/contenido/manual/<int:id>")
+@login_required
+def contenido_manual(id):
+    p = db.get_producto(id)
+    if not p:
+        flash("Producto no encontrado.", "error")
+        return redirect(url_for("contenido_calendario"))
+    imgs = db.get_imagenes(id)
+    p["imagen_principal"] = imgs[0]["archivo"] if imgs else None
+    base_url = (config.get("PUBLIC_URL") or request.host_url.rstrip("/")).rstrip("/")
+    tienda_url = f"{base_url}/tienda/producto/{id}"
+    share_url = "https://www.facebook.com/sharer/sharer.php?u=" + urllib.parse.quote(tienda_url, safe="")
+    return render_template(
+        "contenido_manual.html",
+        p=p,
+        caption=_caption_social_manual(p),
+        tienda_url=tienda_url,
+        share_url=share_url,
+        **_ruta("/contenido"),
+    )
 
 
 @app.route("/contenido/publicar/<int:id>", methods=["POST"])
@@ -733,7 +770,7 @@ def contenido_publicar_ahora(id):
     caption = cnt.generar_caption(p)
     ok, msg = cnt.postear_telegram(p, caption)
     if ok:
-        cnt.programar_publicacion(id)
+        cnt.registrar_publicacion_manual(id, caption, msg)
         flash(f"✅ Publicado #{id}", "success")
     else:
         flash(f"❌ Error: {msg}", "error")
@@ -768,6 +805,22 @@ def contenido_rutina_diaria():
         f"Rutina diaria: {len(resumen['programadas'])} programadas, {ok} publicadas, {err} errores.",
         "success" if err == 0 else "warning",
     )
+    return redirect(url_for("contenido_calendario"))
+
+
+@app.route("/contenido/reprogramar-atrasadas", methods=["POST"])
+@login_required
+def contenido_reprogramar_atrasadas():
+    movidas = cnt.reprogramar_atrasadas()
+    flash(f"Reprogramadas {len(movidas)} publicaciones atrasadas.", "success")
+    return redirect(url_for("contenido_calendario"))
+
+
+@app.route("/contenido/cancelar-atrasadas", methods=["POST"])
+@login_required
+def contenido_cancelar_atrasadas():
+    count = cnt.cancelar_atrasadas()
+    flash(f"Canceladas {count} publicaciones atrasadas.", "success")
     return redirect(url_for("contenido_calendario"))
 
 

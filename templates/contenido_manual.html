@@ -1,0 +1,51 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="page-header">
+    <h2>Publicación manual</h2>
+    <div class="btn-group">
+        <a href="/contenido" class="btn btn-outline">Volver</a>
+        <a href="{{ tienda_url }}" target="_blank" class="btn btn-primary">Abrir ficha</a>
+        <a href="{{ share_url }}" target="_blank" class="btn btn-outline">Compartir en Facebook</a>
+    </div>
+</div>
+
+<div class="card">
+    <div style="display:grid;grid-template-columns:320px 1fr;gap:20px;align-items:start;">
+        <div>
+            {% if p.imagen_principal %}
+            <a href="/{{ p.imagen_principal }}" target="_blank">
+                <img src="/{{ p.imagen_principal }}" alt="{{ p.nombre }}" style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px;border:1px solid #e5e7eb;">
+            </a>
+            <a href="/{{ p.imagen_principal }}" target="_blank" class="btn btn-outline" style="margin-top:10px;width:100%;justify-content:center;">Abrir imagen</a>
+            {% else %}
+            <div class="prod-img-placeholder" style="width:100%;">Sin imagen</div>
+            {% endif %}
+        </div>
+        <div>
+            <h3 style="font-size:18px;margin-bottom:8px;">{{ p.nombre }}</h3>
+            <p style="font-size:13px;color:#64748b;margin-bottom:12px;">Usá este texto para Instagram, Facebook o Creator Studio.</p>
+            <textarea id="caption" class="form-control" rows="14" readonly>{{ caption }}</textarea>
+            <div class="btn-group" style="margin-top:12px;flex-wrap:wrap;">
+                <button type="button" class="btn btn-primary" onclick="copiarCaption()">Copiar texto</button>
+                <a href="/exportar/instagram" target="_blank" class="btn btn-outline">Abrir cards 9:16</a>
+                <a href="{{ tienda_url }}" target="_blank" class="btn btn-outline">Copiar link de tienda</a>
+            </div>
+            <p id="copy-status" style="font-size:13px;color:#059669;margin-top:8px;"></p>
+        </div>
+    </div>
+</div>
+
+<script>
+function copiarCaption() {
+    var el = document.getElementById('caption');
+    el.select();
+    el.setSelectionRange(0, el.value.length);
+    navigator.clipboard.writeText(el.value).then(function() {
+        document.getElementById('copy-status').textContent = 'Texto copiado.';
+    }).catch(function() {
+        document.execCommand('copy');
+        document.getElementById('copy-status').textContent = 'Texto copiado.';
+    });
+}
+</script>
+{% endblock %}

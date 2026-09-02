@@ -13,7 +13,10 @@ import urllib.error
 from datetime import datetime, timedelta
 
 BASE_DIR = os.path.dirname(__file__)
-DATA_DIR = os.path.join(BASE_DIR, "data")
+DATA_DIR = os.environ.get("APP_DATA_DIR")
+if not DATA_DIR and os.environ.get("RAILWAY_ENVIRONMENT"):
+    DATA_DIR = "/data"
+DATA_DIR = DATA_DIR or os.path.join(BASE_DIR, "data")
 SCHEDULE_DB = os.path.join(DATA_DIR, "contenido.db")
 
 import db as app_db
@@ -212,6 +215,90 @@ def programar_todos(fecha_inicio=None):
     return count
 
 
+def registrar_publicacion_manual(producto_id, caption=None, resultado="OK manual"):
+    """Guarda una publicacion ejecutada fuera de la cola programada."""
+    _init_db()
+    if not caption:
+        producto = app_db.get_producto(producto_id)
+        caption = generar_caption(producto) if producto else ""
+    conn = _get_conn()
+    try:
+        conn.execute(
+            """
+            INSERT INTO publicaciones
+                (producto_id, caption, estado, programada_para, publicada_en)
+            VALUES (?, ?, 'publicado', date('now'), datetime('now','localtime'))
+            """,
+            (producto_id, caption),
+        )
+        conn.execute(
+            "INSERT INTO contenido_log (producto_id, canal, resultado) VALUES (?, 'manual', ?)",
+            (producto_id, resultado),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def cancelar_atrasadas():
+    """Cancela pendientes anteriores a hoy para evitar backlog obsoleto."""
+    _init_db()
+    conn = _get_conn()
+    try:
+        cur = conn.execute(
+            """
+            UPDATE publicaciones
+            SET estado='cancelado'
+            WHERE estado='pendiente'
+              AND programada_para IS NOT NULL
+              AND date(programada_para) < date('now')
+            """
+        )
+        conn.commit()
+        return cur.rowcount
+    finally:
+        conn.close()
+
+
+def reprogramar_atrasadas(desde=None, cantidad_diaria=1):
+    """Mueve pendientes vencidas a fechas libres desde hoy o desde la fecha indicada."""
+    _init_db()
+    conn = _get_conn()
+    try:
+        rows = conn.execute(
+            """
+            SELECT id FROM publicaciones
+            WHERE estado='pendiente'
+              AND programada_para IS NOT NULL
+              AND date(programada_para) < date('now')
+            ORDER BY programada_para ASC, id ASC
+            """
+        ).fetchall()
+        if not rows:
+            return []
+
+        inicio = datetime.strptime(desde, "%Y-%m-%d") if desde else datetime.now()
+        ocupadas = _fechas_pendientes(conn)
+        movidas = []
+        fecha = inicio
+        usadas_en_fecha = 0
+        for row in rows:
+            while fecha.strftime("%Y-%m-%d") in ocupadas or usadas_en_fecha >= cantidad_diaria:
+                fecha += timedelta(days=1)
+                usadas_en_fecha = 0
+            nueva_fecha = fecha.strftime("%Y-%m-%d")
+            conn.execute(
+                "UPDATE publicaciones SET programada_para=? WHERE id=?",
+                (nueva_fecha, row[0]),
+            )
+            movidas.append({"id": row[0], "fecha": nueva_fecha})
+            usadas_en_fecha += 1
+        conn.commit()
+        return movidas
+    finally:
+        conn.close()
+
+
 def _producto_publicable(producto, incluir_externos=False):
     es_externo = itgr.es_externo(producto.get("tipo_producto")) or bool(producto.get("es_afiliado"))
     if es_externo:
@@ -373,12 +460,49 @@ def listar_publicaciones(limit=20):
         conn.close()
 
 
+def resumen_cola():
+    _init_db()
+    conn = _get_conn()
+    try:
+        row = conn.execute(
+            """
+            SELECT
+                COUNT(*) AS total,
+                SUM(CASE WHEN estado='pendiente' THEN 1 ELSE 0 END) AS pendientes,
+                SUM(CASE WHEN estado='publicado' THEN 1 ELSE 0 END) AS publicados,
+                SUM(CASE WHEN estado='error' THEN 1 ELSE 0 END) AS errores,
+                SUM(CASE
+                    WHEN estado='pendiente'
+                     AND programada_para IS NOT NULL
+                     AND date(programada_para) < date('now')
+                    THEN 1 ELSE 0
+                END) AS atrasadas
+            FROM publicaciones
+            """
+        ).fetchone()
+        return {
+            "total": row[0] or 0,
+            "pendientes": row[1] or 0,
+            "publicados": row[2] or 0,
+            "errores": row[3] or 0,
+            "atrasadas": row[4] or 0,
+        }
+    finally:
+        conn.close()
+
+
 def proxima_publicacion():
     _init_db()
     conn = _get_conn()
     try:
         row = conn.execute(
-            "SELECT producto_id, programada_para FROM publicaciones WHERE estado='pendiente' ORDER BY programada_para ASC LIMIT 1"
+            """
+            SELECT producto_id, programada_para
+            FROM publicaciones
+            WHERE estado='pendiente' AND programada_para IS NOT NULL
+            ORDER BY programada_para ASC
+            LIMIT 1
+            """
         ).fetchone()
         return {"producto_id": row[0], "fecha": row[1]} if row else None
     finally:

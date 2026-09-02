@@ -516,7 +516,7 @@ def cmd_publicar_post(args):
         caption = contenido.generar_caption(p)
         ok, msg = contenido.postear_telegram(p, caption)
         if args.guardar:
-            contenido.programar_publicacion(p["id"])
+            contenido.registrar_publicacion_manual(p["id"], caption, msg)
         print(f"{'✅' if ok else '❌'} Publicado producto #{p['id']}: {msg}")
     elif args.auto:
         result = contenido.publicar_pendientes()
@@ -536,6 +536,20 @@ def cmd_publicar_post(args):
             print("-" * 70)
             for pub in pubs:
                 print(f"{pub['id']:>3} {pub['producto_id']:>4} {pub['estado']:12s} {pub['programada_para'] or '':14s} {(pub['producto_nombre'] or '?')[:40]}")
+        stats = contenido.resumen_cola()
+        print(
+            f"\nTotal: {stats['total']} | Pendientes: {stats['pendientes']} | "
+            f"Publicados: {stats['publicados']} | Errores: {stats['errores']} | "
+            f"Atrasadas: {stats['atrasadas']}"
+        )
+    elif args.reprogramar_atrasadas:
+        movidas = contenido.reprogramar_atrasadas()
+        print(f"Reprogramadas {len(movidas)} publicaciones atrasadas.")
+        for item in movidas:
+            print(f"  Pub#{item['id']} -> {item['fecha']}")
+    elif args.cancelar_atrasadas:
+        count = contenido.cancelar_atrasadas()
+        print(f"Canceladas {count} publicaciones atrasadas.")
     elif args.diario:
         base_url = os.environ.get("PUBLIC_URL") or "https://clickya.net"
         resumen = contenido.rutina_diaria(base_url=base_url)
@@ -545,7 +559,7 @@ def cmd_publicar_post(args):
         print(f"Errores acumulados: {resumen['errores']}")
         print(f"Telegram resumen: {'OK' if resumen['telegram'] else 'no enviado'}")
     else:
-        print("Usá --producto ID, --auto, --programar [fecha], --calendario o --diario")
+        print("Usá --producto ID, --auto, --programar [fecha], --calendario, --diario, --reprogramar-atrasadas o --cancelar-atrasadas")
 
 
 def cmd_publicar_programar(args):
@@ -667,6 +681,8 @@ Ejemplos:
                    help="Programar todos los productos (opcional: fecha inicio YYYY-MM-DD)")
     p.add_argument("--calendario", action="store_true", help="Ver calendario de publicaciones")
     p.add_argument("--diario", action="store_true", help="Ejecutar rutina diaria de contenido")
+    p.add_argument("--reprogramar-atrasadas", action="store_true", help="Mover pendientes vencidas a fechas futuras")
+    p.add_argument("--cancelar-atrasadas", action="store_true", help="Cancelar pendientes vencidas")
     p.add_argument("--guardar", action="store_true", help="Guardar en historial al publicar")
     p.set_defaults(func=cmd_publicar_post)
 
