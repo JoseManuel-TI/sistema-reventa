@@ -41,7 +41,11 @@
     </table>
 
     {% if pedido.estado == "pagado" %}
-    <p class="gracias-msg">✅ Pago confirmado. Procesamos tu pedido automáticamente y te enviamos el seguimiento por email.</p>
+    <p class="gracias-msg">✅ Transferencia acreditada. Prepararemos tu pedido y coordinaremos la entrega.</p>
+    {% elif pedido.estado == "cancelado" %}
+    <p class="gracias-msg">Pedido cancelado. No realices la transferencia. Si ya transferiste, contactanos para coordinar la devolución.</p>
+    {% elif pedido.estado in ("enviado", "entregado") %}
+    <p class="gracias-msg">Estado del pedido: {{ pedido.estado }}. Pago confirmado.</p>
     {% elif banco_configurado %}
     <div class="bank-info" style="text-align:left;">
         <p class="bank-title">📲 Transferí el total a esta cuenta:</p>
@@ -55,15 +59,18 @@
         <p style="font-size:13px;color:#64748b;margin-top:8px;">Una vez hecha la transferencia, envianos el comprobante por WhatsApp así confirmamos el pago.</p>
     </div>
     {% else %}
-    <p class="gracias-msg">📝 Pedido registrado. Te contactamos para coordinar el pago.</p>
+    <p class="gracias-msg">📝 Pedido registrado, pendiente de transferencia bancaria. Te contactamos para enviarte los datos de la cuenta.</p>
     {% endif %}
 
-    {% if not pedido.estado == "pagado" %}
+    {% if pedido.estado == "pendiente" %}
     <div class="delivery-badge" style="display:block;text-align:center;margin-bottom:16px;">
-        🚚 Envío gratis. {% if entrega_estimada == "hoy" %}Llega <strong>hoy</strong>{% elif entrega_estimada == "mañana" %}Llega <strong>mañana</strong>{% else %}Llega el <strong>{{ entrega_estimada }}</strong>{% endif %} después de la confirmación del pago.
+        🚚 {{ delivery_info }}
     </div>
     {% endif %}
 
+    {% if wa_link and wa_link != '#' %}
+    <p><a href="{{ wa_link }}" target="_blank" rel="noopener">Enviar comprobante o consultar por WhatsApp</a>. Indicá el pedido #{{ pedido.id }}.</p>
+    {% endif %}
     <a href="/tienda" class="btn-primary">Seguir viendo productos</a>
 </div>
 {% endblock %}

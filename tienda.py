@@ -3,6 +3,7 @@
 import os
 import re
 import hashlib
+import secrets
 import unicodedata
 from datetime import datetime, timedelta
 from flask import (
@@ -60,8 +61,39 @@ def _get_carrito():
 
 
 def _save_carrito(data):
+    session.pop("checkout_key", None)
     session[CARRITO_KEY] = data
     session.modified = True
+
+
+def _refresh_carrito():
+    carrito = _get_carrito()
+    refreshed = {}
+    changed = False
+    for key, item in carrito.items():
+        p = db.get_producto(item["producto_id"])
+        if (not p or not p.get("activo") or not p.get("publicar") or _es_externo(p)
+                or not p.get("precio_venta") or p["precio_venta"] <= 0 or (p.get("stock") or 0) <= 0):
+            changed = True
+            continue
+        updated = dict(item, nombre=p["nombre"], precio=p["precio_venta"], stock=p["stock"],
+                       cantidad=min(item["cantidad"], p["stock"]))
+        changed |= updated != item
+        refreshed[key] = updated
+    if changed:
+        _save_carrito(refreshed)
+        flash("Actualizamos el carrito según los precios y el stock disponibles. Revisá el total.", "info")
+    return refreshed
+
+
+def _cantidad_form():
+    try:
+        cantidad = int(request.form.get("cantidad", 1))
+        if cantidad < 1:
+            raise ValueError
+        return cantidad
+    except (ValueError, TypeError):
+        abort(400, description="La cantidad debe ser un número entero mayor a cero.")
 
 
 def _cant_carrito():
@@ -85,7 +117,7 @@ DELIVERY_INFO = config.get("DELIVERY_INFO") or "Se entrega dentro de las 24 hs h
 def inject_globals():
     logo = config.get("TIENDA_LOGO") or config.get("TIENDA_NOMBRE")
     return {
-        "wa_link": STORE_WA,
+        "wa_link": config.get("TIENDA_WA"),
         "banco": config.get("BANCO"),
         "banco_titular": config.get("BANCO_TITULAR"),
         "banco_cbu": config.get("BANCO_CBU"),
@@ -95,7 +127,7 @@ def inject_globals():
         "tienda_logo": logo,
         "tienda_color": config.get("TIENDA_COLOR"),
         "tienda_descripcion": config.get("TIENDA_DESCRIPCION"),
-        "delivery_info": DELIVERY_INFO,
+        "delivery_info": config.get("DELIVERY_INFO"),
         "entrega_estimada": _estimar_entrega(),
         "cant_carrito": _cant_carrito(),
         "public_url": (config.get("PUBLIC_URL") or "").rstrip("/"),
@@ -419,7 +451,7 @@ def out_afiliado(id):
 
 @tienda.route("/carrito")
 def ver_carrito():
-    carrito = _get_carrito()
+    carrito = _refresh_carrito()
     total = sum(i["precio"] * i["cantidad"] for i in carrito.values())
     return render_template("tienda/carrito.html",
                            carrito=carrito, total=total,
@@ -429,14 +461,14 @@ def ver_carrito():
 @tienda.route("/carrito/agregar/<int:id>", methods=["POST"])
 def carrito_agregar(id):
     p = db.get_producto(id)
-    if not p or not p.get("precio_venta") or p["precio_venta"] <= 0:
+    if not p or not p.get("activo") or not p.get("publicar") or not p.get("precio_venta") or p["precio_venta"] <= 0:
         flash("Producto no disponible.", "error")
         return redirect(url_for("tienda.catalogo"))
     if _es_externo(p):
         flash("Este producto se compra en la plataforma externa.", "error")
         return redirect(url_for("tienda.producto", id=id))
 
-    cantidad = max(int(request.form.get("cantidad", 1)), 1)
+    cantidad = _cantidad_form()
     stock = p.get("stock") or 0
     if stock == 0:
         flash("Producto agotado.", "error")
@@ -467,7 +499,7 @@ def carrito_agregar(id):
 
 @tienda.route("/carrito/actualizar/<int:id>", methods=["POST"])
 def carrito_actualizar(id):
-    cantidad = max(int(request.form.get("cantidad", 1)), 1)
+    cantidad = _cantidad_form()
     carrito = _get_carrito()
     key = str(id)
     if key in carrito:
@@ -490,14 +522,14 @@ def carrito_eliminar(id):
 @tienda.route("/comprar-ahora/<int:id>", methods=["POST"])
 def comprar_ahora(id):
     p = db.get_producto(id)
-    if not p or not p.get("precio_venta") or p["precio_venta"] <= 0:
+    if not p or not p.get("activo") or not p.get("publicar") or not p.get("precio_venta") or p["precio_venta"] <= 0:
         flash("Producto no disponible.", "error")
         return redirect(url_for("tienda.catalogo"))
     if _es_externo(p):
         flash("Este producto se compra en la plataforma externa.", "error")
         return redirect(url_for("tienda.producto", id=id))
 
-    cantidad = max(int(request.form.get("cantidad", 1)), 1)
+    cantidad = _cantidad_form()
     stock = p.get("stock") or 0
     if stock == 0:
         flash("Producto agotado.", "error")
@@ -522,7 +554,8 @@ def comprar_ahora(id):
 
 @tienda.route("/checkout")
 def checkout():
-    carrito = _get_carrito()
+    carrito = _refresh_carrito()
+    session.setdefault("checkout_key", secrets.token_urlsafe(32))
     if not carrito:
         flash("El carrito está vacío.", "error")
         return redirect(url_for("tienda.catalogo"))
@@ -534,6 +567,13 @@ def checkout():
 
 @tienda.route("/checkout/procesar", methods=["POST"])
 def checkout_procesar():
+    checkout_key = request.form.get("checkout_key", "")
+    last = session.get("ultimo_checkout", {})
+    if checkout_key and checkout_key == last.get("key"):
+        return redirect(url_for("tienda.gracias", id=last["id"]))
+    if not checkout_key or checkout_key != session.get("checkout_key"):
+        flash("Revisá el pedido antes de confirmar.", "error")
+        return redirect(url_for("tienda.checkout"))
     carrito = _get_carrito()
     if not carrito:
         flash("El carrito está vacío.", "error")
@@ -544,12 +584,18 @@ def checkout_procesar():
     telefono = request.form.get("telefono", "").strip()
     direccion = request.form.get("direccion", "").strip()
 
-    if not nombre or not email:
+    if not nombre or len(nombre) > 200 or not re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", email) or len(email) > 254 or len(telefono) > 50 or len(direccion) > 500:
         flash("Completá nombre y email.", "error")
         return redirect(url_for("tienda.checkout"))
 
     total = sum(i["precio"] * i["cantidad"] for i in carrito.values())
-    pedido_id = db.crear_pedido(nombre, email, telefono, direccion, total, carrito)
+    try:
+        pedido_id = db.crear_pedido(nombre, email, telefono, direccion, total, carrito, checkout_key)
+    except db.PedidoError as exc:
+        flash(str(exc), "error")
+        return redirect(url_for("tienda.ver_carrito"))
+    session["pedidos_propios"] = (session.get("pedidos_propios", []) + [pedido_id])[-20:]
+    session["ultimo_checkout"] = {"key": checkout_key, "id": pedido_id}
     pedido = db.get_pedido(pedido_id)
     if pedido:
         try:
@@ -610,6 +656,8 @@ def merchant_feed():
 
 @tienda.route("/gracias/<int:id>")
 def gracias(id):
+    if not session.get("admin") and id not in session.get("pedidos_propios", []):
+        abort(404)
     pedido = db.get_pedido(id)
     if not pedido:
         flash("Pedido no encontrado.", "error")
@@ -620,6 +668,6 @@ def gracias(id):
     return render_template("tienda/gracias.html",
                            pedido=pedido,
                            store_name=STORE_NAME,
-                           wa_link=STORE_WA,
+                           wa_link=config.get("TIENDA_WA"),
                            peso=_pesos)
 

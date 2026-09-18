@@ -3,6 +3,7 @@
 <h1>⚙️ Configuración</h1>
 
 <form method="POST" class="form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <fieldset>
         <legend>Datos bancarios para transferencia</legend>
         <label>

@@ -20,11 +20,13 @@
             <div class="cart-price">{{ peso(item.precio) }}</div>
         </div>
         <form action="/carrito/actualizar/{{ id }}" method="POST" class="cart-qty">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <input type="number" name="cantidad" value="{{ item.cantidad }}" min="1" max="{{ item.stock or 99 }}"
                    onchange="this.form.submit()">
         </form>
         <div class="cart-subtotal">{{ peso(item.precio * item.cantidad) }}</div>
         <form action="/carrito/eliminar/{{ id }}" method="POST">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button class="btn-remove" title="Eliminar">✕</button>
         </form>
     </div>

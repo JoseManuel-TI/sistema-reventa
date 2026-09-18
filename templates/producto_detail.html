@@ -6,6 +6,7 @@
         <a href="/productos/{{ p.id }}/editar" class="btn btn-primary">✏️ Editar</a>
         <a href="/precios/producto/{{ p.id }}" class="btn btn-outline">💰 Calcular precio</a>
         <form method="POST" action="/productos/{{ p.id }}/eliminar" style="display:inline;" onsubmit="return confirm('¿Eliminar {{ p.nombre }}?')">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button type="submit" class="btn btn-danger">🗑️ Eliminar</button>
         </form>
     </div>
@@ -50,11 +51,13 @@
                 {% if p.publicar %}
                 ✅ Publicado
                 <form method="POST" action="/productos/{{ p.id }}/toggle-publicar" style="display:inline;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button type="submit" class="btn btn-outline btn-sm" style="margin-left:8px;">Ocultar</button>
                 </form>
                 {% else %}
                 ❌ No publicado
                 <form method="POST" action="/productos/{{ p.id }}/toggle-publicar" style="display:inline;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button type="submit" class="btn btn-primary btn-sm" style="margin-left:8px;">Publicar</button>
                 </form>
                 {% endif %}
@@ -91,6 +94,7 @@
         </a>
         <div style="margin-top:6px;font-size:11px;color:#6b7280;word-break:break-all;">{{ img.archivo.split('/')[-1] }}</div>
         <form method="POST" action="/imagenes/{{ img.id }}/eliminar" style="margin-top:6px;" onsubmit="return confirm('¿Eliminar esta imagen?')">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button type="submit" class="btn btn-danger btn-sm">🗑️</button>
         </form>
     </div>

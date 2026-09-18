@@ -12,6 +12,9 @@ import shutil
 import traceback
 import logging
 import uuid
+import secrets
+import hmac
+import math
 import urllib.parse
 from datetime import datetime
 from functools import wraps
@@ -28,7 +31,7 @@ from tienda import tienda
 import notificaciones
 from flask import (
     Flask, render_template, request, redirect, url_for,
-    flash, send_from_directory, session, jsonify,
+    flash, send_from_directory, session, jsonify, abort,
 )
 from werkzeug.utils import secure_filename
 
@@ -39,9 +42,40 @@ if not DATA_DIR and os.environ.get("RAILWAY_ENVIRONMENT"):
 DATA_DIR = DATA_DIR or os.path.join(BASE_DIR, "data")
 app = Flask(__name__, template_folder=os.path.join(BASE_DIR, "templates"),
             static_folder=os.path.join(BASE_DIR, "static"))
-app.secret_key = os.environ.get("SESSION_SECRET") or os.urandom(24).hex()
+app.secret_key = config.session_secret()
 app.config["MAX_CONTENT_LENGTH"] = 20 * 1024 * 1024  # 20 MB
 app.register_blueprint(tienda)
+
+app.config.update(SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE="Lax",
+                  SESSION_COOKIE_SECURE=bool(os.environ.get("RAILWAY_ENVIRONMENT")))
+
+
+def csrf_token():
+    if "csrf_token" not in session:
+        session["csrf_token"] = secrets.token_urlsafe(32)
+    return session["csrf_token"]
+
+
+app.jinja_env.globals["csrf_token"] = csrf_token
+
+
+@app.before_request
+def protect_forms():
+    if request.method in {"POST", "PUT", "PATCH", "DELETE"}:
+        expected = session.get("csrf_token", "")
+        supplied = request.form.get("csrf_token") or request.headers.get("X-CSRF-Token", "")
+        if not expected or not hmac.compare_digest(expected, supplied):
+            abort(400, description="El formulario venció. Recargá la página e intentá nuevamente.")
+
+
+@app.after_request
+def private_responses(response):
+    if request.endpoint and request.endpoint not in {"static", "servir_imagen"}:
+        response.headers["Cache-Control"] = "no-store"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Referrer-Policy"] = "same-origin"
+    return response
+
 
 IMAGENES_DIR = os.environ.get("IMAGES_DIR") or (
     os.path.join(DATA_DIR, "imagenes")
@@ -83,9 +117,11 @@ def login():
         admin_pass = config.get("ADMIN_PASSWORD")
         if not admin_pass:
             flash("ADMIN_PASSWORD no configurada. Configurala via ADMIN_PASSWORD env var o data/config.json", "error")
-        elif password == admin_pass:
+        elif hmac.compare_digest(password.encode(), str(admin_pass).encode()):
             session["admin"] = True
             next_page = request.args.get("next") or url_for("productos_listar")
+            if not next_page.startswith("/") or next_page.startswith("//") or "\\" in next_page:
+                next_page = url_for("productos_listar")
             return redirect(next_page)
         flash("Contraseña incorrecta.", "error")
     return render_template("login.html", **_ruta("/login"))
@@ -158,7 +194,10 @@ def _parsear_numero_form(valor, default=None):
             # Ej: 25.000,50 → 25000.50
             texto = texto.replace(".", "")
             texto = texto.replace(",", ".")
-        return float(texto)
+        value = float(texto)
+        if not math.isfinite(value):
+            raise ValueError("Valor numérico inválido")
+        return value
     except ValueError:
         raise ValueError("Valor numérico inválido")
 
@@ -291,6 +330,8 @@ def productos_nuevo():
             precio_venta = _parsear_numero_form(request.form.get("precio_venta"), default=None)
             categoria, categoria_nueva = _parsear_categoria_form(request.form)
             stock = int(request.form.get("stock", 0) or 0)
+            if stock < 0 or costo < 0 or (costo_usd is not None and costo_usd < 0) or (precio_venta is not None and precio_venta < 0):
+                raise ValueError("Stock y precios no pueden ser negativos.")
             iva = _parsear_numero_form(request.form.get("iva_porcentaje"), default=21)
             publicar = 1 if request.form.get("publicar") else 0
             tipo_producto_form = request.form.get("tipo_producto", "").strip()
@@ -404,6 +445,8 @@ def productos_editar(id):
             precio_venta = _parsear_numero_form(request.form.get("precio_venta"), default=None)
             proveedor_id = int(request.form.get("proveedor_id", 0) or 0)
             stock = int(request.form.get("stock", 0) or 0)
+            if stock < 0 or costo < 0 or (costo_usd is not None and costo_usd < 0) or (precio_venta is not None and precio_venta < 0):
+                raise ValueError("Stock y precios no pueden ser negativos.")
             iva = _parsear_numero_form(request.form.get("iva_porcentaje"), default=21)
 
             es_afiliado = 1 if request.form.get("es_afiliado") else 0
@@ -940,10 +983,14 @@ def pedidos_estado(id):
         flash("Estado inválido.", "error")
         return redirect(url_for("pedidos_detalle", id=id))
 
-    db.actualizar_estado_pedido(id, estado)
+    try:
+        changed = db.actualizar_estado_pedido(id, estado)
+    except db.PedidoError as exc:
+        flash(str(exc), "error")
+        return redirect(url_for("pedidos_detalle", id=id))
     flash(f"Pedido #{id} actualizado a '{estado}'.", "success")
 
-    if estado == "pagado":
+    if estado == "pagado" and changed:
         pedido = db.get_pedido(id)
         items = db.get_pedido_items(id)
         if pedido:

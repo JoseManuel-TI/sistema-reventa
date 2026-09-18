@@ -242,11 +242,7 @@ def seed_from_file(seed_path, force=False):
         current_count = existing["c"] if existing else 0
 
         if current_count > 0 and not force:
-            creados, actualizados = _seed_affiliate_products(conn, data)
-            conn.commit()
-            print(
-                f"DB already has {current_count} productos; affiliate sync: {creados} creados, {actualizados} actualizados"
-            )
+            print(f"DB already has {current_count} productos; skipping seed to preserve admin changes")
             return
 
         if current_count > 0 and force:

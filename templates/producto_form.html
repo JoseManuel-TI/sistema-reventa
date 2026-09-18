@@ -7,6 +7,7 @@
 
 <div class="card">
     <form method="POST" enctype="multipart/form-data">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="form-row">
             <div class="form-group">
                 <label for="nombre">Nombre del producto</label>
@@ -238,7 +239,7 @@ if (btnFetchMeta) {
         try {
             const resp = await fetch('/productos/fetch-metadata', {
                 method: 'POST',
-                headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                headers: {'X-CSRF-Token': {{ csrf_token()|tojson }}, 'Content-Type': 'application/x-www-form-urlencoded'},
                 body: 'url=' + encodeURIComponent(url),
             });
             const data = await resp.json();

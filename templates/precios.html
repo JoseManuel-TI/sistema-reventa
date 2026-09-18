@@ -6,6 +6,7 @@
 
 <div class="card" style="max-width:400px;">
     <form method="POST">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="form-group">
             <label for="costo">Costo ($)</label>
             <input type="number" id="costo" name="costo" class="form-control" step="0.01" value="{{ datos.costo if datos else '' }}" required>

@@ -28,6 +28,7 @@ body { display: flex; align-items: center; justify-content: center; min-height: 
   {% endif %}
   {% endwith %}
   <form method="POST">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <input type="password" name="password" placeholder="Contraseña" autofocus required>
     <button type="submit">Ingresar</button>
   </form>

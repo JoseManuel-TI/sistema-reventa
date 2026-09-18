@@ -1,11 +1,16 @@
 """Persistent config — stores store settings & bank transfer info in data/config.json"""
 
 import os, json
+import fcntl
+import tempfile
+import secrets
+from contextlib import contextmanager
 
-if os.environ.get("RAILWAY_ENVIRONMENT") or os.environ.get("RAILWAY_SERVICE_NAME"):
-    CONFIG_PATH = os.path.join("/data", "config.json")
-else:
-    CONFIG_PATH = os.path.join(os.path.dirname(__file__), "data", "config.json")
+DATA_DIR = os.environ.get("APP_DATA_DIR") or (
+    "/data" if os.environ.get("RAILWAY_ENVIRONMENT") or os.environ.get("RAILWAY_SERVICE_NAME")
+    else os.path.join(os.path.dirname(__file__), "data")
+)
+CONFIG_PATH = os.path.join(DATA_DIR, "config.json")
 
 DEFAULTS = {
     "BANCO": "",
@@ -39,10 +44,38 @@ def _load():
     except (json.JSONDecodeError, OSError):
         return {}
 
+@contextmanager
+def _config_lock():
+    os.makedirs(DATA_DIR, exist_ok=True)
+    with open(CONFIG_PATH + ".lock", "a") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(lock, fcntl.LOCK_UN)
+
+
 def _save(data):
-    os.makedirs(os.path.dirname(CONFIG_PATH), exist_ok=True)
-    with open(CONFIG_PATH, "w") as f:
-        json.dump(data, f, indent=2)
+    fd, path = tempfile.mkstemp(dir=DATA_DIR, prefix=".config-")
+    try:
+        with os.fdopen(fd, "w") as f:
+            json.dump(data, f, indent=2)
+        os.replace(path, CONFIG_PATH)
+    finally:
+        if os.path.exists(path):
+            os.unlink(path)
+
+
+def session_secret():
+    with _config_lock():
+        value = os.environ.get("SESSION_SECRET") or _load().get("SESSION_SECRET")
+        if not value:
+            value = secrets.token_hex(32)
+            cfg = _load()
+            cfg["SESSION_SECRET"] = value
+            _save(cfg)
+        return value
+
 
 def get(key):
     env_val = os.environ.get(key)
@@ -54,9 +87,10 @@ def get(key):
     return DEFAULTS.get(key, "")
 
 def set(key, value):
-    cfg = _load()
-    cfg[key] = value
-    _save(cfg)
+    with _config_lock():
+        cfg = _load()
+        cfg[key] = value
+        _save(cfg)
     return value
 
 def get_all():
@@ -73,9 +107,10 @@ def get_all():
     return result
 
 def set_many(data):
-    cfg = _load()
-    cfg.update(data)
-    _save(cfg)
+    with _config_lock():
+        cfg = _load()
+        cfg.update(data)
+        _save(cfg)
 
 def datos_bancarios_completos():
     return bool(get("BANCO_CBU") or get("BANCO_ALIAS"))

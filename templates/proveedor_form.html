@@ -7,6 +7,7 @@
 
 <div class="card" style="max-width:500px;">
     <form method="POST">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="form-group">
             <label for="nombre">Nombre del proveedor</label>
             <input type="text" id="nombre" name="nombre" class="form-control" value="{{ proveedor.nombre if proveedor else '' }}" required>

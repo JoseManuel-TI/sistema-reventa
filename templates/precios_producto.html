@@ -12,6 +12,7 @@
     </div>
 
     <form method="POST">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="form-group">
             <label for="margen_deseado">Margen de ganancia (%)</label>
             <input type="number" id="margen_deseado" name="margen_deseado" class="form-control" step="0.1" value="{{ datos.margen_deseado if datos else 35 }}">
@@ -29,6 +30,7 @@
             <div><span>Margen s/costo</span><span>{{ '{:.1f}%'.format(resultado.margen_porcentaje) }}</span></div>
         </div>
         <form method="POST" action="/precios/producto/{{ p.id }}/guardar" style="margin-top:12px;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <input type="hidden" name="precio_venta" value="{{ resultado.precio_final }}">
             <input type="hidden" name="margen_porcentaje" value="{{ resultado.margen_porcentaje }}">
             <button type="submit" class="btn btn-success">Guardar este precio</button>

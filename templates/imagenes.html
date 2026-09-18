@@ -19,6 +19,7 @@
             <div style="padding:8px;">
                 <div style="font-size:11px;color:#94a3b8;margin-bottom:6px;word-break:break-all;">{{ img.archivo.split('/')[-1][:30] }}...</div>
                 <form action="/imagenes/vincular/{{ img.archivo }}" method="POST">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <select name="producto_id" class="form-control" style="font-size:12px;padding:4px 6px;margin-bottom:4px;">
                         <option value="">— Asignar a —</option>
                         {% for pid, pname in productos.items() %}

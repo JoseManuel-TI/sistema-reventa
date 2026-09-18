@@ -6,6 +6,7 @@
 
 <div class="card">
     <form method="POST" action="/categorias" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="text" name="nombre" class="form-control" placeholder="Nombre de la nueva categoría" required style="flex:1;min-width:220px;">
         <button type="submit" class="btn btn-primary">+ Agregar</button>
     </form>
@@ -29,11 +30,13 @@
                             {% if cat.cantidad_productos == 0 %}
                             <form method="POST" action="/categorias/eliminar/{{ cat.nombre }}" style="display:inline;"
                                   onsubmit="return confirm('¿Eliminar la categoría \"{{ cat.nombre }}\"?');">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                 <button type="submit" class="btn btn-danger btn-sm">Eliminar</button>
                             </form>
                             {% else %}
                             <form method="POST" action="/categorias/eliminar/{{ cat.nombre }}" style="display:inline;"
                                   onsubmit="return confirm('¿Eliminar la categoría \"{{ cat.nombre }}\"? Se limpiará la categoría de sus {{ cat.cantidad_productos }} productos.');">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                 <button type="submit" class="btn btn-danger btn-sm">Eliminar</button>
                             </form>
                             {% endif %}

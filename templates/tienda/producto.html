@@ -103,6 +103,7 @@
 
         {% if not p.stock == 0 %}
         <form action="/carrito/agregar/{{ p.id }}" method="POST" class="buy-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div class="qty-picker">
                 <button type="button" onclick="this.parentNode.querySelector('input').stepDown();">−</button>
                 <input type="number" name="cantidad" value="1" min="1" max="{{ p.stock or 99 }}" id="qty-input">

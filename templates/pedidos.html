@@ -33,7 +33,7 @@
                     <td class="precio">$ {{ ped.total|fmt_pesos }}</td>
                     <td>{{ ped.total_items }}</td>
                     <td><span class="badge badge-{{ ped.estado }}">{{ ped.estado }}</span></td>
-                    <td>{{ ped.created_at[:10] }}</td>
+                    <td>{{ (ped.created_at|string)[:10] }}</td>
                     <td><a href="/pedidos/{{ ped.id }}" class="btn btn-outline btn-sm">Ver</a></td>
                 </tr>
                 {% endfor %}
