@@ -38,6 +38,51 @@
   }
 }
 </script>
+{% if ga_id %}
+<script async src="https://www.googletagmanager.com/gtag/js?id={{ ga_id }}"></script>
+<script>
+window.dataLayer = window.dataLayer || [];
+function gtag(){dataLayer.push(arguments);}
+gtag('js', new Date());
+gtag('config', '{{ ga_id }}');
+</script>
+{% endif %}
+{% if meta_pixel_id %}
+<script>
+!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;
+n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;
+t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,
+document,'script','https://connect.facebook.net/en_US/fbevents.js');
+fbq('init', '{{ meta_pixel_id }}');
+fbq('track', 'PageView');
+</script>
+<noscript><img height="1" width="1" style="display:none"
+src="https://www.facebook.com/tr?id={{ meta_pixel_id }}&ev=PageView&noscript=1"/></noscript>
+{% endif %}
+{% if meta_pixel_id or ga_id %}
+<script>
+window.__FB_EVENTS = {ViewContent:'ViewContent', AddToCart:'AddToCart', InitiateCheckout:'InitiateCheckout', Purchase:'Purchase'};
+window.__GA_EVENTS = {ViewContent:'view_item', AddToCart:'add_to_cart', InitiateCheckout:'begin_checkout', Purchase:'purchase'};
+function trackEvent(name, d) {
+    d = d || {};
+    if (window.fbq && window.__FB_EVENTS[name]) {
+        var fb = { currency: d.currency || 'ARS' };
+        if (d.value != null) fb.value = d.value;
+        if (d.content_ids) { fb.content_ids = d.content_ids; fb.content_type = 'product'; }
+        fbq('track', window.__FB_EVENTS[name], fb);
+    }
+    if (window.gtag && window.__GA_EVENTS[name]) {
+        var ga = { currency: d.currency || 'ARS' };
+        if (d.value != null) ga.value = d.value;
+        if (d.transaction_id) ga.transaction_id = d.transaction_id;
+        if (d.items) ga.items = d.items;
+        gtag('event', window.__GA_EVENTS[name], ga);
+    }
+}
+</script>
+{% endif %}
+{% block head_extra %}{% endblock %}
 </head>
 <body class="{% block body_class %}{% endblock %}">
 {% block site_header %}
@@ -152,5 +197,6 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 </script>
+{% block body_extra %}{% endblock %}
 </body>
 </html>

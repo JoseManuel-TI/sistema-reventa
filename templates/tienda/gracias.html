@@ -71,3 +71,9 @@
     <a href="/tienda" class="btn-primary">Seguir viendo productos</a>
 </div>
 {% endblock %}
+
+{% block body_extra %}
+{% if track_data %}
+<script>if (typeof trackEvent === 'function') { trackEvent('Purchase', {{ track_data|tojson }}); }</script>
+{% endif %}
+{% endblock %}

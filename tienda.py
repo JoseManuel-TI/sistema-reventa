@@ -95,6 +95,31 @@ def _wa_con_texto(texto):
     return f"{base}{sep}text={quote(texto)}"
 
 
+def _track_item(pid, nombre, precio, cantidad):
+    """Arma el payload de un ítem para Meta Pixel / GA4."""
+    pid = str(pid)
+    precio = round(float(precio or 0), 2)
+    return {
+        "content_ids": [pid],
+        "contents": [{"id": pid, "quantity": cantidad, "item_price": precio}],
+        "items": [{"item_id": pid, "item_name": nombre, "price": precio, "quantity": cantidad}],
+    }
+
+
+def _track_carrito(carrito):
+    data = {"value": 0.0, "content_ids": [], "contents": [], "items": []}
+    total = 0.0
+    for k, it in carrito.items():
+        pid = it.get("producto_id") or k
+        item = _track_item(pid, it["nombre"], it["precio"], it["cantidad"])
+        data["content_ids"] += item["content_ids"]
+        data["contents"] += item["contents"]
+        data["items"] += item["items"]
+        total += float(it["precio"]) * it["cantidad"]
+    data["value"] = round(total, 2)
+    return data
+
+
 def _resumen_pedido(pedido, items):
     """Texto plano con el resumen del pedido (para WhatsApp)."""
     metodo = METODOS_PAGO.get(pedido.get("metodo_pago") or "transferencia", "Transferencia bancaria")
@@ -161,6 +186,8 @@ def inject_globals():
         "entrega_estimada": _estimar_entrega(),
         "cant_carrito": _cant_carrito(),
         "metodos_pago": METODOS_PAGO,
+        "meta_pixel_id": (config.get("META_PIXEL_ID") or "").strip(),
+        "ga_id": (config.get("GA_MEASUREMENT_ID") or "").strip(),
         "public_url": (config.get("PUBLIC_URL") or "").rstrip("/"),
         "css_version": CSS_VERSION,
         "categorias": db.get_categorias(publicado_only=True),
@@ -434,8 +461,11 @@ def producto(id):
     imgs = db.get_imagenes(id)
     for i, img in enumerate(imgs):
         imgs[i]["archivo"] = db.normalizar_imagen(img["archivo"])
+    track_data = None
+    if not _es_externo(p) and p.get("precio_venta"):
+        track_data = _track_item(p["id"], p["nombre"], p["precio_venta"], 1)
     return render_template("tienda/producto.html",
-                           p=p, imagenes=imgs,
+                           p=p, imagenes=imgs, track_data=track_data,
                            store_name=STORE_NAME, peso=_pesos)
 
 
@@ -564,6 +594,7 @@ def checkout():
     return render_template("tienda/checkout.html",
                            carrito=carrito, total=total,
                            metodos_pago=METODOS_PAGO,
+                           track_data=_track_carrito(carrito),
                            store_name=STORE_NAME, peso=_pesos)
 
 
@@ -670,11 +701,21 @@ def gracias(id):
     pedido["line_items"] = line_items
     wa_pedido = _wa_con_texto(_resumen_pedido(pedido, line_items))
 
+    track_data = {"value": round(float(pedido["total"] or 0), 2), "transaction_id": str(pedido["id"]),
+                  "content_ids": [], "contents": [], "items": []}
+    for i in line_items:
+        item = _track_item(i.get("producto_id") or i["nombre"], i["nombre"],
+                           i["precio_unitario"], i["cantidad"])
+        track_data["content_ids"] += item["content_ids"]
+        track_data["contents"] += item["contents"]
+        track_data["items"] += item["items"]
+
     return render_template("tienda/gracias.html",
                            pedido=pedido,
                            store_name=STORE_NAME,
                            wa_link=STORE_WA,
                            wa_pedido=wa_pedido,
+                           track_data=track_data,
                            metodo_pago_label=METODOS_PAGO.get(
                                pedido.get("metodo_pago") or "transferencia", "Transferencia bancaria"),
                            peso=_pesos)

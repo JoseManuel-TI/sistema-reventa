@@ -17,6 +17,21 @@ def test_tienda_publica_responde(client):
     assert client.get("/tienda").status_code == 200
 
 
+def test_pixel_y_ga_se_inyectan_cuando_configurados(client, monkeypatch):
+    import config
+
+    monkeypatch.setattr(config, "_load", lambda: {"META_PIXEL_ID": "1234567890", "GA_MEASUREMENT_ID": "G-TEST123"})
+    r = client.get("/tienda")
+    assert b"fbq('init', '1234567890')" in r.data
+    assert b"G-TEST123" in r.data
+    assert b"function trackEvent" in r.data
+
+
+def test_pixel_no_se_inyecta_si_no_configurado(client):
+    r = client.get("/tienda")
+    assert b"fbq('init'" not in r.data
+
+
 def test_login_sin_csrf_es_rechazado(client):
     r = client.post("/login", data={"password": "testpass"})
     assert r.status_code == 400

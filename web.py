@@ -1099,6 +1099,8 @@ def configuracion():
             "FB_PAGE_TOKEN": request.form.get("FB_PAGE_TOKEN", "").strip(),
             "FB_PAGE_ID": request.form.get("FB_PAGE_ID", "").strip(),
             "IG_BUSINESS_ID": request.form.get("IG_BUSINESS_ID", "").strip(),
+            "META_PIXEL_ID": request.form.get("META_PIXEL_ID", "").strip(),
+            "GA_MEASUREMENT_ID": request.form.get("GA_MEASUREMENT_ID", "").strip(),
         })
         flash("Configuración guardada. Reinciá el servidor para aplicar cambios.", "success")
         return redirect(url_for("configuracion"))

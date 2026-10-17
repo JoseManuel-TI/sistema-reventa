@@ -119,6 +119,24 @@
         </label>
     </fieldset>
 
+    <fieldset>
+        <legend>📊 Marketing y medición (tienda pública)</legend>
+        <p class="field-desc">
+            Se inyectan en la tienda pública para medir tráfico y conversiones (pauta en Instagram/Facebook y Google).
+            Dejá vacío para desactivarlos.
+        </p>
+        <label>
+            Meta Pixel ID
+            <input type="text" name="META_PIXEL_ID" value="{{ cfg.META_PIXEL_ID }}" placeholder="1234567890123456">
+            <small>ID del Pixel de Meta (Administrador de eventos de Facebook). Mide ViewContent, AddToCart, InitiateCheckout y Purchase.</small>
+        </label>
+        <label>
+            Google Analytics (Measurement ID)
+            <input type="text" name="GA_MEASUREMENT_ID" value="{{ cfg.GA_MEASUREMENT_ID }}" placeholder="G-XXXXXXXXXX">
+            <small>ID de medición de Google Analytics 4.</small>
+        </label>
+    </fieldset>
+
     <div class="form-actions">
         <button type="submit" class="btn btn-primary">Guardar configuración</button>
     </div>
@@ -142,6 +160,8 @@
         <tr><td>Telegram Chat ID</td><td>{{ cfg.TELEGRAM_CHAT_ID or "—" }}</td></tr>
         <tr><td>Instagram Business ID</td><td>{{ cfg.IG_BUSINESS_ID or "—" }}</td></tr>
         <tr><td>Instagram Token</td><td>{{ "✅ Configurado" if cfg.FB_PAGE_TOKEN else "❌ No configurado" }}</td></tr>
+        <tr><td>Meta Pixel</td><td>{{ cfg.META_PIXEL_ID or "❌ No configurado" }}</td></tr>
+        <tr><td>Google Analytics</td><td>{{ cfg.GA_MEASUREMENT_ID or "❌ No configurado" }}</td></tr>
     </table>
 </div>
 

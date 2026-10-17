@@ -243,3 +243,28 @@ document.querySelectorAll('.qty-picker button').forEach(b => {
 })();
 </script>
 {% endblock %}
+
+{% block body_extra %}
+{% set es_ext = p.tipo_producto in ('afiliado_digital', 'amazon_affiliate') or p.es_afiliado %}
+{% if track_data %}
+<script>if (typeof trackEvent === 'function') { trackEvent('ViewContent', {{ track_data|tojson }}); }</script>
+{% endif %}
+{% if not es_ext and p.precio_venta %}
+<script>
+(function () {
+    var form = document.querySelector('.buy-form');
+    if (!form || typeof trackEvent !== 'function') return;
+    form.addEventListener('submit', function () {
+        var q = parseInt((document.getElementById('qty-input') || {}).value || 1, 10) || 1;
+        var precio = {{ p.precio_venta or 0 }};
+        trackEvent('AddToCart', {
+            value: Math.round(precio * q * 100) / 100,
+            content_ids: ["{{ p.id }}"],
+            contents: [{ id: "{{ p.id }}", quantity: q, item_price: precio }],
+            items: [{ item_id: "{{ p.id }}", item_name: {{ p.nombre|tojson }}, price: precio, quantity: q }]
+        });
+    });
+})();
+</script>
+{% endif %}
+{% endblock %}
