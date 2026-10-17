@@ -3,25 +3,39 @@ Gestión de contenido para redes sociales.
 Scheduler, cola de publicaciones, posteo a Telegram.
 """
 
-import json
-import logging
 import os
 import random
 import sqlite3
-import urllib.request
 import urllib.error
+import urllib.request
 from datetime import datetime, timedelta
 
 BASE_DIR = os.path.dirname(__file__)
-DATA_DIR = os.path.join(BASE_DIR, "data")
-SCHEDULE_DB = os.path.join(DATA_DIR, "contenido.db")
 
-import db as app_db
 import config
+import db as app_db
 import instagram_api
 import integraciones as itgr
 
+# Usamos el mismo DATA_DIR que db.py para que el schedule viva en el volumen
+# persistente (/data en Railway) y no se pierda en cada deploy.
+DATA_DIR = app_db.DATA_DIR
+SCHEDULE_DB = os.path.join(DATA_DIR, "contenido.db")
+
 _TELEGRAM_API = "https://api.telegram.org/bot{token}/{method}"
+
+
+def _ruta_imagen_local(archivo):
+    """Resuelve la ruta física de una imagen de producto.
+
+    `archivo` viene como ruta web ('imagenes/proveedores/...'); la convertimos
+    a la ruta real dentro de `db.imagenes_dir()` (que apunta al volumen en prod).
+    Devuelve None si es una URL externa.
+    """
+    if not archivo or archivo.startswith(("http://", "https://")):
+        return None
+    rel = archivo[len("imagenes/"):] if archivo.startswith("imagenes/") else archivo
+    return os.path.join(app_db.imagenes_dir(), rel)
 
 
 def _init_db():
@@ -90,7 +104,7 @@ def generar_caption(producto):
 
     pv = producto.get("precio_venta") or 0
     precio = f"$ {pv:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-    wa = config.get("TIENDA_WA") or "https://wa.me/5491126268359"
+    wa = config.whatsapp()
     wa_link = f"{wa}?text=Hola%2C+quiero+{nombre.replace(' ', '%20')}"
 
     caption = (
@@ -119,9 +133,9 @@ def postear_telegram(producto, caption=None):
     if not imgs:
         return False, "Producto sin imagen"
 
-    img_path = os.path.join(BASE_DIR, imgs[0]["archivo"])
-    if not os.path.exists(img_path):
-        return False, f"Imagen no encontrada: {img_path}"
+    img_path = _ruta_imagen_local(imgs[0]["archivo"])
+    if not img_path or not os.path.exists(img_path):
+        return False, f"Imagen no encontrada: {imgs[0]['archivo']}"
 
     try:
         with open(img_path, "rb") as f:

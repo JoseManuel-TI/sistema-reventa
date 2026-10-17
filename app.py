@@ -13,16 +13,13 @@ Uso:
 """
 
 import argparse
-import os
 import re
-import sys
 import unicodedata
-from datetime import datetime
 
-import db
-import precios as pcalc
-import exportar
 import contenido
+import db
+import exportar
+import precios as pcalc
 
 
 def cmd_init(args):
@@ -139,7 +136,7 @@ def cmd_productos_editar(args):
                     else:
                         val = int(val)
                 except ValueError:
-                    print(f"  Valor inválido, se ignora.")
+                    print("  Valor inválido, se ignora.")
                     continue
             updates[key] = val
     if updates:
@@ -301,7 +298,7 @@ def _limpiar_nombre(nombre):
         r'\s+.*$', '', n, flags=re.IGNORECASE
     )
 
-    # Strip trailing remaining fluff  
+    # Strip trailing remaining fluff
     for pat in [
         r'\b(precios?\s+(especiales?\s+)?(mayoristas?)?|precio\s+especial|consultanos|escribinos|envio\s+gratis|ultimas\s+unidades|disponibles?|no\s+reingresan)\s*$',
         r'[\d\s.$%/+\-*|:;]+\s*$',
@@ -386,11 +383,11 @@ def cmd_productos_deduplicar(args):
             if len(prods) > 1:
                 ids = ", ".join(str(p["id"]) for p in prods)
                 print(f"{clave[:44]:<45} {len(prods):<5} {ids}")
-        print(f"\n💡 Ejecutá sin --dry-run para fusionar.")
+        print("\n💡 Ejecutá sin --dry-run para fusionar.")
         return
 
     fusionados = 0
-    for clave, prods in grupos.items():
+    for _clave, prods in grupos.items():
         if len(prods) <= 1:
             continue
 
@@ -444,7 +441,7 @@ def cmd_precios_calcular(args):
     )
     resultado = pcalc.calcular_precio_final(params)
     print(f"\n{'='*35}")
-    print(f"  Cálculo de precio")
+    print("  Cálculo de precio")
     print(f"{'='*35}")
     print(f"  Costo:           $ {resultado['costo']:>8,.2f}")
     print(f"  Margen:          {params.margen_deseado:.0f}%")

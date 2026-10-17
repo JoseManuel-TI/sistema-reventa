@@ -3,8 +3,11 @@ Integraciones — fetch de metadata de URLs (Amazon/afiliados) y helpers de mone
 Stdlib only: urllib + html.parser (sin dependencias pip).
 """
 
-import re
+import ipaddress
 import json
+import re
+import socket
+import urllib.parse
 import urllib.request
 from html.parser import HTMLParser
 
@@ -54,6 +57,34 @@ class _MetaParser(HTMLParser):
             self._in_title = False
 
 
+def _url_segura(url):
+    """True si la URL es http(s) y no apunta a una red privada/local (anti-SSRF)."""
+    try:
+        parsed = urllib.parse.urlparse(url)
+    except ValueError:
+        return False
+    if parsed.scheme not in ("http", "https"):
+        return False
+    host = parsed.hostname
+    if not host:
+        return False
+    if host.lower() == "localhost" or host.lower().endswith(".localhost"):
+        return False
+    try:
+        infos = socket.getaddrinfo(host, None)
+    except socket.gaierror:
+        return False
+    for info in infos:
+        try:
+            ip = ipaddress.ip_address(info[4][0])
+        except ValueError:
+            return False
+        if (ip.is_private or ip.is_loopback or ip.is_link_local
+                or ip.is_reserved or ip.is_multicast or ip.is_unspecified):
+            return False
+    return True
+
+
 def _fetch(url, timeout=12):
     req = urllib.request.Request(url, headers={
         "User-Agent": USER_AGENT,
@@ -88,6 +119,9 @@ def fetch_metadata(url):
     Nunca lanza excepción: en error devuelve datos parciales.
     """
     resultado = {"nombre": "", "imagen": "", "precio": None, "descripcion": "", "ok": False}
+    if not _url_segura(url):
+        resultado["error"] = "URL no permitida"
+        return resultado
     try:
         body = _fetch(url)
         html = _decode(body)

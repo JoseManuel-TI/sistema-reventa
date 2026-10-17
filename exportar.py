@@ -145,8 +145,8 @@ def exportar_instagram_html(productos, nombre_archivo=None, base_url="https://cl
     Genera un HTML con tarjetas en formato 9:16 (1080x1920).
     Ideal para capturar pantalla y subir a Instagram / WhatsApp.
     """
-    from config import get as cfg_get
     import integraciones as itgr
+    from config import whatsapp as cfg_whatsapp
     if not nombre_archivo:
         fecha = datetime.now().strftime("%Y%m%d_%H%M")
         nombre_archivo = f"instagram_{fecha}.html"
@@ -163,7 +163,7 @@ def exportar_instagram_html(productos, nombre_archivo=None, base_url="https://cl
     else:
         template = _instagram_default_template()
 
-    wa_link = cfg_get("TIENDA_WA") or "https://wa.me/5491126268359"
+    wa_link = cfg_whatsapp()
     tarjetas = ""
     for p in productos:
         img = p.get("imagen_principal") or ""
@@ -179,16 +179,16 @@ def exportar_instagram_html(productos, nombre_archivo=None, base_url="https://cl
             url_ext = itgr.producto_url_externa(p)
             plataforma = p.get("plataforma_afiliado") or itgr.detectar_plataforma(url_ext or "")
             if p.get("tipo_producto") == "afiliado_digital" and plataforma == "hotmart":
-                cta_label, cta_link, cta_wa = "🎓 Acceder al curso", url_ext or wa_link, url_ext or wa_link
+                cta_label, cta_link, _cta_wa = "🎓 Acceder al curso", url_ext or wa_link, url_ext or wa_link
                 tipo_badge = "CURSO DIGITAL"
             elif plataforma == "aliexpress":
-                cta_label, cta_link, cta_wa = "Ver precio en AliExpress", url_ext or wa_link, url_ext or wa_link
+                cta_label, cta_link, _cta_wa = "Ver precio en AliExpress", url_ext or wa_link, url_ext or wa_link
                 tipo_badge = "IMPORTADO"
             elif plataforma == "mercadolibre":
-                cta_label, cta_link, cta_wa = "Ver oferta en Mercado Libre", url_ext or wa_link, url_ext or wa_link
+                cta_label, cta_link, _cta_wa = "Ver oferta en Mercado Libre", url_ext or wa_link, url_ext or wa_link
                 tipo_badge = "OFERTA ML"
             else:
-                cta_label, cta_link, cta_wa = "🛒 Ver precio en Amazon", url_ext or wa_link, url_ext or wa_link
+                cta_label, cta_link, _cta_wa = "🛒 Ver precio en Amazon", url_ext or wa_link, url_ext or wa_link
                 tipo_badge = "IMPORTADO AMAZON"
             precio = "Consultar precio"
             cta_clase = "cta amazon"
@@ -197,7 +197,7 @@ def exportar_instagram_html(productos, nombre_archivo=None, base_url="https://cl
             precio = f"$ {pv:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".") if pv else "Consultar"
             cta_label = "Comprar por WhatsApp"
             cta_link = f"{wa_link}?text=Hola%2C+quiero+{p['nombre'].replace(' ', '%20')}"
-            cta_wa = wa_link
+            _cta_wa = wa_link
             tipo_badge = "STOCK LOCAL (AMBA)"
             cta_clase = "cta"
 
@@ -284,7 +284,7 @@ def exportar_whatsapp_csv(productos, nombre_archivo=None, base_url=""):
             img = p.get("imagen_principal") or ""
             if img and not img.startswith(("http://", "https://")):
                 img = f"{base_url.rstrip('/')}/{img.lstrip('/')}" if base_url else ""
-            link = p.get("link_catalogo") or ""
+            link = f"{base_url.rstrip('/')}/tienda/{p['id']}" if base_url else ""
             writer.writerow({
                 "title": p["nombre"],
                 "description": (p.get("descripcion") or "")[:1000],

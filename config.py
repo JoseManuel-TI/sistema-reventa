@@ -1,6 +1,7 @@
 """Persistent config — stores store settings & bank transfer info in data/config.json"""
 
-import os, json
+import json
+import os
 
 if os.environ.get("RAILWAY_ENVIRONMENT") or os.environ.get("RAILWAY_SERVICE_NAME"):
     CONFIG_PATH = os.path.join("/data", "config.json")
@@ -52,6 +53,17 @@ def get(key):
     if key in cfg:
         return cfg[key]
     return DEFAULTS.get(key, "")
+
+
+WHATSAPP_FALLBACK = "https://wa.me/5491126268359"
+
+
+def whatsapp():
+    """Link de WhatsApp configurado, con fallback si está vacío o es placeholder."""
+    wa = (get("TIENDA_WA") or "").strip()
+    if not wa or wa == "#":
+        return WHATSAPP_FALLBACK
+    return wa
 
 def set(key, value):
     cfg = _load()

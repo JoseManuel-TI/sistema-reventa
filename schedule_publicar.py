@@ -8,13 +8,14 @@ Para crontab (una vez al día):
     0 10 * * * cd /ruta/proyecto && /usr/bin/python3 schedule_publicar.py >> data/schedule.log 2>&1
 """
 
-import sys
 import os
+import sys
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, BASE)
 
 import contenido
+
 try:
     import instagram_api
 except ImportError:

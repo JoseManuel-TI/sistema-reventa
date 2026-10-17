@@ -6,30 +6,40 @@ Uso:
     # Abrir http://localhost:5000
 """
 
+import hmac
+import logging
 import os
 import re
-import shutil
+import secrets
 import traceback
-import logging
+import urllib.parse
 import uuid
-from datetime import datetime
 from functools import wraps
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 
-import db
-import config
-import precios as pcalc
-import exportar
-import contenido as cnt
-import integraciones as itgr
-from tienda import tienda
-import notificaciones
 from flask import (
-    Flask, render_template, request, redirect, url_for,
-    flash, send_from_directory, session, jsonify,
+    Flask,
+    abort,
+    flash,
+    jsonify,
+    redirect,
+    render_template,
+    request,
+    send_from_directory,
+    session,
+    url_for,
 )
 from werkzeug.utils import secure_filename
+
+import config
+import contenido as cnt
+import db
+import exportar
+import integraciones as itgr
+import notificaciones
+import precios as pcalc
+from tienda import tienda
 
 BASE_DIR = os.path.dirname(__file__)
 DATA_DIR = os.environ.get("APP_DATA_DIR")
@@ -38,8 +48,41 @@ if not DATA_DIR and os.environ.get("RAILWAY_ENVIRONMENT"):
 DATA_DIR = DATA_DIR or os.path.join(BASE_DIR, "data")
 app = Flask(__name__, template_folder=os.path.join(BASE_DIR, "templates"),
             static_folder=os.path.join(BASE_DIR, "static"))
-app.secret_key = os.environ.get("SESSION_SECRET") or os.urandom(24).hex()
+
+
+def _cargar_secret():
+    """Secreto de sesión estable y compartido entre workers.
+
+    Orden: env SESSION_SECRET → config.json → archivo persistente en DATA_DIR
+    (se genera una sola vez de forma atómica para que todos los workers y
+    reinicios usen el mismo valor).
+    """
+    secret = os.environ.get("SESSION_SECRET") or config.get("SESSION_SECRET")
+    if secret:
+        return secret
+
+    path = os.path.join(DATA_DIR, ".session_secret")
+    try:
+        fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+        secret = secrets.token_hex(32)
+        os.write(fd, secret.encode())
+        os.close(fd)
+        return secret
+    except FileExistsError:
+        with open(path) as f:
+            return f.read().strip()
+    except OSError:
+        logging.warning("No se pudo persistir SESSION_SECRET; usando valor efímero.")
+        return secrets.token_hex(32)
+
+
+app.secret_key = _cargar_secret()
 app.config["MAX_CONTENT_LENGTH"] = 20 * 1024 * 1024  # 20 MB
+app.config.update(
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE="Lax",
+    SESSION_COOKIE_SECURE=bool(os.environ.get("RAILWAY_ENVIRONMENT")),
+)
 app.register_blueprint(tienda)
 
 IMAGENES_DIR = os.environ.get("IMAGES_DIR") or (
@@ -75,6 +118,18 @@ def login_required(f):
     return decorated
 
 
+def _safe_next(target):
+    """Devuelve `target` solo si es una ruta local (evita open redirect)."""
+    if not target:
+        return None
+    parsed = urllib.parse.urlparse(target)
+    if parsed.scheme or parsed.netloc:
+        return None
+    if not target.startswith("/") or target.startswith("//") or target.startswith("/\\"):
+        return None
+    return target
+
+
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
@@ -84,7 +139,7 @@ def login():
             flash("ADMIN_PASSWORD no configurada. Configurala via ADMIN_PASSWORD env var o data/config.json", "error")
         elif password == admin_pass:
             session["admin"] = True
-            next_page = request.args.get("next") or url_for("productos_listar")
+            next_page = _safe_next(request.args.get("next")) or url_for("productos_listar")
             return redirect(next_page)
         flash("Contraseña incorrecta.", "error")
     return render_template("login.html", **_ruta("/login"))
@@ -94,6 +149,38 @@ def login():
 def logout():
     session.pop("admin", None)
     return redirect(url_for("tienda.catalogo"))
+
+
+# ─── CSRF ─────────────────────────────────────────────────────────
+
+def _csrf_token():
+    token = session.get("_csrf_token")
+    if not token:
+        token = secrets.token_urlsafe(32)
+        session["_csrf_token"] = token
+    return token
+
+
+@app.context_processor
+def inject_csrf():
+    return {"csrf_token": _csrf_token()}
+
+
+@app.before_request
+def _proteger_csrf():
+    if request.method not in ("POST", "PUT", "PATCH", "DELETE"):
+        return
+    enviado = request.form.get("csrf_token") or request.headers.get("X-CSRF-Token", "")
+    esperado = session.get("_csrf_token", "")
+    if enviado and esperado and hmac.compare_digest(enviado, esperado):
+        return
+    # Fallback: si no viene token, exigimos mismo origen. Bloquea POSTs
+    # cross-site aunque falte el campo (defensa en profundidad).
+    origen = request.headers.get("Origin") or request.headers.get("Referer")
+    if origen and urllib.parse.urlparse(origen).netloc == request.host:
+        return
+    logging.warning("CSRF bloqueado: %s %s", request.method, request.path)
+    abort(400, description="CSRF token ausente o inválido")
 
 
 # ─── Helpers ──────────────────────────────────────────────────────
@@ -159,7 +246,7 @@ def _parsear_numero_form(valor, default=None):
             texto = texto.replace(",", ".")
         return float(texto)
     except ValueError:
-        raise ValueError("Valor numérico inválido")
+        raise ValueError("Valor numérico inválido") from None
 
 
 def _parsear_categoria_form(form):
@@ -193,12 +280,12 @@ def _categorias_form(producto_categoria=None):
 def _fmt_pesos(valor):
     if valor is None or valor == 0:
         return "-"
-    return "{:,.2f}".format(valor).replace(",", "X").replace(".", ",").replace("X", ".")
+    return f"{valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
 def _fmt_num(valor):
     if valor is None:
         return "-"
-    return "{:,.2f}".format(valor).replace(",", "X").replace(".", ",").replace("X", ".")
+    return f"{valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
 
 @app.template_filter("fmt_pesos")
@@ -506,21 +593,15 @@ def imagen_eliminar(id):
     conn = db.get_connection()
     try:
         img = db.execute(conn, "SELECT * FROM imagenes WHERE id=?", (id,)).fetchone()
-        if not img:
-            flash("Imagen no encontrada.", "error")
-            return redirect(url_for("productos_listar"))
-        pid = img["producto_id"]
-        db.execute(conn, "DELETE FROM imagenes WHERE id=?", (id,))
-        conn.commit()
-        # Optionally delete the file
-        fpath = img["archivo"]
-        if os.path.exists(fpath) and os.path.isfile(fpath):
-            os.remove(fpath)
-        db.invalidar_index_imagenes()
-        flash("Imagen eliminada.", "success")
-        return redirect(url_for("productos_detalle", id=pid))
+        pid = img["producto_id"] if img else None
     finally:
         conn.close()
+    if not pid:
+        flash("Imagen no encontrada.", "error")
+        return redirect(url_for("productos_listar"))
+    db.eliminar_imagen(id)
+    flash("Imagen eliminada.", "success")
+    return redirect(url_for("productos_detalle", id=pid))
 
 
 # ─── Proveedores ──────────────────────────────────────────────────

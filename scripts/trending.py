@@ -16,11 +16,10 @@ Usage:
 """
 
 import re
-import unicodedata
-import urllib.request
-import urllib.parse
-import json
 import ssl
+import unicodedata
+import urllib.parse
+import urllib.request
 
 # ─── Brand scoring (0-30) ───
 
@@ -73,25 +72,25 @@ def _detect_brand(name):
     """Detect brand in product name and return (brand, score)."""
     name_upper = unicodedata.normalize('NFKD', name).encode('ascii', 'ignore').decode().upper()
     name_upper = re.sub(r'[^\w\s]', ' ', name_upper)
-    
+
     # Normalize spaces
     name_upper = re.sub(r'\s+', ' ', name_upper).strip()
-    
+
     # Try exact brand matches with word boundaries (longer = more specific = higher priority)
     matches = []
     for brand, score in sorted(BRAND_SCORES.items(), key=lambda x: -len(x[0])):
         pattern = r'\b' + re.escape(brand) + r'\b'
         if re.search(pattern, name_upper):
             matches.append((brand, score))
-    
+
     if matches:
         return matches[0]
-    
+
     # Generic brands detection with word boundaries
     for brand_key in ["LG", "MOTOROLA", "LENOVO", "DELL", "ASUS"]:
         if re.search(r'\b' + re.escape(brand_key) + r'\b', name_upper):
             return (brand_key, 25)
-    
+
     # Special: "HP" must be followed by letter/dash (not just standalone)
     if re.search(r'\bHP\b', name_upper):
         return ("HP", 25)
@@ -101,7 +100,7 @@ def _detect_brand(name):
     # "PHILIPS" word boundary
     if re.search(r'\bPHILIPS\b', name_upper):
         return ("PHILIPS", 25)
-    
+
     # AirPods = Apple
     if "AIRPOD" in name_upper:
         return ("APPLE", 30)
@@ -111,7 +110,7 @@ def _detect_brand(name):
     # HP headphones
     if re.search(r'\bHP H\d', name_upper):
         return ("HP", 25)
-    
+
     return (None, 0)
 
 
@@ -144,16 +143,16 @@ def _score_category(name):
     """Score product based on its category."""
     name_lower = name.lower()
     name_lower = unicodedata.normalize('NFKD', name_lower).encode('ascii', 'ignore').decode().lower()
-    
+
     best_score = 10  # default for "General"
     best_cat = "General"
-    
+
     for pattern, score, cat in CATEGORY_SCORES:
         if re.search(pattern, name_lower):
             if score > best_score:
                 best_score = score
                 best_cat = cat
-    
+
     return best_score, best_cat
 
 
@@ -164,7 +163,7 @@ def _score_price(costo):
     Sweet spot: $15K - $500K (accessible but decent margin)."""
     if not costo or costo <= 0:
         return 5
-    
+
     # Under $5K - very cheap, low margin
     if costo < 5000:
         return 5
@@ -196,7 +195,7 @@ def _score_name_quality(name):
     """Score how specific/identifiable the product name is."""
     n = unicodedata.normalize('NFKD', name).encode('ascii', 'ignore').decode().upper()
     score = 5  # base
-    
+
     # Has model number (A15, C75, 4K, XS, etc.)
     if re.search(r'\b[A-Z]\d{2,}\b', n):
         score += 2
@@ -210,7 +209,7 @@ def _score_name_quality(name):
     # Has color
     if re.search(r'\b(NEGRO|BLANCO|AZUL|ROJO|VERDE|DORADO|PLATEADO)\b', n):
         score += 1
-    
+
     return min(score, 10)
 
 
@@ -220,7 +219,7 @@ def _score_exclusividad(name):
     """Score how exclusive/distinctive the product is (less commoditized = more margin)."""
     n = name.upper()
     score = 5  # base
-    
+
     # Very commoditized products (lower score)
     if re.search(r'\b(AIRPODS|GALAXY\s+BUDS|JBL\s+(GO|CLIP|GRIP))\b', n):
         score -= 2
@@ -230,7 +229,7 @@ def _score_exclusividad(name):
         score -= 3
     if re.search(r'\b(REMERA|MOUSE|CABLE|CARGADOR)\b', n):
         score -= 2
-    
+
     # More exclusive products (higher score)
     if re.search(r'\b(PROYECTOR|DRIFTER|VOLANTE|SILLON|TEDDY|ESTUFA\s+GARRAFERA|NXTPAPER)\b', n):
         score += 2
@@ -238,7 +237,7 @@ def _score_exclusividad(name):
         score += 1
     if re.search(r'\b(NOTEBOOK|LAPTOP|BICICLETA|MONOPATIN)\b', n):
         score += 1
-    
+
     return max(0, min(score, 10))
 
 
@@ -258,19 +257,19 @@ def _buscar_en_bing(query, max_retries=1):
         )
         resp = urllib.request.urlopen(req, timeout=8, context=ctx)
         html = resp.read().decode("utf-8", errors="replace")
-        
+
         # Bing shows "APROXIMADAMENTE X RESULTADOS" or similar
         m = re.search(r'(?:aproximadamente|cerca de|alrededor de|about)\s+([\d.,]+)\s+(?:resultados?|results?)', html, re.IGNORECASE)
         if m:
             count = int(m.group(1).replace(",", "").replace(".", ""))
             return count
-        
+
         # Alternative: count of results shown
         m = re.search(r'id="b_tBetween"[^>]*>([\d.,]+)', html)
         if m:
             count = int(m.group(1).replace(",", "").replace(".", ""))
             return count
-        
+
         return None
     except Exception:
         return None
@@ -282,7 +281,7 @@ def _score_web_presence(name):
         result_count = _buscar_en_bing(name)
         if result_count is None:
             return (10, None)  # neutral if can't determine
-        
+
         if result_count > 100000:
             return (20, result_count)
         elif result_count > 50000:
@@ -308,9 +307,9 @@ TREND_THRESHOLD = 60  # 0-100, products below this are flagged for manual review
 def score_product(name, costo=None, use_web=False):
     """
     Score a product candidate for trending potential.
-    
+
     Returns:
-        dict with keys: total, brand, category, price, name_quality, 
+        dict with keys: total, brand, category, price, name_quality,
                         exclusividad, web_presence, web_count, category_name
     """
     brand, brand_score = _detect_brand(name)
@@ -318,7 +317,7 @@ def score_product(name, costo=None, use_web=False):
     price_score = _score_price(costo)
     name_score = _score_name_quality(name)
     excl_score = _score_exclusividad(name)
-    
+
     result = {
         "total": brand_score + cat_score + price_score + name_score + excl_score,
         "brand": brand_score,
@@ -331,7 +330,7 @@ def score_product(name, costo=None, use_web=False):
         "category_name": cat_name,
         "brand_name": brand or "Genérico",
     }
-    
+
     if use_web:
         web_score, count = _score_web_presence(name)
         result["web_presence"] = web_score
@@ -343,9 +342,9 @@ def score_product(name, costo=None, use_web=False):
     else:
         # Scale to 0-100
         result["total"] = int(result["total"] * 100 / 100)
-    
+
     result["total"] = max(0, min(100, result["total"]))
-    
+
     return result
 
 
@@ -361,7 +360,7 @@ def is_trending(name, costo=None, threshold=TREND_THRESHOLD, use_web=False):
 def format_score(score_dict):
     """Format score for console output."""
     total = score_dict["total"]
-    
+
     if total >= 80:
         bar = "🟢🟢🟢🟢🟢"
     elif total >= 60:
@@ -372,17 +371,17 @@ def format_score(score_dict):
         bar = "🟠🟠⚪⚪⚪"
     else:
         bar = "🔴⚪⚪⚪⚪"
-    
+
     note = ""
     if total >= TREND_THRESHOLD:
         note = " ✓ TRENDING"
     else:
         note = " ⚠ REVISAR"
-    
+
     web = ""
     if score_dict["web_count"]:
         web = f" | web: {score_dict['web_count']:,} resultados"
-    
+
     return (
         f"  {bar}  {total}/100{note}  "
         f"[{score_dict['brand_name']} | {score_dict['category_name']}]{web}"
@@ -392,7 +391,7 @@ def format_score(score_dict):
 def suggest_margen(name, categoria=None):
     """Suggest optimal margin based on product category."""
     name_upper = name.upper()
-    
+
     # Premium electronics = lower margin (competition)
     if any(b in name_upper for b in ["JBL", "SAMSUNG", "APPLE", "XBOX", "PLAYSTATION", "SONY", "NINTENDO"]):
         return 30
@@ -411,13 +410,12 @@ def suggest_margen(name, categoria=None):
     # Generic / house brands
     if any(b in name_upper for b in ["NUVOH", "NOMADE", "GADNIC", "SIERA", "ENOVA", "WINCO"]):
         return 38
-    
+
     return 35  # default
 
 
 if __name__ == "__main__":
-    import sys
-    
+
     test_products = [
         ("JBL GO4 ORIGINAL", 55480),
         ("SAMSUNG GALAXY S25 ULTRA 256GB", 1756800),
@@ -433,7 +431,7 @@ if __name__ == "__main__":
         ("POCHOCLERA WINCO 1200W", 43800),
         ("COMPRESOR DE AIRE", 23920),
     ]
-    
+
     print(f"{'PRODUCTO':<55} {'SCORE':<8} {'TRENDING?':<10}")
     print("-" * 75)
     for name, costo in test_products:

@@ -4,7 +4,6 @@ Auto-detects PostgreSQL when DATABASE_URL env var is set.
 """
 
 import os
-import json
 from datetime import datetime
 
 DATABASE_URL = os.environ.get("DATABASE_URL", "")
@@ -24,10 +23,37 @@ if USE_POSTGRES:
     DB_PATH = DATABASE_URL
     IntegrityError = pg_errors.UniqueViolation
 
+    class _PGConnection:
+        """Adapta la connection de psycopg2 a la API de sqlite3 (conn.execute).
+
+        psycopg2 no expone `.execute()` en la connection, así que delegamos en
+        un cursor de corta vida para cada llamada. Mantiene commit/rollback/close.
+        """
+
+        def __init__(self, conn):
+            self._conn = conn
+
+        def execute(self, query, params=None):
+            cur = self._conn.cursor()
+            if params is not None:
+                cur.execute(query, params)
+            else:
+                cur.execute(query)
+            return cur
+
+        def commit(self):
+            return self._conn.commit()
+
+        def rollback(self):
+            return self._conn.rollback()
+
+        def close(self):
+            return self._conn.close()
+
     def get_connection():
         conn = psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
         conn.autocommit = False
-        return conn
+        return _PGConnection(conn)
 
     def _sql(q):
         return q.replace("?", "%s")
@@ -234,7 +260,9 @@ def init_db():
                 conn.execute(f"ALTER TABLE productos ADD COLUMN {col} {typ}")
                 conn.commit()
             except Exception:
-                pass
+                # La columna ya existe. En Postgres un error aborta la transacción,
+                # así que hacemos rollback para no romper los ALTER siguientes.
+                conn.rollback()
         ensure_proveedor_amazon()
     except Exception:
         conn.rollback()
@@ -274,7 +302,7 @@ def get_proveedor_por_nombre(nombre):
     conn = get_connection()
     try:
         row = conn.execute(
-            "SELECT * FROM proveedores WHERE nombre = ? COLLATE NOCASE LIMIT 1", (nombre,)
+            "SELECT * FROM proveedores WHERE LOWER(nombre) = LOWER(?) LIMIT 1", (nombre,)
         ).fetchone()
         return dict(row) if row else None
     finally:
@@ -472,12 +500,25 @@ def update_producto(producto_id, **kwargs):
 
 
 def delete_producto(producto_id):
+    """Borra el producto, sus imágenes y los archivos huérfanos."""
     conn = get_connection()
     try:
-        conn.execute("DELETE FROM productos WHERE id = ?", (producto_id,))
+        rows = conn.execute(
+            _sql("SELECT archivo FROM imagenes WHERE producto_id = ?"), (producto_id,)
+        ).fetchall()
+        archivos = [r["archivo"] for r in rows]
+        conn.execute(_sql("DELETE FROM productos WHERE id = ?"), (producto_id,))
+        for archivo in archivos:
+            ref = conn.execute(
+                _sql("SELECT COUNT(*) AS c FROM imagenes WHERE archivo = ?"), (archivo,)
+            ).fetchone()
+            restantes = ref["c"] if ref is not None else 0
+            if restantes == 0:
+                borrar_archivo_imagen(archivo)
         conn.commit()
     finally:
         conn.close()
+    invalidar_index_imagenes()
 
 
 # ─── Imágenes ─────────────────────────────────────────────────────
@@ -518,6 +559,45 @@ def imagenes_dir():
     if os.environ.get("RAILWAY_ENVIRONMENT"):
         return os.path.join(DATA_DIR, "imagenes")
     return os.path.join(BASE_DIR, "imagenes")
+
+
+def borrar_archivo_imagen(archivo):
+    """Borra del disco el archivo de una imagen local (best-effort)."""
+    if not archivo or archivo.startswith(("http://", "https://")):
+        return False
+    rel = archivo[len("imagenes/"):] if archivo.startswith("imagenes/") else archivo
+    path = os.path.join(imagenes_dir(), rel)
+    try:
+        if os.path.isfile(path):
+            os.remove(path)
+            return True
+    except OSError:
+        pass
+    return False
+
+
+def eliminar_imagen(imagen_id):
+    """Elimina una imagen y su archivo si ya no está referenciado por otro producto."""
+    conn = get_connection()
+    try:
+        row = conn.execute(
+            _sql("SELECT archivo FROM imagenes WHERE id = ?"), (imagen_id,)
+        ).fetchone()
+        if not row:
+            return None
+        archivo = row["archivo"]
+        conn.execute(_sql("DELETE FROM imagenes WHERE id = ?"), (imagen_id,))
+        ref = conn.execute(
+            _sql("SELECT COUNT(*) AS c FROM imagenes WHERE archivo = ?"), (archivo,)
+        ).fetchone()
+        restantes = ref["c"] if ref is not None else 0
+        conn.commit()
+    finally:
+        conn.close()
+    if restantes == 0:
+        borrar_archivo_imagen(archivo)
+    invalidar_index_imagenes()
+    return archivo
 
 
 _IMAGEN_INDEX = None
@@ -596,26 +676,78 @@ def normalizar_imagenes_db():
 
 def crear_pedido(cliente_nombre, cliente_email, cliente_telefono,
                  cliente_direccion, total, items):
+    """Crea el pedido revalidando stock y precios actuales de la DB.
+
+    Descuenta el stock de cada producto en la misma transacción. El total se
+    recalcula en el servidor (no se confía en el carrito de la sesión).
+    Lanza ValueError si algún producto no existe, no está disponible o no
+    tiene stock suficiente.
+    """
     conn = get_connection()
     try:
+        lineas = []
+        for item in items.values():
+            pid = item.get("producto_id")
+            cantidad = int(item.get("cantidad") or 0)
+            if cantidad <= 0:
+                raise ValueError("El pedido tiene una cantidad inválida.")
+
+            prod = conn.execute(
+                _sql("SELECT id, nombre, precio_venta, stock, activo FROM productos WHERE id = ?"),
+                (pid,),
+            ).fetchone()
+            if not prod:
+                raise ValueError(f"El producto '{item.get('nombre') or pid}' ya no existe.")
+            prod = dict(prod)
+            if not prod.get("activo"):
+                raise ValueError(f"El producto '{prod['nombre']}' ya no está disponible.")
+
+            precio = prod.get("precio_venta") or 0
+            if precio <= 0:
+                raise ValueError(f"El producto '{prod['nombre']}' no tiene precio de venta.")
+
+            stock = prod.get("stock") or 0
+            if cantidad > stock:
+                raise ValueError(
+                    f"Stock insuficiente de '{prod['nombre']}' (disponible: {stock})."
+                )
+
+            lineas.append({
+                "producto_id": prod["id"],
+                "nombre": prod["nombre"],
+                "cantidad": cantidad,
+                "precio": precio,
+                "subtotal": round(precio * cantidad, 2),
+            })
+
+        if not lineas:
+            raise ValueError("El pedido no tiene productos.")
+
+        total_calc = round(sum(ln["subtotal"] for ln in lineas), 2)
+
         pedido_id = _insert_and_get_id(
             conn,
             """INSERT INTO pedidos
                (cliente_nombre, cliente_email, cliente_telefono, cliente_direccion, total)
                VALUES (?, ?, ?, ?, ?)""",
-            (cliente_nombre, cliente_email, cliente_telefono, cliente_direccion, total),
+            (cliente_nombre, cliente_email, cliente_telefono, cliente_direccion, total_calc),
         )
-        for item in items.values():
+        for ln in lineas:
             conn.execute(
                 _sql("""INSERT INTO pedido_items
                    (pedido_id, producto_id, nombre, cantidad, precio_unitario, subtotal)
                    VALUES (?, ?, ?, ?, ?, ?)"""),
-                (pedido_id, item.get("producto_id"), item["nombre"],
-                 item["cantidad"], item["precio"],
-                 item["precio"] * item["cantidad"]),
+                (pedido_id, ln["producto_id"], ln["nombre"], ln["cantidad"], ln["precio"], ln["subtotal"]),
+            )
+            conn.execute(
+                _sql("UPDATE productos SET stock = stock - ? WHERE id = ?"),
+                (ln["cantidad"], ln["producto_id"]),
             )
         conn.commit()
         return pedido_id
+    except Exception:
+        conn.rollback()
+        raise
     finally:
         conn.close()
 

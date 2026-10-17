@@ -15,12 +15,10 @@ Guía de setup:
 """
 
 import json
-import logging
-import os
 import time
-import urllib.request
 import urllib.error
 import urllib.parse
+import urllib.request
 
 import config
 import db
@@ -68,9 +66,9 @@ def _api_call(method, endpoint, data=None, params=None):
             return json.loads(resp.read().decode())
     except urllib.error.HTTPError as e:
         body = e.read().decode()[:500]
-        raise InstagramError(f"HTTP {e.code}: {body}")
+        raise InstagramError(f"HTTP {e.code}: {body}") from e
     except urllib.error.URLError as e:
-        raise InstagramError(f"Error de conexión: {e.reason}")
+        raise InstagramError(f"Error de conexión: {e.reason}") from e
 
 
 def postear_foto(imagen_url, caption):
@@ -129,7 +127,7 @@ def postear_producto(producto_id, base_url="http://localhost:5000"):
 
     pv = producto.get("precio_venta") or 0
     precio = f"$ {pv:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-    wa = config.get("TIENDA_WA") or "https://wa.me/5491126268359"
+    wa = config.whatsapp()
 
     caption = (
         f"🛒 {producto['nombre']}\n\n"

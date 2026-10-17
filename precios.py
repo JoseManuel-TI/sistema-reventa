@@ -4,15 +4,27 @@ Precio final = costo / (1 - margen/100)
 Precio desde USD = (costo_usd * dolar_blue) / (1 - margen/100)
 """
 
+import time
 from dataclasses import dataclass
 
 import config
 
+_DOLAR_CACHE = {"valor": None, "ts": 0.0}
+_DOLAR_TTL = 3600  # segundos: refrescamos la cotización como mucho 1 vez por hora
+
 
 def get_dolar_blue():
-    # Intentamos obtener la cotización en tiempo real desde la API libre de dolarapi.com
-    import urllib.request
+    """Cotización del dólar blue, cacheada en memoria por 1 hora.
+
+    Evita pegarle a la API y reescribir config.json en cada request.
+    """
+    ahora = time.time()
+    if _DOLAR_CACHE["valor"] and (ahora - _DOLAR_CACHE["ts"]) < _DOLAR_TTL:
+        return _DOLAR_CACHE["valor"]
+
+    # Intentamos obtener la cotización en tiempo real desde dolarapi.com
     import json
+    import urllib.request
     try:
         url = "https://dolarapi.com/v1/dolares/blue"
         req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
@@ -20,17 +32,20 @@ def get_dolar_blue():
             data = json.loads(response.read().decode())
             cotizacion = float(data.get("venta"))
             if cotizacion > 0:
-                # Actualizamos de forma silenciosa la configuración persistente
-                config.set("DOLAR_BLUE", cotizacion)
+                if str(config.get("DOLAR_BLUE")) != str(cotizacion):
+                    config.set("DOLAR_BLUE", cotizacion)
+                _DOLAR_CACHE.update(valor=cotizacion, ts=ahora)
                 return cotizacion
     except Exception:
         pass
 
     # Fallback a la configuración guardada o por defecto de seguridad
     try:
-        return float(config.get("DOLAR_BLUE"))
+        valor = float(config.get("DOLAR_BLUE"))
     except (ValueError, TypeError):
-        return 1510
+        valor = 1510
+    _DOLAR_CACHE.update(valor=valor, ts=ahora)
+    return valor
 
 
 @dataclass

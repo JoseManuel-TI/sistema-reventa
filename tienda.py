@@ -3,20 +3,27 @@
 import os
 import re
 import unicodedata
-from datetime import datetime, timedelta
+from datetime import datetime
+
 from flask import (
-    Blueprint, render_template, request, redirect, url_for,
-    flash, session, abort,
+    Blueprint,
+    abort,
+    flash,
+    redirect,
+    render_template,
+    request,
+    session,
+    url_for,
 )
 
-import db
 import config
+import db
 import integraciones as itgr
 
 tienda = Blueprint("tienda", __name__, template_folder="templates")
 
 STORE_NAME = config.get("TIENDA_NOMBRE")
-STORE_WA = config.get("TIENDA_WA")
+STORE_WA = config.whatsapp()
 
 # ─── Auditorio público: categorías por slug (ClickYa) ──────────────
 GRUPOS_CATEGORIAS = {
@@ -194,10 +201,10 @@ def producto_beneficios(p, cantidad=3):
     """
     def _limpiar(lineas):
         out = []
-        for l in lineas:
-            l = l.strip(" -•\t·|").strip()
-            if l:
-                out.append(l)
+        for linea in lineas:
+            linea = linea.strip(" -•\t·|").strip()
+            if linea:
+                out.append(linea)
         return out
 
     manual = (p.get("beneficios") or "").strip()
@@ -518,9 +525,20 @@ def checkout_procesar():
         return redirect(url_for("tienda.checkout"))
 
     total = sum(i["precio"] * i["cantidad"] for i in carrito.values())
-    pedido_id = db.crear_pedido(nombre, email, telefono, direccion, total, carrito)
+    try:
+        pedido_id = db.crear_pedido(nombre, email, telefono, direccion, total, carrito)
+    except ValueError as e:
+        flash(str(e), "error")
+        return redirect(url_for("tienda.ver_carrito"))
 
     _save_carrito({})
+
+    # Recordamos el pedido en la sesión para que /gracias solo lo muestre a
+    # quien efectivamente lo creó (evita enumerar datos personales por ID).
+    mis_pedidos = session.get("mis_pedidos", [])
+    mis_pedidos.append(pedido_id)
+    session["mis_pedidos"] = mis_pedidos[-20:]
+    session.modified = True
 
     return redirect(url_for("tienda.gracias", id=pedido_id))
 
@@ -533,8 +551,9 @@ def merchant_feed():
     productos = [p for p in productos if p.get("precio_venta") and p["precio_venta"] > 0]
     _productos_con_imagen(productos)
 
-    from flask import Response
     from xml.sax.saxutils import escape
+
+    from flask import Response
 
     items = []
     for p in productos:
@@ -574,7 +593,7 @@ def merchant_feed():
 @tienda.route("/gracias/<int:id>")
 def gracias(id):
     pedido = db.get_pedido(id)
-    if not pedido:
+    if not pedido or id not in session.get("mis_pedidos", []):
         flash("Pedido no encontrado.", "error")
         return redirect(url_for("tienda.catalogo"))
     line_items = db.get_pedido_items(id)

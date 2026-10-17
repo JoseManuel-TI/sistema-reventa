@@ -1,0 +1,24 @@
+[project]
+name = "sistema-reventa"
+version = "0.1.0"
+description = "Sistema de gestión y tienda online para reventa (ClickYa)"
+requires-python = ">=3.9"
+
+[tool.ruff]
+line-length = 120
+target-version = "py39"
+extend-exclude = ["venv", ".venv", "exports", "imagenes", "data", "templates", "static"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B"]
+ignore = [
+    "E501",  # líneas largas (HTML/regex/strings embebidos)
+    "E402",  # imports tras sys.path/logging.basicConfig en scripts y web.py
+]
+
+[tool.ruff.lint.per-file-ignores]
+"scripts/*" = ["E501"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
