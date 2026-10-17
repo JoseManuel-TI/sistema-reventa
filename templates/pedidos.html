@@ -4,7 +4,8 @@
     <h2>📋 Pedidos ({{ pedidos|length }})</h2>
     <div class="btn-group">
         <a href="/pedidos?estado=pendiente" class="btn btn-outline btn-sm">Pendientes</a>
-        <a href="/pedidos?estado=pagado" class="btn btn-outline btn-sm">Pagados</a>
+        <a href="/pedidos?estado=confirmado" class="btn btn-outline btn-sm">Confirmados</a>
+        <a href="/pedidos?estado=entregado" class="btn btn-outline btn-sm">Entregados</a>
         <a href="/pedidos" class="btn btn-outline btn-sm">Todos</a>
     </div>
 </div>
@@ -18,6 +19,7 @@
                     <th>Cliente</th>
                     <th>Email</th>
                     <th>Total</th>
+                    <th>Pago</th>
                     <th>Items</th>
                     <th>Estado</th>
                     <th>Fecha</th>
@@ -31,6 +33,10 @@
                     <td>{{ ped.cliente_nombre }}</td>
                     <td>{{ ped.cliente_email }}</td>
                     <td class="precio">$ {{ ped.total|fmt_pesos }}</td>
+                    <td>
+                        {{ 'Contra entrega' if ped.metodo_pago == 'contra_entrega' else 'Transferencia' }}
+                        {% if ped.cobrado %}<br><span class="badge badge-entregado" style="margin-top:4px;">Cobrado</span>{% endif %}
+                    </td>
                     <td>{{ ped.total_items }}</td>
                     <td><span class="badge badge-{{ ped.estado }}">{{ ped.estado }}</span></td>
                     <td>{{ ped.created_at[:10] }}</td>
@@ -38,7 +44,7 @@
                 </tr>
                 {% endfor %}
                 {% if not pedidos %}
-                <tr><td colspan="8" style="text-align:center;padding:32px;color:#94a3b8;">No hay pedidos.</td></tr>
+                <tr><td colspan="9" style="text-align:center;padding:32px;color:#94a3b8;">No hay pedidos.</td></tr>
                 {% endif %}
             </tbody>
         </table>

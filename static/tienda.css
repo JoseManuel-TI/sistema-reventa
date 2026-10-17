@@ -296,6 +296,10 @@ ul{list-style:none}
 .summary-total{display:flex;justify-content:space-between;font-size:15px;padding:12px 0 0;margin-top:6px;border-top:2px solid var(--border)}
 .summary-total strong{color:var(--text);font-size:22px}
 .mp-info{font-size:12px;color:var(--muted);margin-top:10px;text-align:center}
+.field label.pago-opcion{display:flex;align-items:center;gap:8px;padding:10px 12px;border:1px solid var(--border);border-radius:12px;margin-bottom:6px;font-size:14px;font-weight:600;color:inherit;cursor:pointer;background:#fff}
+.field label.pago-opcion input{width:auto;margin:0}
+.pago-ayuda{font-size:12px;color:var(--muted);margin-top:6px}
+.gracias-metodo{font-size:14px;color:var(--muted);margin:4px 0 14px}
 
 /* ── Gracias ── */
 .gracias{text-align:center;max-width:520px;margin:30px auto}

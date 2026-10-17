@@ -892,9 +892,14 @@ def imagenes_vincular(archivo):
 
 # ─── Pedidos (admin) ─────────────────────────────────────────────
 
+ESTADOS_PEDIDO = ("pendiente", "confirmado", "comprado", "enviado", "entregado", "cancelado")
+METODOS_COBRO = ("efectivo", "transferencia")
+
+
 @app.route("/pedidos")
 @login_required
 def pedidos_listar():
+    db.liberar_reservas_expiradas()
     estado = request.args.get("estado")
     pedidos = db.get_pedidos(estado=estado)
     for ped in pedidos:
@@ -915,35 +920,78 @@ def pedidos_detalle(id):
     return render_template("pedido_detail.html", pedido=pedido, **_ruta("/pedidos"))
 
 
+ETIQUETAS_ESTADO = {
+    "pendiente": "Pendiente",
+    "confirmado": "Confirmado",
+    "comprado": "Comprado",
+    "enviado": "Enviado",
+    "entregado": "Entregado",
+    "cancelado": "Cancelado",
+}
+
+
+def _notificar_estado_pedido(pedido_id, estado):
+    pedido = db.get_pedido(pedido_id)
+    if not pedido:
+        return
+    items = db.get_pedido_items(pedido_id)
+    lineas = "\n".join(
+        f"  • {i['nombre']} x{i['cantidad']} = {_fmt_pesos(i['subtotal'])}" for i in items
+    )
+    msg = (
+        f"📦 <b>Pedido #{pedido_id} — {ETIQUETAS_ESTADO.get(estado, estado).upper()}</b>\n\n"
+        f"👤 {pedido['cliente_nombre']}\n"
+        f"📱 {pedido.get('cliente_telefono') or '—'}\n"
+        f"🏠 {pedido.get('cliente_direccion') or '—'}\n\n"
+        f"{lineas}\n\n"
+        f"<b>Total: {_fmt_pesos(pedido['total'])}</b>"
+    )
+    notificaciones.telegram(msg)
+
+
 @app.route("/pedidos/<int:id>/estado", methods=["POST"])
 @login_required
 def pedidos_estado(id):
     estado = request.form.get("estado", "").strip()
-    if estado not in ("pendiente", "pagado", "enviado", "entregado", "cancelado"):
+    if estado not in ESTADOS_PEDIDO:
         flash("Estado inválido.", "error")
+        return redirect(url_for("pedidos_detalle", id=id))
+
+    if estado == "cancelado":
+        if db.liberar_reserva_pedido(id):
+            flash(f"Pedido #{id} cancelado y stock liberado.", "success")
+        else:
+            flash(f"Pedido #{id} ya estaba cancelado o entregado.", "error")
         return redirect(url_for("pedidos_detalle", id=id))
 
     db.actualizar_estado_pedido(id, estado)
     flash(f"Pedido #{id} actualizado a '{estado}'.", "success")
 
-    if estado == "pagado":
-        pedido = db.get_pedido(id)
-        items = db.get_pedido_items(id)
-        if pedido:
-            lineas = "\n".join(
-                f"  • {i['nombre']} x{i['cantidad']} = {_fmt_pesos(i['subtotal'])}"
-                for i in items
-            )
-            msg = (
-                f"💰 <b>Pedido #{id} PAGADO</b> — Preparar despacho\n\n"
-                f"👤 {pedido['cliente_nombre']}\n"
-                f"📱 {pedido.get('cliente_telefono') or '—'}\n"
-                f"🏠 {pedido.get('cliente_direccion') or '—'}\n\n"
-                f"{lineas}\n\n"
-                f"<b>Total: {_fmt_pesos(pedido['total'])}</b>"
-            )
-            notificaciones.telegram(msg)
+    if estado in ("confirmado", "entregado"):
+        _notificar_estado_pedido(id, estado)
 
+    return redirect(url_for("pedidos_detalle", id=id))
+
+
+@app.route("/pedidos/<int:id>/cobro", methods=["POST"])
+@login_required
+def pedidos_cobro(id):
+    cobrado = request.form.get("cobrado") in ("1", "true", "on", "yes")
+    metodo_cobro = request.form.get("metodo_cobro", "").strip()
+    if metodo_cobro not in METODOS_COBRO:
+        metodo_cobro = ""
+    db.actualizar_cobro_pedido(id, cobrado, metodo_cobro)
+    flash("Cobro actualizado.", "success")
+    return redirect(url_for("pedidos_detalle", id=id))
+
+
+@app.route("/pedidos/<int:id>/liberar", methods=["POST"])
+@login_required
+def pedidos_liberar(id):
+    if db.liberar_reserva_pedido(id):
+        flash(f"Pedido #{id} cancelado y stock devuelto al catálogo.", "success")
+    else:
+        flash("No se pudo liberar (ya cancelado o entregado).", "error")
     return redirect(url_for("pedidos_detalle", id=id))
 
 

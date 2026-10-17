@@ -23,6 +23,7 @@ DEFAULTS = {
     "ADMIN_PASSWORD": "",
     "DOLAR_BLUE": "1510",
     "DELIVERY_INFO": "Se entrega dentro de las 24 hs hábiles posteriores a la confirmación del pago.",
+    "RESERVA_HORAS": "24",
     "TELEGRAM_BOT_TOKEN": "",
     "TELEGRAM_CHAT_ID": "",
     "FB_PAGE_TOKEN": "",

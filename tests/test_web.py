@@ -77,3 +77,71 @@ def test_checkout_sin_stock_muestra_error(client):
     )
     assert r.status_code == 200
     assert b"Stock insuficiente" in r.data
+
+
+def test_checkout_contra_entrega_crea_pedido(client):
+    import db
+
+    pid = crear_producto(stock=2, precio=100)
+    client.get("/login")
+    client.post(f"/carrito/agregar/{pid}", data={"cantidad": 1, "csrf_token": _csrf(client)})
+    r = client.post(
+        "/checkout/procesar",
+        data={
+            "csrf_token": _csrf(client),
+            "nombre": "Ana",
+            "email": "a@b.com",
+            "telefono": "11",
+            "direccion": "Calle 1",
+            "metodo_pago": "contra_entrega",
+        },
+        follow_redirects=True,
+    )
+    assert r.status_code == 200
+    pedidos = db.get_pedidos()
+    assert len(pedidos) == 1
+    assert pedidos[0]["metodo_pago"] == "contra_entrega"
+    assert b"Contra entrega" in r.data
+
+
+def test_admin_pedido_detalle_render(client):
+    import db
+
+    pid = crear_producto(stock=1, precio=100)
+    pedido_id = db.crear_pedido(
+        "A", "a@b.com", "", "", 0, {"1": {"producto_id": pid, "cantidad": 1, "nombre": "P"}}
+    )
+    _login(client)
+    assert client.get(f"/pedidos/{pedido_id}").status_code == 200
+
+
+def test_admin_marcar_cobrado(client):
+    import db
+
+    pid = crear_producto(stock=1, precio=100)
+    pedido_id = db.crear_pedido(
+        "A", "a@b.com", "", "", 0, {"1": {"producto_id": pid, "cantidad": 1, "nombre": "P"}}
+    )
+    _login(client)
+    r = client.post(
+        f"/pedidos/{pedido_id}/cobro",
+        data={"csrf_token": _csrf(client), "cobrado": "1", "metodo_cobro": "efectivo"},
+    )
+    assert r.status_code == 302
+    p = db.get_pedido(pedido_id)
+    assert p["cobrado"] == 1
+    assert p["metodo_cobro"] == "efectivo"
+
+
+def test_admin_liberar_reserva(client):
+    import db
+
+    pid = crear_producto(stock=2, precio=100)
+    pedido_id = db.crear_pedido(
+        "A", "a@b.com", "", "", 0, {"1": {"producto_id": pid, "cantidad": 2, "nombre": "P"}}
+    )
+    _login(client)
+    r = client.post(f"/pedidos/{pedido_id}/liberar", data={"csrf_token": _csrf(client)})
+    assert r.status_code == 302
+    assert db.get_producto(pid)["stock"] == 2
+    assert db.get_pedido(pedido_id)["estado"] == "cancelado"

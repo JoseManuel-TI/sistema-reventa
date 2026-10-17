@@ -3,7 +3,8 @@
 import os
 import re
 import unicodedata
-from datetime import datetime
+from datetime import datetime, timedelta
+from urllib.parse import quote
 
 from flask import (
     Blueprint,
@@ -19,11 +20,23 @@ from flask import (
 import config
 import db
 import integraciones as itgr
+import notificaciones
 
 tienda = Blueprint("tienda", __name__, template_folder="templates")
 
 STORE_NAME = config.get("TIENDA_NOMBRE")
 STORE_WA = config.whatsapp()
+
+# Horas que se reserva el stock de un pedido pendiente antes de liberarlo.
+try:
+    RESERVA_HORAS = int(config.get("RESERVA_HORAS") or 24)
+except (TypeError, ValueError):
+    RESERVA_HORAS = 24
+
+METODOS_PAGO = {
+    "transferencia": "Transferencia bancaria",
+    "contra_entrega": "Contra entrega (efectivo o transferencia al recibir)",
+}
 
 # ─── Auditorio público: categorías por slug (ClickYa) ──────────────
 GRUPOS_CATEGORIAS = {
@@ -71,6 +84,50 @@ def _save_carrito(data):
 
 def _cant_carrito():
     return sum(i["cantidad"] for i in _get_carrito().values())
+
+
+def _wa_con_texto(texto):
+    """Arma un link de WhatsApp con mensaje pre-cargado."""
+    base = (STORE_WA or "").strip()
+    if not base:
+        return ""
+    sep = "&" if "?" in base else "?"
+    return f"{base}{sep}text={quote(texto)}"
+
+
+def _resumen_pedido(pedido, items):
+    """Texto plano con el resumen del pedido (para WhatsApp)."""
+    metodo = METODOS_PAGO.get(pedido.get("metodo_pago") or "transferencia", "Transferencia bancaria")
+    lineas = "\n".join(
+        f"• {i['nombre']} x{i['cantidad']} — {_pesos(i['subtotal'])}" for i in items
+    )
+    return (
+        f"Pedido #{pedido['id']}\n"
+        f"{lineas}\n"
+        f"Total: {_pesos(pedido['total'])}\n"
+        f"Pago: {metodo}"
+    )
+
+
+def _notificar_nuevo_pedido(pedido_id):
+    """Avisa al vendedor por Telegram apenas entra un pedido (para actuar rápido)."""
+    pedido = db.get_pedido(pedido_id)
+    if not pedido:
+        return
+    items = db.get_pedido_items(pedido_id)
+    metodo = METODOS_PAGO.get(pedido.get("metodo_pago") or "transferencia", "Transferencia bancaria")
+    lineas = "\n".join(f"  • {i['nombre']} x{i['cantidad']}" for i in items)
+    msg = (
+        f"🛒 <b>NUEVO PEDIDO #{pedido_id}</b>\n"
+        f"Pago: <b>{metodo}</b>\n\n"
+        f"👤 {pedido['cliente_nombre']}\n"
+        f"📱 {pedido.get('cliente_telefono') or '—'}\n"
+        f"📧 {pedido.get('cliente_email') or '—'}\n"
+        f"🏠 {pedido.get('cliente_direccion') or '—'}\n\n"
+        f"{lineas}\n\n"
+        f"<b>Total: {_pesos(pedido['total'])}</b>"
+    )
+    notificaciones.telegram(msg)
 
 
 def _estimar_entrega():
@@ -505,6 +562,7 @@ def checkout():
     total = sum(i["precio"] * i["cantidad"] for i in carrito.values())
     return render_template("tienda/checkout.html",
                            carrito=carrito, total=total,
+                           metodos_pago=METODOS_PAGO,
                            store_name=STORE_NAME, peso=_pesos)
 
 
@@ -524,12 +582,23 @@ def checkout_procesar():
         flash("Completá nombre y email.", "error")
         return redirect(url_for("tienda.checkout"))
 
+    metodo_pago = request.form.get("metodo_pago", "transferencia").strip()
+    if metodo_pago not in METODOS_PAGO:
+        metodo_pago = "transferencia"
+
+    reserva_expira = ""
+    if RESERVA_HORAS > 0:
+        reserva_expira = (datetime.now() + timedelta(hours=RESERVA_HORAS)).strftime("%Y-%m-%d %H:%M:%S")
+
     total = sum(i["precio"] * i["cantidad"] for i in carrito.values())
     try:
-        pedido_id = db.crear_pedido(nombre, email, telefono, direccion, total, carrito)
+        pedido_id = db.crear_pedido(nombre, email, telefono, direccion, total, carrito,
+                                    metodo_pago=metodo_pago, reserva_expira=reserva_expira)
     except ValueError as e:
         flash(str(e), "error")
         return redirect(url_for("tienda.ver_carrito"))
+
+    _notificar_nuevo_pedido(pedido_id)
 
     _save_carrito({})
 
@@ -598,11 +667,15 @@ def gracias(id):
         return redirect(url_for("tienda.catalogo"))
     line_items = db.get_pedido_items(id)
     pedido["line_items"] = line_items
+    wa_pedido = _wa_con_texto(_resumen_pedido(pedido, line_items))
 
     return render_template("tienda/gracias.html",
                            pedido=pedido,
                            store_name=STORE_NAME,
                            wa_link=STORE_WA,
+                           wa_pedido=wa_pedido,
+                           metodo_pago_label=METODOS_PAGO.get(
+                               pedido.get("metodo_pago") or "transferencia", "Transferencia bancaria"),
                            peso=_pesos)
 
 

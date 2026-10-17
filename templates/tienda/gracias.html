@@ -40,8 +40,10 @@
         </tfoot>
     </table>
 
-    {% if pedido.estado == "pagado" %}
-    <p class="gracias-msg">✅ Pago confirmado. Procesamos tu pedido automáticamente y te enviamos el seguimiento por email.</p>
+    <p class="gracias-metodo">💳 Forma de pago: <strong>{{ metodo_pago_label }}</strong></p>
+
+    {% if pedido.metodo_pago == "contra_entrega" %}
+    <p class="gracias-msg">💵 Elegiste pagar al recibir. Te contactamos para coordinar la entrega y lo abonás en efectivo o por transferencia en el momento.</p>
     {% elif banco_configurado %}
     <div class="bank-info" style="text-align:left;">
         <p class="bank-title">📲 Transferí el total a esta cuenta:</p>
@@ -58,11 +60,13 @@
     <p class="gracias-msg">📝 Pedido registrado. Te contactamos para coordinar el pago.</p>
     {% endif %}
 
-    {% if not pedido.estado == "pagado" %}
-    <div class="delivery-badge" style="display:block;text-align:center;margin-bottom:16px;">
-        🚚 Envío gratis. {% if entrega_estimada == "hoy" %}Llega <strong>hoy</strong>{% elif entrega_estimada == "mañana" %}Llega <strong>mañana</strong>{% else %}Llega el <strong>{{ entrega_estimada }}</strong>{% endif %} después de la confirmación del pago.
-    </div>
+    {% if wa_pedido %}
+    <a href="{{ wa_pedido }}" target="_blank" rel="noopener" class="btn-primary btn-block" style="margin-bottom:12px;">📲 Enviar mi pedido por WhatsApp</a>
     {% endif %}
+
+    <div class="delivery-badge" style="display:block;text-align:center;margin-bottom:16px;">
+        🚚 Envío gratis. {% if entrega_estimada == "hoy" %}Llega <strong>hoy</strong>{% elif entrega_estimada == "mañana" %}Llega <strong>mañana</strong>{% else %}Llega el <strong>{{ entrega_estimada }}</strong>{% endif %} una vez confirmado el pedido.
+    </div>
 
     <a href="/tienda" class="btn-primary">Seguir viendo productos</a>
 </div>

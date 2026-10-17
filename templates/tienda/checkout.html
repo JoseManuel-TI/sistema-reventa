@@ -23,6 +23,26 @@
                 <label for="direccion">Dirección de entrega</label>
                 <input type="text" id="direccion" name="direccion">
             </div>
+
+            <div class="field">
+                <label>Forma de pago</label>
+                {% for clave, etiqueta in metodos_pago.items() %}
+                <label class="pago-opcion">
+                    <input type="radio" name="metodo_pago" value="{{ clave }}"
+                           data-pago="{{ clave }}"
+                           {% if (clave == 'transferencia' and banco_configurado) or (clave != 'transferencia' and not banco_configurado) %}checked{% endif %}>
+                    <span>{{ etiqueta }}</span>
+                </label>
+                {% endfor %}
+                <p id="pago-ayuda" class="pago-ayuda">
+                    {% if banco_configurado %}
+                    Al confirmar te mostramos el CBU/alias para transferir y enviamos el pedido por WhatsApp.
+                    {% else %}
+                    Coordinamos la entrega y pagás al recibir (efectivo o transferencia).
+                    {% endif %}
+                </p>
+            </div>
+
             <button type="submit" class="btn-primary btn-block">
                 Confirmar pedido
             </button>
@@ -41,14 +61,37 @@
             <strong>{{ peso(total) }}</strong>
         </div>
         <div class="delivery-badge" style="margin-top:12px;">🚚 Envío gratis. {% if entrega_estimada == "hoy" %}Llega <strong>hoy</strong>{% elif entrega_estimada == "mañana" %}Llega <strong>mañana</strong>{% else %}Llega el <strong>{{ entrega_estimada }}</strong>{% endif %}</div>
-        {% if banco_configurado %}
-        <div class="bank-info">
+        <div class="bank-info" id="pago-transferencia" {% if not banco_configurado %}style="display:none;"{% endif %}>
             <p class="bank-title">📲 Transferencia bancaria</p>
             <p>Al confirmar te mostramos los datos para transferir.</p>
         </div>
-        {% else %}
-        <p class="mp-info">📝 Te contactamos para coordinar el pago.</p>
-        {% endif %}
+        <div class="mp-info" id="pago-contra-entrega" {% if banco_configurado %}style="display:none;"{% endif %}>
+            💵 Pagás al recibir: efectivo o transferencia contra entrega.
+        </div>
+        <p style="font-size:12px;color:#64748b;margin-top:8px;">Al confirmar te pedimos que nos envíes el resumen por WhatsApp para coordinar.</p>
     </div>
 </div>
+
+<script>
+(function () {
+    var radios = document.querySelectorAll('input[name="metodo_pago"]');
+    var ayuda = document.getElementById('pago-ayuda');
+    var textos = {
+        transferencia: "Al confirmar te mostramos el CBU/alias para transferir y enviamos el pedido por WhatsApp.",
+        contra_entrega: "Coordinamos la entrega y pagás al recibir (efectivo o transferencia)."
+    };
+    function actualizar() {
+        var sel = document.querySelector('input[name="metodo_pago"]:checked');
+        if (!sel) return;
+        var v = sel.value;
+        var bt = document.getElementById('pago-transferencia');
+        var bce = document.getElementById('pago-contra-entrega');
+        if (bt) bt.style.display = v === 'transferencia' ? '' : 'none';
+        if (bce) bce.style.display = v === 'contra_entrega' ? '' : 'none';
+        if (ayuda && textos[v]) ayuda.textContent = textos[v];
+    }
+    radios.forEach(function (r) { r.addEventListener('change', actualizar); });
+    actualizar();
+})();
+</script>
 {% endblock %}

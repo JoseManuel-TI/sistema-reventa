@@ -22,6 +22,22 @@
         <div class="label">Fecha</div>
         <div class="value" style="font-size:16px;">{{ pedido.created_at[:16] }}</div>
     </div>
+    <div class="stat-card">
+        <div class="label">Forma de pago</div>
+        <div class="value" style="font-size:16px;">
+            {{ 'Contra entrega' if pedido.metodo_pago == 'contra_entrega' else 'Transferencia' }}
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="label">Cobro</div>
+        <div class="value" style="font-size:16px;">
+            {% if pedido.cobrado %}
+            <span class="badge badge-entregado">Cobrado{% if pedido.metodo_cobro %} · {{ pedido.metodo_cobro }}{% endif %}</span>
+            {% else %}
+            <span class="badge badge-pendiente">Sin cobrar</span>
+            {% endif %}
+        </div>
+    </div>
 </div>
 
 <div class="card">
@@ -59,13 +75,50 @@
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <select name="estado" class="form-control" style="width:auto;min-width:160px;">
             <option value="pendiente" {{ 'selected' if pedido.estado == 'pendiente' }}>Pendiente</option>
-            <option value="pagado" {{ 'selected' if pedido.estado == 'pagado' }}>Pagado</option>
+            <option value="confirmado" {{ 'selected' if pedido.estado == 'confirmado' }}>Confirmado</option>
+            <option value="comprado" {{ 'selected' if pedido.estado == 'comprado' }}>Comprado</option>
             <option value="enviado" {{ 'selected' if pedido.estado == 'enviado' }}>Enviado</option>
             <option value="entregado" {{ 'selected' if pedido.estado == 'entregado' }}>Entregado</option>
             <option value="cancelado" {{ 'selected' if pedido.estado == 'cancelado' }}>Cancelado</option>
         </select>
         <button type="submit" class="btn btn-primary">Actualizar</button>
     </form>
+    <p style="margin-top:10px;font-size:13px;color:#64748b;">Cancelar devuelve el stock reservado al catálogo.</p>
+</div>
+
+<div class="card">
+    <div class="card-header">Cobro</div>
+    <form action="/pedidos/{{ pedido.id }}/cobro" method="POST" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <label style="display:flex;align-items:center;gap:6px;font-size:14px;">
+            <input type="checkbox" name="cobrado" value="1" {% if pedido.cobrado %}checked{% endif %}> Cobrado
+        </label>
+        <select name="metodo_cobro" class="form-control" style="width:auto;">
+            <option value="">Medio de cobro</option>
+            <option value="efectivo" {{ 'selected' if pedido.metodo_cobro == 'efectivo' }}>Efectivo</option>
+            <option value="transferencia" {{ 'selected' if pedido.metodo_cobro == 'transferencia' }}>Transferencia</option>
+        </select>
+        <button type="submit" class="btn btn-primary">Guardar cobro</button>
+    </form>
+</div>
+
+<div class="card">
+    <div class="card-header">Acciones</div>
+    <div class="btn-group" style="flex-wrap:wrap;gap:8px;">
+        {% if pedido.cliente_telefono %}
+        <a href="https://wa.me/{{ pedido.cliente_telefono|replace(' ', '')|replace('-', '') }}?text={{ ('Hola ' ~ pedido.cliente_nombre ~ ', te escribo por tu pedido #' ~ pedido.id) | urlencode }}"
+           target="_blank" rel="noopener" class="btn btn-outline">📲 WhatsApp al cliente</a>
+        {% endif %}
+        {% if pedido.estado in ('pendiente', 'confirmado', 'comprado') %}
+        <form action="/pedidos/{{ pedido.id }}/liberar" method="POST" onsubmit="return confirm('¿Cancelar el pedido y devolver el stock?');">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit" class="btn btn-outline">♻️ Liberar reserva de stock</button>
+        </form>
+        {% endif %}
+    </div>
+    {% if pedido.reserva_expira and pedido.estado == 'pendiente' %}
+    <p style="margin-top:10px;font-size:13px;color:#64748b;">Reserva de stock hasta: {{ pedido.reserva_expira }}</p>
+    {% endif %}
     {% if pedido.mp_preference_id %}
     <p style="margin-top:12px;font-size:13px;color:#64748b;">
         MP Preference: {{ pedido.mp_preference_id }}

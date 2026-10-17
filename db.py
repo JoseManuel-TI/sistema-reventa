@@ -165,6 +165,10 @@ def init_db():
                     cliente_direccion TEXT DEFAULT '',
                     total DOUBLE PRECISION NOT NULL,
                     estado TEXT NOT NULL DEFAULT 'pendiente',
+                    metodo_pago TEXT DEFAULT 'transferencia',
+                    metodo_cobro TEXT DEFAULT '',
+                    cobrado INTEGER DEFAULT 0,
+                    reserva_expira TEXT DEFAULT '',
                     mp_preference_id TEXT DEFAULT '',
                     mp_payment_id TEXT DEFAULT '',
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -232,6 +236,10 @@ def init_db():
                     cliente_direccion TEXT DEFAULT '',
                     total REAL NOT NULL,
                     estado TEXT NOT NULL DEFAULT 'pendiente',
+                    metodo_pago TEXT DEFAULT 'transferencia',
+                    metodo_cobro TEXT DEFAULT '',
+                    cobrado INTEGER DEFAULT 0,
+                    reserva_expira TEXT DEFAULT '',
                     mp_preference_id TEXT DEFAULT '',
                     mp_payment_id TEXT DEFAULT '',
                     created_at TEXT DEFAULT (datetime('now','localtime')),
@@ -263,6 +271,17 @@ def init_db():
                 # La columna ya existe. En Postgres un error aborta la transacción,
                 # así que hacemos rollback para no romper los ALTER siguientes.
                 conn.rollback()
+
+        for col, typ in [("metodo_pago", "TEXT DEFAULT 'transferencia'"),
+                         ("metodo_cobro", "TEXT DEFAULT ''"),
+                         ("cobrado", "INTEGER DEFAULT 0"),
+                         ("reserva_expira", "TEXT DEFAULT ''")]:
+            try:
+                conn.execute(f"ALTER TABLE pedidos ADD COLUMN {col} {typ}")
+                conn.commit()
+            except Exception:
+                conn.rollback()
+
         ensure_proveedor_amazon()
     except Exception:
         conn.rollback()
@@ -675,11 +694,15 @@ def normalizar_imagenes_db():
 # ─── Pedidos ──────────────────────────────────────────────────────
 
 def crear_pedido(cliente_nombre, cliente_email, cliente_telefono,
-                 cliente_direccion, total, items):
+                 cliente_direccion, total, items,
+                 metodo_pago="transferencia", reserva_expira=""):
     """Crea el pedido revalidando stock y precios actuales de la DB.
 
     Descuenta el stock de cada producto en la misma transacción. El total se
     recalcula en el servidor (no se confía en el carrito de la sesión).
+    `metodo_pago` puede ser 'transferencia' o 'contra_entrega'. `reserva_expira`
+    es un timestamp ('YYYY-MM-DD HH:MM:SS') tras el cual la reserva de stock se
+    libera automáticamente si el pedido sigue pendiente.
     Lanza ValueError si algún producto no existe, no está disponible o no
     tiene stock suficiente.
     """
@@ -728,9 +751,11 @@ def crear_pedido(cliente_nombre, cliente_email, cliente_telefono,
         pedido_id = _insert_and_get_id(
             conn,
             """INSERT INTO pedidos
-               (cliente_nombre, cliente_email, cliente_telefono, cliente_direccion, total)
-               VALUES (?, ?, ?, ?, ?)""",
-            (cliente_nombre, cliente_email, cliente_telefono, cliente_direccion, total_calc),
+               (cliente_nombre, cliente_email, cliente_telefono, cliente_direccion, total,
+                metodo_pago, reserva_expira)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (cliente_nombre, cliente_email, cliente_telefono, cliente_direccion, total_calc,
+             metodo_pago or "transferencia", reserva_expira or ""),
         )
         for ln in lineas:
             conn.execute(
@@ -824,3 +849,79 @@ def actualizar_estado_pedido(pedido_id, estado, mp_payment_id=""):
         conn.commit()
     finally:
         conn.close()
+
+
+def actualizar_cobro_pedido(pedido_id, cobrado, metodo_cobro=""):
+    """Marca si el pedido fue cobrado y con qué medio (efectivo/transferencia)."""
+    ahora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    conn = get_connection()
+    try:
+        conn.execute(
+            _sql("UPDATE pedidos SET cobrado = ?, metodo_cobro = ?, updated_at = ? WHERE id = ?"),
+            (1 if cobrado else 0, metodo_cobro or "", ahora, pedido_id),
+        )
+        conn.commit()
+        return True
+    finally:
+        conn.close()
+
+
+def liberar_reserva_pedido(pedido_id):
+    """Cancela un pedido pendiente y devuelve el stock reservado a los productos.
+
+    No toca pedidos ya cancelados ni entregados (evita devolver stock dos veces).
+    """
+    ahora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    conn = get_connection()
+    try:
+        pedido = conn.execute(
+            _sql("SELECT estado FROM pedidos WHERE id = ?"), (pedido_id,)
+        ).fetchone()
+        if not pedido:
+            return False
+        if pedido["estado"] in ("cancelado", "entregado"):
+            return False
+
+        items = conn.execute(
+            _sql("SELECT producto_id, cantidad FROM pedido_items WHERE pedido_id = ?"),
+            (pedido_id,),
+        ).fetchall()
+        for it in items:
+            if it["producto_id"]:
+                conn.execute(
+                    _sql("UPDATE productos SET stock = stock + ? WHERE id = ?"),
+                    (it["cantidad"], it["producto_id"]),
+                )
+        conn.execute(
+            _sql("UPDATE pedidos SET estado = 'cancelado', reserva_expira = '', updated_at = ? WHERE id = ?"),
+            (ahora, pedido_id),
+        )
+        conn.commit()
+        return True
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+def liberar_reservas_expiradas():
+    """Libera el stock de pedidos pendientes cuya reserva ya venció.
+
+    Devuelve la lista de ids liberados.
+    """
+    ahora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    conn = get_connection()
+    try:
+        rows = conn.execute(
+            _sql("""SELECT id FROM pedidos
+               WHERE estado = 'pendiente' AND reserva_expira != '' AND reserva_expira < ?"""),
+            (ahora,),
+        ).fetchall()
+    finally:
+        conn.close()
+    liberados = []
+    for row in rows:
+        if liberar_reserva_pedido(row["id"]):
+            liberados.append(row["id"])
+    return liberados

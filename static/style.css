@@ -80,6 +80,8 @@ select.form-control { background:#fff; }
 .badge-inactivo { background:#f1f5f9; color:#64748b; }
 .badge-pendiente { background:#fef3c7; color:#92400e; }
 .badge-pagado { background:#d1fae5; color:#065f46; }
+.badge-confirmado { background:#dbeafe; color:#1e40af; }
+.badge-comprado { background:#ede9fe; color:#5b21b6; }
 .badge-enviado { background:#dbeafe; color:#1e40af; }
 .badge-entregado { background:#d1fae5; color:#065f46; }
 .badge-cancelado { background:#f1f5f9; color:#64748b; }

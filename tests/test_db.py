@@ -52,6 +52,55 @@ def test_crear_pedido_producto_inexistente():
         db.crear_pedido("Ana", "a@b.com", "11", "Calle 1", 1, items)
 
 
+def test_crear_pedido_guarda_metodo_pago_y_reserva():
+    pid = crear_producto(stock=3, precio=100)
+    items = {"1": {"producto_id": pid, "cantidad": 1, "nombre": "Producto Test"}}
+    pedido_id = db.crear_pedido("Ana", "a@b.com", "11", "x", 0, items,
+                                metodo_pago="contra_entrega",
+                                reserva_expira="2999-01-01 00:00:00")
+    p = db.get_pedido(pedido_id)
+    assert p["metodo_pago"] == "contra_entrega"
+    assert p["reserva_expira"] == "2999-01-01 00:00:00"
+    assert p["cobrado"] == 0
+
+
+def test_liberar_reserva_devuelve_stock_una_sola_vez():
+    pid = crear_producto(stock=3, precio=100)
+    items = {"1": {"producto_id": pid, "cantidad": 2, "nombre": "Producto Test"}}
+    pedido_id = db.crear_pedido("Ana", "a@b.com", "11", "x", 0, items)
+    assert db.get_producto(pid)["stock"] == 1
+    assert db.liberar_reserva_pedido(pedido_id) is True
+    assert db.get_producto(pid)["stock"] == 3
+    assert db.get_pedido(pedido_id)["estado"] == "cancelado"
+    assert db.liberar_reserva_pedido(pedido_id) is False
+    assert db.get_producto(pid)["stock"] == 3
+
+
+def test_liberar_reservas_expiradas_solo_libera_vencidas():
+    pid = crear_producto(stock=2, precio=100)
+    items = {"1": {"producto_id": pid, "cantidad": 1, "nombre": "P"}}
+    vencido = db.crear_pedido("A", "a@b.com", "", "", 0, dict(items),
+                              reserva_expira="2000-01-01 00:00:00")
+    vigente = db.crear_pedido("B", "b@b.com", "", "", 0, dict(items),
+                              reserva_expira="2999-01-01 00:00:00")
+    liberados = db.liberar_reservas_expiradas()
+    assert vencido in liberados
+    assert vigente not in liberados
+    assert db.get_pedido(vencido)["estado"] == "cancelado"
+    assert db.get_pedido(vigente)["estado"] == "pendiente"
+    assert db.get_producto(pid)["stock"] == 1
+
+
+def test_actualizar_cobro_pedido():
+    pid = crear_producto(stock=1, precio=100)
+    items = {"1": {"producto_id": pid, "cantidad": 1, "nombre": "P"}}
+    pedido_id = db.crear_pedido("A", "a@b.com", "", "", 0, items)
+    db.actualizar_cobro_pedido(pedido_id, True, "efectivo")
+    p = db.get_pedido(pedido_id)
+    assert p["cobrado"] == 1
+    assert p["metodo_cobro"] == "efectivo"
+
+
 def _crear_archivo_imagen(nombre):
     ruta = os.path.join(db.imagenes_dir(), nombre)
     os.makedirs(os.path.dirname(ruta), exist_ok=True)
