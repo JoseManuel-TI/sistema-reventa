@@ -160,6 +160,7 @@ def inject_globals():
         "delivery_info": DELIVERY_INFO,
         "entrega_estimada": _estimar_entrega(),
         "cant_carrito": _cant_carrito(),
+        "metodos_pago": METODOS_PAGO,
         "public_url": (config.get("PUBLIC_URL") or "").rstrip("/"),
         "css_version": CSS_VERSION,
         "categorias": db.get_categorias(publicado_only=True),
