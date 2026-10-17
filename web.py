@@ -8,6 +8,7 @@ Uso:
 
 import hmac
 import logging
+import math
 import os
 import re
 import secrets
@@ -49,34 +50,7 @@ DATA_DIR = DATA_DIR or os.path.join(BASE_DIR, "data")
 app = Flask(__name__, template_folder=os.path.join(BASE_DIR, "templates"),
             static_folder=os.path.join(BASE_DIR, "static"))
 
-
-def _cargar_secret():
-    """Secreto de sesión estable y compartido entre workers.
-
-    Orden: env SESSION_SECRET → config.json → archivo persistente en DATA_DIR
-    (se genera una sola vez de forma atómica para que todos los workers y
-    reinicios usen el mismo valor).
-    """
-    secret = os.environ.get("SESSION_SECRET") or config.get("SESSION_SECRET")
-    if secret:
-        return secret
-
-    path = os.path.join(DATA_DIR, ".session_secret")
-    try:
-        fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
-        secret = secrets.token_hex(32)
-        os.write(fd, secret.encode())
-        os.close(fd)
-        return secret
-    except FileExistsError:
-        with open(path) as f:
-            return f.read().strip()
-    except OSError:
-        logging.warning("No se pudo persistir SESSION_SECRET; usando valor efímero.")
-        return secrets.token_hex(32)
-
-
-app.secret_key = _cargar_secret()
+app.secret_key = config.session_secret()
 app.config["MAX_CONTENT_LENGTH"] = 20 * 1024 * 1024  # 20 MB
 app.config.update(
     SESSION_COOKIE_HTTPONLY=True,
@@ -84,6 +58,19 @@ app.config.update(
     SESSION_COOKIE_SECURE=bool(os.environ.get("RAILWAY_ENVIRONMENT")),
 )
 app.register_blueprint(tienda)
+
+app.config.update(SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE="Lax",
+                  SESSION_COOKIE_SECURE=bool(os.environ.get("RAILWAY_ENVIRONMENT")))
+
+
+@app.after_request
+def private_responses(response):
+    if request.endpoint and request.endpoint not in {"static", "servir_imagen"}:
+        response.headers["Cache-Control"] = "no-store"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Referrer-Policy"] = "same-origin"
+    return response
+
 
 IMAGENES_DIR = os.environ.get("IMAGES_DIR") or (
     os.path.join(DATA_DIR, "imagenes")
@@ -137,7 +124,7 @@ def login():
         admin_pass = config.get("ADMIN_PASSWORD")
         if not admin_pass:
             flash("ADMIN_PASSWORD no configurada. Configurala via ADMIN_PASSWORD env var o data/config.json", "error")
-        elif password == admin_pass:
+        elif hmac.compare_digest(password.encode(), str(admin_pass).encode()):
             session["admin"] = True
             next_page = _safe_next(request.args.get("next")) or url_for("productos_listar")
             return redirect(next_page)
@@ -158,6 +145,7 @@ def _csrf_token():
     if not token:
         token = secrets.token_urlsafe(32)
         session["_csrf_token"] = token
+    session["csrf_token"] = token
     return token
 
 
@@ -244,7 +232,10 @@ def _parsear_numero_form(valor, default=None):
             # Ej: 25.000,50 → 25000.50
             texto = texto.replace(".", "")
             texto = texto.replace(",", ".")
-        return float(texto)
+        value = float(texto)
+        if not math.isfinite(value):
+            raise ValueError("Valor numérico inválido")
+        return value
     except ValueError:
         raise ValueError("Valor numérico inválido") from None
 
@@ -377,6 +368,8 @@ def productos_nuevo():
             precio_venta = _parsear_numero_form(request.form.get("precio_venta"), default=None)
             categoria, categoria_nueva = _parsear_categoria_form(request.form)
             stock = int(request.form.get("stock", 0) or 0)
+            if stock < 0 or costo < 0 or (costo_usd is not None and costo_usd < 0) or (precio_venta is not None and precio_venta < 0):
+                raise ValueError("Stock y precios no pueden ser negativos.")
             iva = _parsear_numero_form(request.form.get("iva_porcentaje"), default=21)
             publicar = 1 if request.form.get("publicar") else 0
             tipo_producto_form = request.form.get("tipo_producto", "").strip()
@@ -490,6 +483,8 @@ def productos_editar(id):
             precio_venta = _parsear_numero_form(request.form.get("precio_venta"), default=None)
             proveedor_id = int(request.form.get("proveedor_id", 0) or 0)
             stock = int(request.form.get("stock", 0) or 0)
+            if stock < 0 or costo < 0 or (costo_usd is not None and costo_usd < 0) or (precio_venta is not None and precio_venta < 0):
+                raise ValueError("Stock y precios no pueden ser negativos.")
             iva = _parsear_numero_form(request.form.get("iva_porcentaje"), default=21)
 
             es_afiliado = 1 if request.form.get("es_afiliado") else 0
@@ -799,9 +794,77 @@ def api_instagram_status():
 def contenido_calendario():
     pubs = cnt.listar_publicaciones(limit=50)
     proxima = cnt.proxima_publicacion()
-    stats = {"total": len(pubs), "pendientes": sum(1 for p in pubs if p["estado"] == "pendiente"),
-             "publicados": sum(1 for p in pubs if p["estado"] == "publicado")}
-    return render_template("contenido.html", publicaciones=pubs, proxima=proxima, stats=stats, **_ruta("/contenido"))
+    stats = cnt.resumen_cola()
+    diagnostico = cnt.diagnostico_comercial()
+    return render_template(
+        "contenido.html",
+        publicaciones=pubs,
+        proxima=proxima,
+        stats=stats,
+        diagnostico=diagnostico,
+        **_ruta("/contenido"),
+    )
+
+
+def _caption_social_manual(producto):
+    caption = cnt.generar_caption(producto)
+    caption = re.sub(
+        r"<a\s+href=['\"]([^'\"]+)['\"][^>]*>(.*?)</a>",
+        lambda m: f"{m.group(2)}: {m.group(1)}",
+        caption,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    caption = re.sub(r"</?(b|strong|a)(?:\s+[^>]*)?>", "", caption)
+    caption = re.sub(r"\n{3,}", "\n\n", caption).strip()
+    return caption
+
+
+@app.route("/contenido/manual/<int:id>")
+@login_required
+def contenido_manual(id):
+    p = db.get_producto(id)
+    if not p:
+        flash("Producto no encontrado.", "error")
+        return redirect(url_for("contenido_calendario"))
+    imgs = db.get_imagenes(id)
+    p["imagen_principal"] = imgs[0]["archivo"] if imgs else None
+    base_url = (config.get("PUBLIC_URL") or request.host_url.rstrip("/")).rstrip("/")
+    tienda_url = f"{base_url}/tienda/producto/{id}"
+    share_url = "https://www.facebook.com/sharer/sharer.php?u=" + urllib.parse.quote(tienda_url, safe="")
+    return render_template(
+        "contenido_manual.html",
+        p=p,
+        caption=_caption_social_manual(p),
+        tienda_url=tienda_url,
+        share_url=share_url,
+        **_ruta("/contenido"),
+    )
+
+
+@app.route("/contenido/afiliados")
+@login_required
+def contenido_afiliados():
+    db.init_db()
+    resumen = db.get_clicks_afiliados_resumen()
+    stats = db.get_clicks_afiliados_stats(limit=50)
+    productos = [
+        p for p in db.get_productos(publicado_only=True)
+        if p.get("es_afiliado") or itgr.es_externo(p.get("tipo_producto"))
+    ]
+    productos_por_id = {p["id"]: p for p in productos}
+    for row in stats:
+        row["producto"] = productos_por_id.get(row["producto_id"])
+    sin_clicks = [
+        p for p in productos
+        if p["id"] not in {row["producto_id"] for row in stats}
+    ]
+    return render_template(
+        "contenido_afiliados.html",
+        resumen=resumen,
+        stats=stats,
+        sin_clicks=sin_clicks,
+        **_ruta("/contenido"),
+    )
 
 
 @app.route("/contenido/publicar/<int:id>", methods=["POST"])
@@ -814,7 +877,7 @@ def contenido_publicar_ahora(id):
     caption = cnt.generar_caption(p)
     ok, msg = cnt.postear_telegram(p, caption)
     if ok:
-        cnt.programar_publicacion(id)
+        cnt.registrar_publicacion_manual(id, caption, msg)
         flash(f"✅ Publicado #{id}", "success")
     else:
         flash(f"❌ Error: {msg}", "error")
@@ -836,6 +899,35 @@ def contenido_publicar_pendientes():
     ok = sum(1 for _, r, _ in result if r)
     err = sum(1 for _, r, _ in result if not r)
     flash(f"Publicadas: {ok} ✅  |  Errores: {err} ❌", "success" if ok else "error")
+    return redirect(url_for("contenido_calendario"))
+
+
+@app.route("/contenido/rutina-diaria", methods=["POST"])
+@login_required
+def contenido_rutina_diaria():
+    resumen = cnt.rutina_diaria(base_url=request.host_url.rstrip("/"))
+    ok = sum(1 for _, r, _ in resumen["publicaciones"] if r)
+    err = sum(1 for _, r, _ in resumen["publicaciones"] if not r)
+    flash(
+        f"Rutina diaria: {len(resumen['programadas'])} programadas, {ok} publicadas, {err} errores.",
+        "success" if err == 0 else "warning",
+    )
+    return redirect(url_for("contenido_calendario"))
+
+
+@app.route("/contenido/reprogramar-atrasadas", methods=["POST"])
+@login_required
+def contenido_reprogramar_atrasadas():
+    movidas = cnt.reprogramar_atrasadas()
+    flash(f"Reprogramadas {len(movidas)} publicaciones atrasadas.", "success")
+    return redirect(url_for("contenido_calendario"))
+
+
+@app.route("/contenido/cancelar-atrasadas", methods=["POST"])
+@login_required
+def contenido_cancelar_atrasadas():
+    count = cnt.cancelar_atrasadas()
+    flash(f"Canceladas {count} publicaciones atrasadas.", "success")
     return redirect(url_for("contenido_calendario"))
 
 
@@ -892,7 +984,7 @@ def imagenes_vincular(archivo):
 
 # ─── Pedidos (admin) ─────────────────────────────────────────────
 
-ESTADOS_PEDIDO = ("pendiente", "confirmado", "comprado", "enviado", "entregado", "cancelado")
+ESTADOS_PEDIDO = ("pendiente", "confirmado", "comprado", "pagado", "enviado", "entregado", "cancelado")
 METODOS_COBRO = ("efectivo", "transferencia")
 
 
@@ -924,6 +1016,7 @@ ETIQUETAS_ESTADO = {
     "pendiente": "Pendiente",
     "confirmado": "Confirmado",
     "comprado": "Comprado",
+    "pagado": "Pagado",
     "enviado": "Enviado",
     "entregado": "Entregado",
     "cancelado": "Cancelado",
@@ -957,17 +1050,24 @@ def pedidos_estado(id):
         flash("Estado inválido.", "error")
         return redirect(url_for("pedidos_detalle", id=id))
 
+    try:
+        if estado == "cancelado":
+            changed = db.liberar_reserva_pedido(id)
+        else:
+            changed = db.actualizar_estado_pedido(id, estado)
+    except db.PedidoError as exc:
+        flash(str(exc), "error")
+        return redirect(url_for("pedidos_detalle", id=id))
+
     if estado == "cancelado":
-        if db.liberar_reserva_pedido(id):
+        if changed:
             flash(f"Pedido #{id} cancelado y stock liberado.", "success")
         else:
             flash(f"Pedido #{id} ya estaba cancelado o entregado.", "error")
         return redirect(url_for("pedidos_detalle", id=id))
 
-    db.actualizar_estado_pedido(id, estado)
     flash(f"Pedido #{id} actualizado a '{estado}'.", "success")
-
-    if estado in ("confirmado", "entregado"):
+    if estado in ("confirmado", "pagado", "entregado") and changed:
         _notificar_estado_pedido(id, estado)
 
     return redirect(url_for("pedidos_detalle", id=id))

@@ -4,6 +4,7 @@ Precio final = costo / (1 - margen/100)
 Precio desde USD = (costo_usd * dolar_blue) / (1 - margen/100)
 """
 
+import math
 import time
 from dataclasses import dataclass
 
@@ -61,6 +62,10 @@ class ParametrosPrecio:
                 if "," in cleaned:
                     cleaned = cleaned.replace(".", "").replace(",", ".")
                 setattr(self, field_name, float(cleaned))
+        if not math.isfinite(self.costo) or self.costo < 0:
+            raise ValueError("El costo debe ser un número positivo.")
+        if not math.isfinite(self.margen_deseado) or not 0 <= self.margen_deseado < 100:
+            raise ValueError("El margen debe estar entre 0 y menos de 100.")
 
 
 def calcular_precio_final(params: ParametrosPrecio) -> dict:
@@ -95,7 +100,7 @@ def calcular_precio_desde_usd(costo_usd: float, margen: float = 35) -> dict:
 
 
 def calcular_precio_venta_rapido(costo: float, margen: float = 35) -> float:
-    return round(costo / (1 - margen / 100), 2)
+    return calcular_precio_final(ParametrosPrecio(costo, margen))["precio_final"]
 
 
 def precio_sugerido_ml(costo: float, comision: float = 20.5) -> dict:

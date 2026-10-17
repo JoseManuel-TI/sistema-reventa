@@ -1,7 +1,25 @@
+# Entornos virtuales
 venv/
 .venv/
+
+# Caché Python
 __pycache__/
 *.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Git y tooling
+.git/
+.github/
+.node_repl_history
+
+# Node
+node_modules/
+dist/
+build/
+
+# Datos locales / runtime (Railway usa Postgres vía seed_railway.py)
 *.db
 *.db-shm
 *.db-wal
@@ -11,6 +29,16 @@ data/import_state.json
 data/*.db
 data/*.db-shm
 data/*.db-wal
+
+# Secretos
 .env
+.env.*
+
+# Logs y temporales
+*.log
+*.tmp
+*.swp
+
+# SO / editor
 .DS_Store
-.git/
+Thumbs.db

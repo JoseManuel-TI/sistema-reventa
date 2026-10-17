@@ -85,7 +85,7 @@
         </ul>
 
         {% set cta = cta_producto(p) %}
-        <a href="{{ cta.url }}" class="btn-cta amazon" target="_blank" rel="sponsored nofollow noopener">
+        <a href="{{ cta.url }}?src=detail_cta" class="btn-cta amazon" target="_blank" rel="sponsored nofollow noopener">
             <span class="kicker">{{ cta.kicker }}</span>{{ cta.label }} 🛒
         </a>
         <div class="price-shipping afiliado" style="text-align:center;">Compra 100% segura con la garantía de {{ 'Hotmart' if plataforma == 'hotmart' else 'Amazon' }}</div>

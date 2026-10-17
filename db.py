@@ -3,8 +3,10 @@ Database layer — supports SQLite (local) and PostgreSQL (Railway).
 Auto-detects PostgreSQL when DATABASE_URL env var is set.
 """
 
+import hashlib
 import os
 from datetime import datetime
+from decimal import ROUND_HALF_UP, Decimal
 
 DATABASE_URL = os.environ.get("DATABASE_URL", "")
 USE_POSTGRES = bool(DATABASE_URL) and not DATABASE_URL.strip().startswith("sqlite")
@@ -18,7 +20,13 @@ DATA_DIR = DATA_DIR or os.path.join(BASE_DIR, "data")
 if USE_POSTGRES:
     import psycopg2
     from psycopg2 import errors as pg_errors
-    from psycopg2.extras import RealDictCursor
+    from psycopg2.extras import DictCursor
+
+    class Connection(psycopg2.extensions.connection):
+        def execute(self, query, params=None):
+            cursor = self.cursor()
+            cursor.execute(_sql(query), params)
+            return cursor
 
     DB_PATH = DATABASE_URL
     IntegrityError = pg_errors.UniqueViolation
@@ -51,7 +59,7 @@ if USE_POSTGRES:
             return self._conn.close()
 
     def get_connection():
-        conn = psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
+        conn = psycopg2.connect(DATABASE_URL, connection_factory=Connection, cursor_factory=DictCursor)
         conn.autocommit = False
         return _PGConnection(conn)
 
@@ -115,6 +123,7 @@ def init_db():
     conn = get_connection()
     try:
         if USE_POSTGRES:
+            conn.execute("SELECT pg_advisory_xact_lock(721934)")
             for ddl in [
                 """CREATE TABLE IF NOT EXISTS proveedores (
                     id SERIAL PRIMARY KEY,
@@ -142,7 +151,7 @@ def init_db():
                     activo INTEGER DEFAULT 1,
                     publicar INTEGER DEFAULT 0,
                     costo_usd DOUBLE PRECISION DEFAULT 0,
-                    es_afiliado BOOLEAN DEFAULT FALSE,
+                    es_afiliado INTEGER DEFAULT 0,
                     link_afiliado TEXT DEFAULT '',
                     plataforma_afiliado TEXT DEFAULT 'amazon',
                     tipo_producto TEXT DEFAULT 'fisico_local',
@@ -187,6 +196,17 @@ def init_db():
                     cantidad INTEGER NOT NULL,
                     precio_unitario DOUBLE PRECISION NOT NULL,
                     subtotal DOUBLE PRECISION NOT NULL
+                )""",
+                """CREATE TABLE IF NOT EXISTS clicks_afiliados (
+                    id SERIAL PRIMARY KEY,
+                    producto_id INTEGER NOT NULL REFERENCES productos(id) ON DELETE CASCADE,
+                    plataforma TEXT DEFAULT '',
+                    destino TEXT NOT NULL,
+                    origen TEXT DEFAULT '',
+                    referer TEXT DEFAULT '',
+                    user_agent TEXT DEFAULT '',
+                    ip_hash TEXT DEFAULT '',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )""",
             ]:
                 conn.execute(ddl)
@@ -264,23 +284,41 @@ def init_db():
                     precio_unitario REAL NOT NULL,
                     subtotal REAL NOT NULL
                 );
+                CREATE TABLE IF NOT EXISTS clicks_afiliados (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    producto_id INTEGER NOT NULL REFERENCES productos(id) ON DELETE CASCADE,
+                    plataforma TEXT DEFAULT '',
+                    destino TEXT NOT NULL,
+                    origen TEXT DEFAULT '',
+                    referer TEXT DEFAULT '',
+                    user_agent TEXT DEFAULT '',
+                    ip_hash TEXT DEFAULT '',
+                    created_at TEXT DEFAULT (datetime('now','localtime'))
+                );
             """)
-        conn.commit()
+        if not USE_POSTGRES:
+            conn.execute("BEGIN IMMEDIATE")
 
-        for col, typ in [("publicar", "INTEGER DEFAULT 0"), ("costo_usd", "REAL DEFAULT 0"), ("referencia", "TEXT DEFAULT ''"),
-                        ("es_afiliado", "INTEGER DEFAULT 0"), ("link_afiliado", "TEXT DEFAULT ''"),
-                        ("plataforma_afiliado", "TEXT DEFAULT 'amazon'"),
-                        ("tipo_producto", "TEXT DEFAULT 'fisico_local'"),
-                        ("moneda", "TEXT DEFAULT 'ARS'"),
-                        ("external_url", "TEXT DEFAULT ''"),
-                        ("beneficios", "TEXT DEFAULT ''")]:
-            try:
-                conn.execute(f"ALTER TABLE productos ADD COLUMN {col} {typ}")
-                conn.commit()
-            except Exception:
-                # La columna ya existe. En Postgres un error aborta la transacción,
-                # así que hacemos rollback para no romper los ALTER siguientes.
-                conn.rollback()
+        def add_column(table, col, typ):
+            if USE_POSTGRES:
+                conn.execute(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {col} {typ}")
+            else:
+                columns = {row["name"] for row in conn.execute(f"PRAGMA table_info({table})")}
+                if col not in columns:
+                    conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {typ}")
+
+        for col, typ in [("publicar", "INTEGER DEFAULT 0"), ("costo_usd", "REAL DEFAULT 0"),
+                         ("referencia", "TEXT DEFAULT ''"), ("es_afiliado", "INTEGER DEFAULT 0"),
+                         ("link_afiliado", "TEXT DEFAULT ''"), ("plataforma_afiliado", "TEXT DEFAULT 'amazon'"),
+                         ("tipo_producto", "TEXT DEFAULT 'fisico_local'"), ("moneda", "TEXT DEFAULT 'ARS'"),
+                         ("external_url", "TEXT DEFAULT ''"), ("beneficios", "TEXT DEFAULT ''")]:
+            add_column("productos", col, typ)
+        if USE_POSTGRES:
+            column = conn.execute("SELECT data_type FROM information_schema.columns WHERE table_schema=current_schema() AND table_name='productos' AND column_name='es_afiliado'").fetchone()
+            if column and column["data_type"] == "boolean":
+                conn.execute("ALTER TABLE productos ALTER COLUMN es_afiliado DROP DEFAULT")
+                conn.execute("ALTER TABLE productos ALTER COLUMN es_afiliado TYPE INTEGER USING es_afiliado::integer")
+                conn.execute("ALTER TABLE productos ALTER COLUMN es_afiliado SET DEFAULT 0")
 
         for col, typ in [("metodo_pago", "TEXT DEFAULT 'transferencia'"),
                          ("metodo_cobro", "TEXT DEFAULT ''"),
@@ -291,11 +329,11 @@ def init_db():
                          ("cliente_entre_calles", "TEXT DEFAULT ''"),
                          ("cliente_localidad", "TEXT DEFAULT ''"),
                          ("cliente_codigo_postal", "TEXT DEFAULT ''")]:
-            try:
-                conn.execute(f"ALTER TABLE pedidos ADD COLUMN {col} {typ}")
-                conn.commit()
-            except Exception:
-                conn.rollback()
+            add_column("pedidos", col, typ)
+        add_column("pedidos", "stock_reservado", "INTEGER NOT NULL DEFAULT 0")
+        add_column("pedidos", "checkout_key", "TEXT")
+        conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS pedidos_checkout_key ON pedidos(checkout_key)")
+        conn.commit()
 
         ensure_proveedor_amazon()
     except Exception:
@@ -508,7 +546,7 @@ def get_categorias(publicado_only=False):
             query += " AND activo = 1 AND publicar = 1"
         query += " ORDER BY categoria"
         rows = conn.execute(_sql(query), params).fetchall()
-        return [r[0] for r in rows if r[0]]
+        return [r["categoria"] for r in rows if r["categoria"]]
     finally:
         conn.close()
 
@@ -534,14 +572,21 @@ def update_producto(producto_id, **kwargs):
 
 
 def delete_producto(producto_id):
-    """Borra el producto, sus imágenes y los archivos huérfanos."""
+    """Da de baja el producto (soft delete) y borra sus imágenes y archivos.
+
+    Se conserva la fila del producto (activo=0) para no romper el historial de
+    pedidos; las imágenes asociadas sí se eliminan del disco.
+    """
     conn = get_connection()
     try:
         rows = conn.execute(
             _sql("SELECT archivo FROM imagenes WHERE producto_id = ?"), (producto_id,)
         ).fetchall()
         archivos = [r["archivo"] for r in rows]
-        conn.execute(_sql("DELETE FROM productos WHERE id = ?"), (producto_id,))
+        conn.execute(_sql("DELETE FROM imagenes WHERE producto_id = ?"), (producto_id,))
+        conn.execute(
+            _sql("UPDATE productos SET activo = 0, publicar = 0 WHERE id = ?"), (producto_id,)
+        )
         for archivo in archivos:
             ref = conn.execute(
                 _sql("SELECT COUNT(*) AS c FROM imagenes WHERE archivo = ?"), (archivo,)
@@ -582,6 +627,100 @@ def get_imagenes(producto_id):
             (producto_id,),
         ).fetchall()
         return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+# ─── Tracking afiliados ────────────────────────────────────────────
+
+def registrar_click_afiliado(producto_id, plataforma, destino, origen="", referer="", user_agent="", ip_hash=""):
+    conn = get_connection()
+    try:
+        _insert_and_get_id(
+            conn,
+            """
+            INSERT INTO clicks_afiliados
+                (producto_id, plataforma, destino, origen, referer, user_agent, ip_hash)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (producto_id, plataforma or "", destino, origen or "", referer or "", user_agent or "", ip_hash or ""),
+        )
+        conn.commit()
+        return True
+    finally:
+        conn.close()
+
+
+def get_clicks_afiliados_stats(limit=20):
+    conn = get_connection()
+    try:
+        if USE_POSTGRES:
+            query = """
+            SELECT
+                p.id AS producto_id,
+                p.nombre AS producto_nombre,
+                COALESCE(p.plataforma_afiliado, c.plataforma) AS plataforma,
+                COUNT(c.id) AS clicks_total,
+                SUM(CASE WHEN c.created_at::date = CURRENT_DATE THEN 1 ELSE 0 END) AS clicks_hoy,
+                MAX(c.created_at) AS ultimo_click
+            FROM clicks_afiliados c
+            LEFT JOIN productos p ON p.id = c.producto_id
+            GROUP BY p.id, p.nombre, p.plataforma_afiliado, c.plataforma
+            ORDER BY clicks_total DESC, ultimo_click DESC
+            LIMIT ?
+            """
+        else:
+            query = """
+            SELECT
+                p.id AS producto_id,
+                p.nombre AS producto_nombre,
+                COALESCE(p.plataforma_afiliado, c.plataforma) AS plataforma,
+                COUNT(c.id) AS clicks_total,
+                SUM(CASE WHEN date(c.created_at) = date('now') THEN 1 ELSE 0 END) AS clicks_hoy,
+                MAX(c.created_at) AS ultimo_click
+            FROM clicks_afiliados c
+            LEFT JOIN productos p ON p.id = c.producto_id
+            GROUP BY p.id, p.nombre, p.plataforma_afiliado, c.plataforma
+            ORDER BY clicks_total DESC, ultimo_click DESC
+            LIMIT ?
+            """
+        rows = conn.execute(
+            _sql(query),
+            (limit,),
+        ).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+def get_clicks_afiliados_resumen():
+    conn = get_connection()
+    try:
+        if USE_POSTGRES:
+            query = """
+            SELECT
+                COUNT(*) AS total,
+                SUM(CASE WHEN created_at::date = CURRENT_DATE THEN 1 ELSE 0 END) AS hoy,
+                SUM(CASE WHEN created_at >= NOW() - INTERVAL '7 days' THEN 1 ELSE 0 END) AS ultimos_7_dias,
+                COUNT(DISTINCT producto_id) AS productos_con_clicks
+            FROM clicks_afiliados
+            """
+        else:
+            query = """
+            SELECT
+                COUNT(*) AS total,
+                SUM(CASE WHEN date(created_at) = date('now') THEN 1 ELSE 0 END) AS hoy,
+                SUM(CASE WHEN created_at >= datetime('now', '-7 days') THEN 1 ELSE 0 END) AS ultimos_7_dias,
+                COUNT(DISTINCT producto_id) AS productos_con_clicks
+            FROM clicks_afiliados
+            """
+        row = conn.execute(_sql(query)).fetchone()
+        return {
+            "total": row["total"] or 0,
+            "hoy": row["hoy"] or 0,
+            "ultimos_7_dias": row["ultimos_7_dias"] or 0,
+            "productos_con_clicks": row["productos_con_clicks"] or 0,
+        }
     finally:
         conn.close()
 
@@ -708,97 +847,99 @@ def normalizar_imagenes_db():
 
 # ─── Pedidos ──────────────────────────────────────────────────────
 
+class PedidoError(ValueError):
+    pass
+
+
+def _dinero(value):
+    amount = Decimal(str(value)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    if not amount.is_finite() or amount <= 0:
+        raise PedidoError("El producto no tiene un precio válido.")
+    return amount
+
+
 def crear_pedido(cliente_nombre, cliente_email, cliente_telefono,
-                 cliente_direccion, total, items,
+                 cliente_direccion, total, items, checkout_key=None,
                  metodo_pago="transferencia", reserva_expira="",
                  zona_envio="", envio_costo=0,
                  cliente_entre_calles="", cliente_localidad="", cliente_codigo_postal=""):
-    """Crea el pedido revalidando stock y precios actuales de la DB.
+    """Crea el pedido reservando stock en la misma transacción.
 
-    Descuenta el stock de cada producto en la misma transacción. El total se
-    recalcula en el servidor (no se confía en el carrito de la sesión) sumando
-    los subtotales de los productos más el costo de envío.
+    El total se recalcula en el servidor (no se confía en el carrito de la
+    sesión) sumando los subtotales actuales de los productos más el costo de
+    envío. Usa bloqueo de filas y `checkout_key` para resolver pedidos
+    duplicados o concurrentes en un único pedido.
     `metodo_pago` puede ser 'transferencia' o 'contra_entrega'. `reserva_expira`
-    es un timestamp ('YYYY-MM-DD HH:MM:SS') tras el cual la reserva de stock se
-    libera automáticamente si el pedido sigue pendiente.
-    `zona_envio` y `envio_costo` guardan la zona de entrega elegida y su costo.
-    `cliente_entre_calles` y `cliente_localidad` completan la dirección para el
-    reparto (calles de referencia y barrio/localidad).
-    Lanza ValueError si algún producto no existe, no está disponible o no
-    tiene stock suficiente.
+    es un timestamp ('YYYY-MM-DD HH:MM:SS') tras el cual la reserva se libera
+    automáticamente. `zona_envio`/`envio_costo` y los datos de dirección
+    completan la entrega.
+    Lanza PedidoError (subclase de ValueError) si algo no está disponible.
     """
     conn = get_connection()
     try:
+        if not USE_POSTGRES:
+            conn.execute("BEGIN IMMEDIATE")
+        if checkout_key:
+            if USE_POSTGRES:
+                lock_id = int.from_bytes(hashlib.sha256(checkout_key.encode()).digest()[:8], "big", signed=True)
+                conn.execute("SELECT pg_advisory_xact_lock(%s)", (lock_id,))
+            existing = conn.execute(_sql("SELECT id FROM pedidos WHERE checkout_key = ?"), (checkout_key,)).fetchone()
+            if existing:
+                return existing["id"]
+        if not items:
+            raise PedidoError("El carrito está vacío.")
         try:
             envio = round(float(envio_costo or 0), 2)
         except (TypeError, ValueError):
             envio = 0.0
         if envio < 0:
             envio = 0.0
-        lineas = []
-        for item in items.values():
-            pid = item.get("producto_id")
-            cantidad = int(item.get("cantidad") or 0)
-            if cantidad <= 0:
-                raise ValueError("El pedido tiene una cantidad inválida.")
-
-            prod = conn.execute(
-                _sql("SELECT id, nombre, precio_venta, stock, activo FROM productos WHERE id = ?"),
-                (pid,),
-            ).fetchone()
-            if not prod:
-                raise ValueError(f"El producto '{item.get('nombre') or pid}' ya no existe.")
-            prod = dict(prod)
-            if not prod.get("activo"):
-                raise ValueError(f"El producto '{prod['nombre']}' ya no está disponible.")
-
-            precio = prod.get("precio_venta") or 0
-            if precio <= 0:
-                raise ValueError(f"El producto '{prod['nombre']}' no tiene precio de venta.")
-
-            stock = prod.get("stock") or 0
-            if cantidad > stock:
-                raise ValueError(
-                    f"Stock insuficiente de '{prod['nombre']}' (disponible: {stock})."
-                )
-
-            lineas.append({
-                "producto_id": prod["id"],
-                "nombre": prod["nombre"],
-                "cantidad": cantidad,
-                "precio": precio,
-                "subtotal": round(precio * cantidad, 2),
-            })
-
-        if not lineas:
-            raise ValueError("El pedido no tiene productos.")
-
-        total_calc = round(sum(ln["subtotal"] for ln in lineas) + envio, 2)
-
+        checked = []
+        seen = set()
+        for item in sorted(items.values(), key=lambda i: int(i.get("producto_id") or 0)):
+            product_id = int(item.get("producto_id") or 0)
+            quantity = int(item.get("cantidad") or 0)
+            if quantity < 1 or product_id in seen:
+                raise PedidoError("El pedido tiene una cantidad inválida.")
+            seen.add(product_id)
+            query = "SELECT * FROM productos WHERE id = ?" + (" FOR UPDATE" if USE_POSTGRES else "")
+            row = conn.execute(_sql(query), (product_id,)).fetchone()
+            product = dict(row) if row else {}
+            if (not product.get("activo") or not product.get("publicar") or product.get("es_afiliado")
+                    or product.get("tipo_producto") in ("amazon_affiliate", "afiliado_digital")):
+                raise PedidoError("Un producto del carrito ya no está disponible. Revisá el carrito.")
+            price = _dinero(product.get("precio_venta") or 0)
+            if item.get("precio") is not None and price != _dinero(item["precio"]):
+                raise PedidoError("Cambió el precio de un producto. Revisá el carrito antes de confirmar.")
+            if quantity > (product.get("stock") or 0):
+                raise PedidoError(f"Stock insuficiente de '{product['nombre']}' (disponible: {product.get('stock') or 0}).")
+            checked.append((product_id, product["nombre"], quantity, price))
+        amount = sum((price * quantity for _, _, quantity, price in checked), Decimal("0"))
+        total_calc = round(float(amount) + envio, 2)
         pedido_id = _insert_and_get_id(
             conn,
             """INSERT INTO pedidos
                (cliente_nombre, cliente_email, cliente_telefono, cliente_direccion,
                 cliente_entre_calles, cliente_localidad, cliente_codigo_postal, total,
-                metodo_pago, reserva_expira, zona_envio, envio_costo)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                metodo_pago, reserva_expira, zona_envio, envio_costo, stock_reservado, checkout_key)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)""",
             (cliente_nombre, cliente_email, cliente_telefono, cliente_direccion,
              cliente_entre_calles or "", cliente_localidad or "", cliente_codigo_postal or "", total_calc,
-             metodo_pago or "transferencia", reserva_expira or "", zona_envio or "", envio),
+             metodo_pago or "transferencia", reserva_expira or "", zona_envio or "", envio, checkout_key),
         )
-        for ln in lineas:
-            conn.execute(
-                _sql("""INSERT INTO pedido_items
-                   (pedido_id, producto_id, nombre, cantidad, precio_unitario, subtotal)
-                   VALUES (?, ?, ?, ?, ?, ?)"""),
-                (pedido_id, ln["producto_id"], ln["nombre"], ln["cantidad"], ln["precio"], ln["subtotal"]),
-            )
-            conn.execute(
-                _sql("UPDATE productos SET stock = stock - ? WHERE id = ?"),
-                (ln["cantidad"], ln["producto_id"]),
-            )
+        for product_id, name, quantity, price in checked:
+            conn.execute(_sql("INSERT INTO pedido_items (pedido_id, producto_id, nombre, cantidad, precio_unitario, subtotal) VALUES (?, ?, ?, ?, ?, ?)"),
+                         (pedido_id, product_id, name, quantity, float(price), float(price * quantity)))
+            conn.execute(_sql("UPDATE productos SET stock = stock - ? WHERE id = ?"), (quantity, product_id))
         conn.commit()
         return pedido_id
+    except IntegrityError:
+        conn.rollback()
+        if checkout_key:
+            row = conn.execute(_sql("SELECT id FROM pedidos WHERE checkout_key = ?"), (checkout_key,)).fetchone()
+            if row:
+                return row["id"]
+        raise
     except Exception:
         conn.rollback()
         raise
@@ -843,39 +984,49 @@ def get_pedidos(estado=None):
         conn.close()
 
 
-def actualizar_pedido_mp(pedido_id, mp_preference_id=""):
+def actualizar_estado_pedido(pedido_id, estado):
+    transitions = {
+        "pendiente": {"confirmado", "pagado", "cancelado"},
+        "confirmado": {"comprado", "pagado", "cancelado"},
+        "comprado": {"pagado", "enviado", "cancelado"},
+        "pagado": {"comprado", "enviado", "cancelado"},
+        "enviado": {"entregado"},
+        "entregado": set(), "cancelado": set(),
+    }
     conn = get_connection()
     try:
-        if USE_POSTGRES:
-            conn.execute(
-                "UPDATE pedidos SET mp_preference_id = %s, updated_at = NOW() WHERE id = %s",
-                (mp_preference_id, pedido_id),
-            )
-        else:
-            conn.execute(
-                "UPDATE pedidos SET mp_preference_id = ?, updated_at = datetime('now','localtime') WHERE id = ?",
-                (mp_preference_id, pedido_id),
-            )
+        if not USE_POSTGRES:
+            conn.execute("BEGIN IMMEDIATE")
+        query = "SELECT * FROM pedidos WHERE id = ?" + (" FOR UPDATE" if USE_POSTGRES else "")
+        row = conn.execute(_sql(query), (pedido_id,)).fetchone()
+        if not row:
+            raise PedidoError("Pedido no encontrado.")
+        if estado == row["estado"]:
+            return False
+        if estado not in transitions.get(row["estado"], set()):
+            raise PedidoError("Ese cambio de estado no está permitido.")
+        reserved = row["stock_reservado"]
+        if estado == "pagado" and not reserved:
+            items = conn.execute(_sql("SELECT producto_id, cantidad FROM pedido_items WHERE pedido_id = ? ORDER BY producto_id"), (pedido_id,)).fetchall()
+            for item in items:
+                changed = conn.execute(_sql("UPDATE productos SET stock = stock - ? WHERE id = ? AND stock >= ?"),
+                                       (item["cantidad"], item["producto_id"], item["cantidad"]))
+                if changed.rowcount != 1:
+                    raise PedidoError("Stock insuficiente para confirmar este pedido anterior. Revisá el inventario.")
+            reserved = 1
+        if estado == "cancelado" and reserved:
+            items = conn.execute(_sql("SELECT producto_id, cantidad FROM pedido_items WHERE pedido_id = ? ORDER BY producto_id"), (pedido_id,)).fetchall()
+            for item in items:
+                conn.execute(_sql("UPDATE productos SET stock = stock + ? WHERE id = ?"), (item["cantidad"], item["producto_id"]))
+            reserved = 0
+        reserva = "" if estado == "cancelado" else (row["reserva_expira"] or "")
+        conn.execute(_sql("UPDATE pedidos SET estado = ?, stock_reservado = ?, reserva_expira = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"),
+                     (estado, reserved, reserva, pedido_id))
         conn.commit()
-    finally:
-        conn.close()
-
-
-def actualizar_estado_pedido(pedido_id, estado, mp_payment_id=""):
-    conn = get_connection()
-    try:
-        if USE_POSTGRES:
-            conn.execute(
-                "UPDATE pedidos SET estado = %s, mp_payment_id = %s, updated_at = NOW() WHERE id = %s",
-                (estado, mp_payment_id, pedido_id),
-            )
-        else:
-            conn.execute(
-                """UPDATE pedidos SET estado = ?, mp_payment_id = ?,
-                   updated_at = datetime('now','localtime') WHERE id = ?""",
-                (estado, mp_payment_id, pedido_id),
-            )
-        conn.commit()
+        return True
+    except Exception:
+        conn.rollback()
+        raise
     finally:
         conn.close()
 
@@ -896,42 +1047,24 @@ def actualizar_cobro_pedido(pedido_id, cobrado, metodo_cobro=""):
 
 
 def liberar_reserva_pedido(pedido_id):
-    """Cancela un pedido pendiente y devuelve el stock reservado a los productos.
+    """Cancela un pedido y devuelve el stock reservado a los productos.
 
-    No toca pedidos ya cancelados ni entregados (evita devolver stock dos veces).
+    Delega en `actualizar_estado_pedido` para respetar el flag `stock_reservado`
+    y no devolver stock dos veces. No toca pedidos ya cancelados ni entregados.
     """
-    ahora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     conn = get_connection()
     try:
         pedido = conn.execute(
             _sql("SELECT estado FROM pedidos WHERE id = ?"), (pedido_id,)
         ).fetchone()
-        if not pedido:
-            return False
-        if pedido["estado"] in ("cancelado", "entregado"):
-            return False
-
-        items = conn.execute(
-            _sql("SELECT producto_id, cantidad FROM pedido_items WHERE pedido_id = ?"),
-            (pedido_id,),
-        ).fetchall()
-        for it in items:
-            if it["producto_id"]:
-                conn.execute(
-                    _sql("UPDATE productos SET stock = stock + ? WHERE id = ?"),
-                    (it["cantidad"], it["producto_id"]),
-                )
-        conn.execute(
-            _sql("UPDATE pedidos SET estado = 'cancelado', reserva_expira = '', updated_at = ? WHERE id = ?"),
-            (ahora, pedido_id),
-        )
-        conn.commit()
-        return True
-    except Exception:
-        conn.rollback()
-        raise
     finally:
         conn.close()
+    if not pedido or pedido["estado"] in ("cancelado", "entregado"):
+        return False
+    try:
+        return actualizar_estado_pedido(pedido_id, "cancelado")
+    except PedidoError:
+        return False
 
 
 def liberar_reservas_expiradas():

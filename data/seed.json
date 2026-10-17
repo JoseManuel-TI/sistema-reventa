@@ -1,7 +1,8 @@
 {
   "proveedores": [
     {"id": 1, "nombre": "PM Importados", "contacto": "", "notas": ""},
-    {"id": 2, "nombre": "Grupo N23", "contacto": "", "notas": ""}
+    {"id": 2, "nombre": "Grupo N23", "contacto": "", "notas": ""},
+    {"id": 3, "nombre": "Afiliados Amazon", "contacto": "", "notas": "Productos afiliados Amazon"}
   ],
   "productos": [
     {"id": 1,  "nombre": "Combo Entrenamiento Funcional en Casa Reforzado - Barra Larga + 2 Mancuernas 10kg",              "descripcion": "", "proveedor_id": 1, "costo": 89610,   "precio_venta": 137861.54, "categoria": "Deportes",   "stock": 1, "publicar": 1},
@@ -19,7 +20,12 @@
     {"id": 13, "nombre": "Xiaomi Redmi 15C (256GB / 8GB RAM) - Pantalla 90Hz",                                       "descripcion": "", "proveedor_id": 1, "costo": 224750,  "precio_venta": 345769.23, "categoria": "Celulares",  "stock": 1, "publicar": 1},
     {"id": 14, "nombre": "Cocina Nova Florencia 4 Hornallas - Multigas",                                             "descripcion": "", "proveedor_id": 1, "costo": 240000,  "precio_venta": 324000.00, "categoria": "Hogar",      "stock": 2, "publicar": 1},
     {"id": 15, "nombre": "Combo Cargador Rápido 20W para iPhone (Fuente + Cable)",                                   "descripcion": "", "proveedor_id": 2, "costo": 12500,   "precio_venta": 16875.00,  "categoria": "Accesorios", "stock": 5, "publicar": 1},
-    {"id": 16, "nombre": "Auriculares Inalámbricos AirPods Pro (Apple OEM)",                                         "descripcion": "", "proveedor_id": 2, "costo": 38000,   "precio_venta": 51300.00,  "categoria": "Audio",      "stock": 3, "publicar": 1}
+    {"id": 16, "nombre": "Auriculares Inalámbricos AirPods Pro (Apple OEM)",                                         "descripcion": "", "proveedor_id": 2, "costo": 38000,   "precio_venta": 51300.00,  "categoria": "Audio",      "stock": 3, "publicar": 1},
+    {"id": 31, "nombre": "Amazon Kindle Paperwhite 16GB 2024", "descripcion": "E-reader con pantalla antirreflejo, luz cálida ajustable y batería de larga duración. Ideal para lectura y estudio.", "proveedor_id": 3, "costo": 0, "precio_venta": 0, "categoria": "Tecnologia", "stock": 0, "publicar": 1, "activo": 1, "es_afiliado": 1, "link_afiliado": "https://www.amazon.com/dp/B0CFPJYX7P?tag=clickyanet-20", "plataforma_afiliado": "amazon", "tipo_producto": "amazon_affiliate", "moneda": "USD", "external_url": "https://www.amazon.com/dp/B0CFPJYX7P?tag=clickyanet-20", "beneficios": "Pantalla antirreflejo|Bateria de larga duracion|Compra segura en Amazon"},
+    {"id": 32, "nombre": "DJI Mic Mini microfono inalambrico", "descripcion": "Microfono wireless compacto para creadores, reels, entrevistas y grabacion desde celular o camara.", "proveedor_id": 3, "costo": 0, "precio_venta": 0, "categoria": "Tecnologia", "stock": 0, "publicar": 1, "activo": 1, "es_afiliado": 1, "link_afiliado": "https://www.amazon.com/s?k=DJI+Mic+Mini&tag=clickyanet-20", "plataforma_afiliado": "amazon", "tipo_producto": "amazon_affiliate", "moneda": "USD", "external_url": "https://www.amazon.com/s?k=DJI+Mic+Mini&tag=clickyanet-20", "beneficios": "Audio para reels y entrevistas|Compacto y facil de llevar|Ver opciones disponibles en Amazon"},
+    {"id": 33, "nombre": "Echo Dot 5ta Gen Charcoal con Alexa", "descripcion": "Parlante inteligente para música, alarmas, clima y control del hogar por voz con Alexa.", "proveedor_id": 3, "costo": 0, "precio_venta": 0, "categoria": "Hogar", "stock": 0, "publicar": 1, "activo": 1, "es_afiliado": 1, "link_afiliado": "https://www.amazon.com/dp/B09B8V1LZ3?tag=clickyanet-20", "plataforma_afiliado": "amazon", "tipo_producto": "amazon_affiliate", "moneda": "USD", "external_url": "https://www.amazon.com/dp/B09B8V1LZ3?tag=clickyanet-20", "beneficios": "Control por voz Alexa|Ideal para hogar inteligente|Compra segura en Amazon"},
+    {"id": 34, "nombre": "TP-Link Tapo C210 Camara WiFi 2K 360", "descripcion": "Camara IP con visión nocturna, movimiento 360 y acceso desde el celular. Buena opción para seguridad del hogar.", "proveedor_id": 3, "costo": 0, "precio_venta": 0, "categoria": "Hogar", "stock": 0, "publicar": 1, "activo": 1, "es_afiliado": 1, "link_afiliado": "https://www.amazon.com/dp/B09Y8TLP25?tag=clickyanet-20", "plataforma_afiliado": "amazon", "tipo_producto": "amazon_affiliate", "moneda": "USD", "external_url": "https://www.amazon.com/dp/B09Y8TLP25?tag=clickyanet-20", "beneficios": "Video 2K|Movimiento 360 grados|Ver tu casa desde el celular"},
+    {"id": 35, "nombre": "Samsung T7 Portable SSD 1TB", "descripcion": "Disco externo SSD portátil de alta velocidad. Ideal para backups, trabajo, fotos, videos y creadores de contenido.", "proveedor_id": 3, "costo": 0, "precio_venta": 0, "categoria": "Tecnologia", "stock": 0, "publicar": 1, "activo": 1, "es_afiliado": 1, "link_afiliado": "https://www.amazon.com/dp/B0874YJP92?tag=clickyanet-20", "plataforma_afiliado": "amazon", "tipo_producto": "amazon_affiliate", "moneda": "USD", "external_url": "https://www.amazon.com/dp/B0874YJP92?tag=clickyanet-20", "beneficios": "1TB portatil|Alta velocidad|Ideal backups y contenido"}
   ],
   "imagenes": [
     {"id": 1,  "producto_id": 1,  "archivo": "imagenes/proveedores/pmImportados/ComboEntrenamiento.jpeg",          "es_principal": 1},
@@ -37,6 +43,11 @@
     {"id": 13, "producto_id": 13, "archivo": "imagenes/proveedores/pmImportados/Redmi_15C_256GB.jpeg",             "es_principal": 1},
     {"id": 14, "producto_id": 14, "archivo": "imagenes/proveedores/pmImportados/Cocina-Nova.jpg",                  "es_principal": 1},
     {"id": 15, "producto_id": 15, "archivo": "imagenes/proveedores/pmImportados/CargadorCombo.webp",               "es_principal": 1},
-    {"id": 16, "producto_id": 16, "archivo": "imagenes/proveedores/pmImportados/Airpods-pro.jpg",                  "es_principal": 1}
+    {"id": 16, "producto_id": 16, "archivo": "imagenes/proveedores/pmImportados/Airpods-pro.jpg",                  "es_principal": 1},
+    {"id": 26, "producto_id": 31, "archivo": "imagenes/proveedores/Amazon/Amazon-Kindle.jpg", "es_principal": 1},
+    {"id": 27, "producto_id": 33, "archivo": "imagenes/proveedores/Amazon/Echo-Dot5a.jpg", "es_principal": 1},
+    {"id": 28, "producto_id": 34, "archivo": "imagenes/proveedores/Amazon/TapoTP-Link.jpg", "es_principal": 1},
+    {"id": 29, "producto_id": 35, "archivo": "imagenes/proveedores/Amazon/SamsungT7.jpg", "es_principal": 1},
+    {"id": 30, "producto_id": 32, "archivo": "imagenes/proveedores/Amazon/dj-mini.webp", "es_principal": 1}
   ]
 }

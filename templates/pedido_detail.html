@@ -20,7 +20,7 @@
     </div>
     <div class="stat-card">
         <div class="label">Fecha</div>
-        <div class="value" style="font-size:16px;">{{ pedido.created_at[:16] }}</div>
+        <div class="value" style="font-size:16px;">{{ (pedido.created_at|string)[:16] }}</div>
     </div>
     <div class="stat-card">
         <div class="label">Forma de pago</div>
@@ -103,6 +103,7 @@
             <option value="pendiente" {{ 'selected' if pedido.estado == 'pendiente' }}>Pendiente</option>
             <option value="confirmado" {{ 'selected' if pedido.estado == 'confirmado' }}>Confirmado</option>
             <option value="comprado" {{ 'selected' if pedido.estado == 'comprado' }}>Comprado</option>
+            <option value="pagado" {{ 'selected' if pedido.estado == 'pagado' }}>Pagado</option>
             <option value="enviado" {{ 'selected' if pedido.estado == 'enviado' }}>Enviado</option>
             <option value="entregado" {{ 'selected' if pedido.estado == 'entregado' }}>Entregado</option>
             <option value="cancelado" {{ 'selected' if pedido.estado == 'cancelado' }}>Cancelado</option>

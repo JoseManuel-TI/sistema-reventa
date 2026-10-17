@@ -1,7 +1,9 @@
 """Public shop: catalog, cart, checkout, bank transfer payment."""
 
+import hashlib
 import os
 import re
+import secrets
 import unicodedata
 from datetime import datetime, timedelta
 from urllib.parse import quote
@@ -113,8 +115,39 @@ def _get_carrito():
 
 
 def _save_carrito(data):
+    session.pop("checkout_key", None)
     session[CARRITO_KEY] = data
     session.modified = True
+
+
+def _refresh_carrito():
+    carrito = _get_carrito()
+    refreshed = {}
+    changed = False
+    for key, item in carrito.items():
+        p = db.get_producto(item["producto_id"])
+        if (not p or not p.get("activo") or not p.get("publicar") or _es_externo(p)
+                or not p.get("precio_venta") or p["precio_venta"] <= 0 or (p.get("stock") or 0) <= 0):
+            changed = True
+            continue
+        updated = dict(item, nombre=p["nombre"], precio=p["precio_venta"], stock=p["stock"],
+                       cantidad=min(item["cantidad"], p["stock"]))
+        changed |= updated != item
+        refreshed[key] = updated
+    if changed:
+        _save_carrito(refreshed)
+        flash("Actualizamos el carrito según los precios y el stock disponibles. Revisá el total.", "info")
+    return refreshed
+
+
+def _cantidad_form():
+    try:
+        cantidad = int(request.form.get("cantidad", 1))
+        if cantidad < 1:
+            raise ValueError
+        return cantidad
+    except (ValueError, TypeError):
+        abort(400, description="La cantidad debe ser un número entero mayor a cero.")
 
 
 def _cant_carrito():
@@ -249,7 +282,7 @@ DELIVERY_INFO = config.get("DELIVERY_INFO") or "Se entrega dentro de las 24 hs h
 def inject_globals():
     logo = config.get("TIENDA_LOGO") or config.get("TIENDA_NOMBRE")
     return {
-        "wa_link": STORE_WA,
+        "wa_link": config.get("TIENDA_WA"),
         "banco": config.get("BANCO"),
         "banco_titular": config.get("BANCO_TITULAR"),
         "banco_cbu": config.get("BANCO_CBU"),
@@ -259,7 +292,7 @@ def inject_globals():
         "tienda_logo": logo,
         "tienda_color": config.get("TIENDA_COLOR"),
         "tienda_descripcion": config.get("TIENDA_DESCRIPCION"),
-        "delivery_info": DELIVERY_INFO,
+        "delivery_info": config.get("DELIVERY_INFO"),
         "entrega_estimada": _estimar_entrega(),
         "cant_carrito": _cant_carrito(),
         "metodos_pago": METODOS_PAGO,
@@ -313,7 +346,7 @@ def cta_producto(p):
         else:
             label, kicker = "Ver en Amazon", "Precio y envío calculados en Amazon"
         return {
-            "url": url or url_for("tienda.producto", id=p["id"]),
+            "url": url_for("tienda.out_afiliado", id=p["id"]) if url else url_for("tienda.producto", id=p["id"]),
             "label": label, "kicker": kicker, "externo": True,
             "tipo": tipo, "plataforma": plataforma,
         }
@@ -565,11 +598,40 @@ def enlace_corto(id):
     return redirect(url_for("tienda.producto", id=id))
 
 
+@tienda.route("/out/<int:id>")
+def out_afiliado(id):
+    """Registra el clic afiliado y redirige a la plataforma externa."""
+    p = db.get_producto(id)
+    if not p or not _es_externo(p):
+        abort(404)
+    destino = itgr.producto_url_externa(p)
+    if not destino:
+        return redirect(url_for("tienda.producto", id=id))
+
+    plataforma = p.get("plataforma_afiliado") or itgr.detectar_plataforma(destino)
+    origen = request.args.get("src", "").strip()[:40]
+    ip_raw = request.headers.get("X-Forwarded-For", request.remote_addr or "").split(",")[0].strip()
+    ip_hash = hashlib.sha256(ip_raw.encode()).hexdigest()[:16] if ip_raw else ""
+    try:
+        db.registrar_click_afiliado(
+            producto_id=id,
+            plataforma=plataforma,
+            destino=destino,
+            origen=origen,
+            referer=(request.referrer or "")[:500],
+            user_agent=(request.user_agent.string or "")[:500],
+            ip_hash=ip_hash,
+        )
+    except Exception:
+        pass
+    return redirect(destino)
+
+
 # ─── Carrito ───────────────────────────────────────────────────────
 
 @tienda.route("/carrito")
 def ver_carrito():
-    carrito = _get_carrito()
+    carrito = _refresh_carrito()
     total = sum(i["precio"] * i["cantidad"] for i in carrito.values())
     return render_template("tienda/carrito.html",
                            carrito=carrito, total=total,
@@ -579,14 +641,14 @@ def ver_carrito():
 @tienda.route("/carrito/agregar/<int:id>", methods=["POST"])
 def carrito_agregar(id):
     p = db.get_producto(id)
-    if not p or not p.get("precio_venta") or p["precio_venta"] <= 0:
+    if not p or not p.get("activo") or not p.get("publicar") or not p.get("precio_venta") or p["precio_venta"] <= 0:
         flash("Producto no disponible.", "error")
         return redirect(url_for("tienda.catalogo"))
     if _es_externo(p):
         flash("Este producto se compra en la plataforma externa.", "error")
         return redirect(url_for("tienda.producto", id=id))
 
-    cantidad = max(int(request.form.get("cantidad", 1)), 1)
+    cantidad = _cantidad_form()
     stock = p.get("stock") or 0
     if stock == 0:
         flash("Producto agotado.", "error")
@@ -617,7 +679,7 @@ def carrito_agregar(id):
 
 @tienda.route("/carrito/actualizar/<int:id>", methods=["POST"])
 def carrito_actualizar(id):
-    cantidad = max(int(request.form.get("cantidad", 1)), 1)
+    cantidad = _cantidad_form()
     carrito = _get_carrito()
     key = str(id)
     if key in carrito:
@@ -640,14 +702,14 @@ def carrito_eliminar(id):
 @tienda.route("/comprar-ahora/<int:id>", methods=["POST"])
 def comprar_ahora(id):
     p = db.get_producto(id)
-    if not p or not p.get("precio_venta") or p["precio_venta"] <= 0:
+    if not p or not p.get("activo") or not p.get("publicar") or not p.get("precio_venta") or p["precio_venta"] <= 0:
         flash("Producto no disponible.", "error")
         return redirect(url_for("tienda.catalogo"))
     if _es_externo(p):
         flash("Este producto se compra en la plataforma externa.", "error")
         return redirect(url_for("tienda.producto", id=id))
 
-    cantidad = max(int(request.form.get("cantidad", 1)), 1)
+    cantidad = _cantidad_form()
     stock = p.get("stock") or 0
     if stock == 0:
         flash("Producto agotado.", "error")
@@ -672,7 +734,8 @@ def comprar_ahora(id):
 
 @tienda.route("/checkout")
 def checkout():
-    carrito = _get_carrito()
+    carrito = _refresh_carrito()
+    session.setdefault("checkout_key", secrets.token_urlsafe(32))
     if not carrito:
         flash("El carrito está vacío.", "error")
         return redirect(url_for("tienda.catalogo"))
@@ -689,6 +752,10 @@ def checkout():
 
 @tienda.route("/checkout/procesar", methods=["POST"])
 def checkout_procesar():
+    checkout_key = request.form.get("checkout_key", "") or session.get("checkout_key", "")
+    last = session.get("ultimo_checkout", {})
+    if checkout_key and checkout_key == last.get("key"):
+        return redirect(url_for("tienda.gracias", id=last["id"]))
     carrito = _get_carrito()
     if not carrito:
         flash("El carrito está vacío.", "error")
@@ -702,7 +769,7 @@ def checkout_procesar():
     localidad = request.form.get("localidad", "").strip()
     codigo_postal = request.form.get("codigo_postal", "").strip()
 
-    if not nombre or not email:
+    if not nombre or len(nombre) > 200 or not re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", email) or len(email) > 254 or len(telefono) > 50 or len(direccion) > 500:
         flash("Completá nombre y email.", "error")
         return redirect(url_for("tienda.checkout"))
     if not telefono:
@@ -719,10 +786,15 @@ def checkout_procesar():
     if metodo_pago not in METODOS_PAGO:
         metodo_pago = "transferencia"
 
-    zona_envio = request.form.get("zona_envio", "caba").strip()
-    if zona_envio not in ZONAS_ENVIO:
-        zona_envio = "caba"
-    envio_costo = _envio_costo(zona_envio)
+    zona_raw = request.form.get("zona_envio")
+    if zona_raw is None:
+        zona_envio = ""
+        envio_costo = 0
+    else:
+        zona_envio = zona_raw.strip()
+        if zona_envio not in ZONAS_ENVIO:
+            zona_envio = "caba"
+        envio_costo = _envio_costo(zona_envio)
 
     reserva_expira = ""
     if RESERVA_HORAS > 0:
@@ -730,16 +802,18 @@ def checkout_procesar():
 
     total = sum(i["precio"] * i["cantidad"] for i in carrito.values())
     try:
-        pedido_id = db.crear_pedido(nombre, email, telefono, direccion, total, carrito,
+        pedido_id = db.crear_pedido(nombre, email, telefono, direccion, total, carrito, checkout_key,
                                     metodo_pago=metodo_pago, reserva_expira=reserva_expira,
                                     zona_envio=zona_envio, envio_costo=envio_costo,
                                     cliente_entre_calles=entre_calles, cliente_localidad=localidad,
                                     cliente_codigo_postal=codigo_postal)
-    except ValueError as e:
-        flash(str(e), "error")
+    except ValueError as exc:
+        flash(str(exc), "error")
         return redirect(url_for("tienda.ver_carrito"))
 
     _notificar_nuevo_pedido(pedido_id)
+    session["pedidos_propios"] = (session.get("pedidos_propios", []) + [pedido_id])[-20:]
+    session["ultimo_checkout"] = {"key": checkout_key, "id": pedido_id}
 
     _save_carrito({})
 
@@ -803,6 +877,10 @@ def merchant_feed():
 @tienda.route("/gracias/<int:id>")
 def gracias(id):
     pedido = db.get_pedido(id)
+    propio = (session.get("admin") or id in session.get("pedidos_propios", [])
+              or id in session.get("mis_pedidos", []))
+    if pedido and not propio:
+        abort(404)
     if not pedido or id not in session.get("mis_pedidos", []):
         flash("Pedido no encontrado.", "error")
         return redirect(url_for("tienda.catalogo"))
@@ -828,6 +906,4 @@ def gracias(id):
                            metodo_pago_label=METODOS_PAGO.get(
                                pedido.get("metodo_pago") or "transferencia", "Transferencia bancaria"),
                            peso=_pesos)
-
-
 

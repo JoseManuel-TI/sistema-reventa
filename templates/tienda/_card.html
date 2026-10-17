@@ -4,7 +4,7 @@
 <article class="product-card {% if p.stock == 0 and not cta.externo %}agotado{% endif %}"
          data-categoria="{{ (p.categoria or '')|lower }}"
          data-nombre="{{ p.nombre|lower }}">
-    <a href="{{ cta.url }}" class="card-media" aria-label="{{ p.nombre }}"
+    <a href="{{ cta.url }}{% if cta.externo %}?src=card_media{% endif %}" class="card-media" aria-label="{{ p.nombre }}"
        {% if cta.externo %}target="_blank" rel="sponsored nofollow noopener"{% endif %}>
         {% if badge %}
         {% set bclase = 'env' %}
@@ -21,7 +21,7 @@
         {% endif %}
     </a>
     <div class="card-body">
-        <h3 class="card-title"><a href="{{ cta.url }}" {% if cta.externo %}target="_blank" rel="sponsored nofollow noopener"{% endif %}>{{ p.nombre[:60] }}</a></h3>
+        <h3 class="card-title"><a href="{{ cta.url }}{% if cta.externo %}?src=card_title{% endif %}" {% if cta.externo %}target="_blank" rel="sponsored nofollow noopener"{% endif %}>{{ p.nombre[:60] }}</a></h3>
         {% if p.categoria and not cta.externo %}
         <span class="card-cat">{{ p.categoria }}</span>
         {% endif %}
@@ -36,7 +36,7 @@
                 <span class="offer-tag">Oferta disponible</span>
                 <span class="offer-tag envio">Envío a Argentina</span>
             </div>
-            <a href="{{ cta.url }}" target="_blank" rel="sponsored nofollow noopener" class="btn-cta amazon">
+            <a href="{{ cta.url }}?src=card_cta" target="_blank" rel="sponsored nofollow noopener" class="btn-cta amazon">
                 <span class="kicker">{{ cta.kicker }}</span>{{ cta.label }} 🛒
             </a>
             {% else %}
