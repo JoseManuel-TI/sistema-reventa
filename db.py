@@ -382,9 +382,10 @@ def get_proveedor_por_nombre(nombre):
 
 
 def ensure_proveedor_amazon():
-    prov = get_proveedor_por_nombre("Amazon")
-    if prov:
-        return prov
+    for nombre in ("Amazon", "Afiliados Amazon"):
+        prov = get_proveedor_por_nombre(nombre)
+        if prov:
+            return prov
     return add_proveedor("Amazon", contacto="", notas="Afiliados Amazon")
 
 

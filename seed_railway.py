@@ -53,23 +53,35 @@ def reset_data(conn):
         conn.execute("ALTER SEQUENCE imagenes_id_seq RESTART WITH 1")
 
 
+def _insert_ignore(conn, table, columns, params):
+    """INSERT que ignora filas ya existentes (idempotente en SQLite y Postgres)."""
+    cols = ", ".join(columns)
+    placeholders = ", ".join(["?"] * len(columns))
+    if local_db.USE_POSTGRES:
+        sql = f"INSERT INTO {table} ({cols}) VALUES ({placeholders}) ON CONFLICT (id) DO NOTHING"
+    else:
+        sql = f"INSERT OR IGNORE INTO {table} ({cols}) VALUES ({placeholders})"
+    local_db.execute(conn, sql, params)
+
+
 def seed_database(conn, data):
     for prov in data["proveedores"]:
-        local_db.execute(
+        _insert_ignore(
             conn,
-            "INSERT INTO proveedores (id, nombre, contacto, notas, created_at) VALUES (?,?,?,?,?)",
+            "proveedores",
+            ("id", "nombre", "contacto", "notas", "created_at"),
             (prov["id"], prov["nombre"], prov.get("contacto", ""),
              prov.get("notas", ""), prov.get("created_at", "")),
         )
 
     for prod in data["productos"]:
-        local_db.execute(
+        _insert_ignore(
             conn,
-            """INSERT INTO productos (id, nombre, descripcion, proveedor_id, costo, precio_venta,
-               margen_porcentaje, iva_porcentaje, categoria, stock, activo, publicar, costo_usd,
-               es_afiliado, link_afiliado, plataforma_afiliado, tipo_producto, moneda, external_url,
-               beneficios, created_at, updated_at)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            "productos",
+            ("id", "nombre", "descripcion", "proveedor_id", "costo", "precio_venta",
+             "margen_porcentaje", "iva_porcentaje", "categoria", "stock", "activo", "publicar",
+             "costo_usd", "es_afiliado", "link_afiliado", "plataforma_afiliado", "tipo_producto",
+             "moneda", "external_url", "beneficios", "created_at", "updated_at"),
             (prod["id"], prod["nombre"], prod.get("descripcion", ""),
              prod["proveedor_id"], prod["costo"], prod["precio_venta"],
              prod.get("margen_porcentaje", 0), prod.get("iva_porcentaje", 21),
@@ -83,9 +95,10 @@ def seed_database(conn, data):
         )
 
     for img in data["imagenes"]:
-        local_db.execute(
+        _insert_ignore(
             conn,
-            "INSERT INTO imagenes (id, producto_id, archivo, es_principal) VALUES (?,?,?,?)",
+            "imagenes",
+            ("id", "producto_id", "archivo", "es_principal"),
             (img["id"], img["producto_id"], img["archivo"], img.get("es_principal", 0)),
         )
 
@@ -247,8 +260,8 @@ def seed_from_file(seed_path, force=False):
 
         if current_count > 0 and force:
             print("Force reseed enabled: clearing existing database data...")
-            reset_data(conn)
 
+        reset_data(conn)
         seed_database(conn, data)
         conn.commit()
         print(
