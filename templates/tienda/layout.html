@@ -131,7 +131,7 @@ function trackEvent(name, d) {
 
 <footer class="footer">
     <p class="f-brand">{{ store_name }} · Todo, rápido y fácil</p>
-    {% for o in origen_nav %}<a href="{{ url_for('tienda.catalogo', origen=o.key) }}">{{ o.label }}</a>{% if not loop.last %} · {% endif %}{% endfor %}
+    {% for o in origen_nav %}<a href="{{ url_for('tienda.catalogo', origen=o.key) }}">{{ o.label }}</a> · {% endfor %}<a href="{{ url_for('tienda.envios') }}">Envíos y devoluciones</a>
     <p class="disclaimer-amazon">En calidad de Afiliado de Amazon, {{ store_name }} obtiene ingresos por las compras adscritas que cumplen los requisitos aplicables.</p>
 </footer>
 

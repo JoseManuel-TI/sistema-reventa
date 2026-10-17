@@ -163,12 +163,17 @@ def init_db():
                     cliente_email TEXT NOT NULL,
                     cliente_telefono TEXT DEFAULT '',
                     cliente_direccion TEXT DEFAULT '',
+                    cliente_entre_calles TEXT DEFAULT '',
+                    cliente_localidad TEXT DEFAULT '',
+                    cliente_codigo_postal TEXT DEFAULT '',
                     total DOUBLE PRECISION NOT NULL,
                     estado TEXT NOT NULL DEFAULT 'pendiente',
                     metodo_pago TEXT DEFAULT 'transferencia',
                     metodo_cobro TEXT DEFAULT '',
                     cobrado INTEGER DEFAULT 0,
                     reserva_expira TEXT DEFAULT '',
+                    zona_envio TEXT DEFAULT '',
+                    envio_costo DOUBLE PRECISION DEFAULT 0,
                     mp_preference_id TEXT DEFAULT '',
                     mp_payment_id TEXT DEFAULT '',
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -234,12 +239,17 @@ def init_db():
                     cliente_email TEXT NOT NULL,
                     cliente_telefono TEXT DEFAULT '',
                     cliente_direccion TEXT DEFAULT '',
+                    cliente_entre_calles TEXT DEFAULT '',
+                    cliente_localidad TEXT DEFAULT '',
+                    cliente_codigo_postal TEXT DEFAULT '',
                     total REAL NOT NULL,
                     estado TEXT NOT NULL DEFAULT 'pendiente',
                     metodo_pago TEXT DEFAULT 'transferencia',
                     metodo_cobro TEXT DEFAULT '',
                     cobrado INTEGER DEFAULT 0,
                     reserva_expira TEXT DEFAULT '',
+                    zona_envio TEXT DEFAULT '',
+                    envio_costo REAL DEFAULT 0,
                     mp_preference_id TEXT DEFAULT '',
                     mp_payment_id TEXT DEFAULT '',
                     created_at TEXT DEFAULT (datetime('now','localtime')),
@@ -275,7 +285,12 @@ def init_db():
         for col, typ in [("metodo_pago", "TEXT DEFAULT 'transferencia'"),
                          ("metodo_cobro", "TEXT DEFAULT ''"),
                          ("cobrado", "INTEGER DEFAULT 0"),
-                         ("reserva_expira", "TEXT DEFAULT ''")]:
+                         ("reserva_expira", "TEXT DEFAULT ''"),
+                         ("zona_envio", "TEXT DEFAULT ''"),
+                         ("envio_costo", "REAL DEFAULT 0"),
+                         ("cliente_entre_calles", "TEXT DEFAULT ''"),
+                         ("cliente_localidad", "TEXT DEFAULT ''"),
+                         ("cliente_codigo_postal", "TEXT DEFAULT ''")]:
             try:
                 conn.execute(f"ALTER TABLE pedidos ADD COLUMN {col} {typ}")
                 conn.commit()
@@ -695,19 +710,31 @@ def normalizar_imagenes_db():
 
 def crear_pedido(cliente_nombre, cliente_email, cliente_telefono,
                  cliente_direccion, total, items,
-                 metodo_pago="transferencia", reserva_expira=""):
+                 metodo_pago="transferencia", reserva_expira="",
+                 zona_envio="", envio_costo=0,
+                 cliente_entre_calles="", cliente_localidad="", cliente_codigo_postal=""):
     """Crea el pedido revalidando stock y precios actuales de la DB.
 
     Descuenta el stock de cada producto en la misma transacción. El total se
-    recalcula en el servidor (no se confía en el carrito de la sesión).
+    recalcula en el servidor (no se confía en el carrito de la sesión) sumando
+    los subtotales de los productos más el costo de envío.
     `metodo_pago` puede ser 'transferencia' o 'contra_entrega'. `reserva_expira`
     es un timestamp ('YYYY-MM-DD HH:MM:SS') tras el cual la reserva de stock se
     libera automáticamente si el pedido sigue pendiente.
+    `zona_envio` y `envio_costo` guardan la zona de entrega elegida y su costo.
+    `cliente_entre_calles` y `cliente_localidad` completan la dirección para el
+    reparto (calles de referencia y barrio/localidad).
     Lanza ValueError si algún producto no existe, no está disponible o no
     tiene stock suficiente.
     """
     conn = get_connection()
     try:
+        try:
+            envio = round(float(envio_costo or 0), 2)
+        except (TypeError, ValueError):
+            envio = 0.0
+        if envio < 0:
+            envio = 0.0
         lineas = []
         for item in items.values():
             pid = item.get("producto_id")
@@ -746,16 +773,18 @@ def crear_pedido(cliente_nombre, cliente_email, cliente_telefono,
         if not lineas:
             raise ValueError("El pedido no tiene productos.")
 
-        total_calc = round(sum(ln["subtotal"] for ln in lineas), 2)
+        total_calc = round(sum(ln["subtotal"] for ln in lineas) + envio, 2)
 
         pedido_id = _insert_and_get_id(
             conn,
             """INSERT INTO pedidos
-               (cliente_nombre, cliente_email, cliente_telefono, cliente_direccion, total,
-                metodo_pago, reserva_expira)
-               VALUES (?, ?, ?, ?, ?, ?, ?)""",
-            (cliente_nombre, cliente_email, cliente_telefono, cliente_direccion, total_calc,
-             metodo_pago or "transferencia", reserva_expira or ""),
+               (cliente_nombre, cliente_email, cliente_telefono, cliente_direccion,
+                cliente_entre_calles, cliente_localidad, cliente_codigo_postal, total,
+                metodo_pago, reserva_expira, zona_envio, envio_costo)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (cliente_nombre, cliente_email, cliente_telefono, cliente_direccion,
+             cliente_entre_calles or "", cliente_localidad or "", cliente_codigo_postal or "", total_calc,
+             metodo_pago or "transferencia", reserva_expira or "", zona_envio or "", envio),
         )
         for ln in lineas:
             conn.execute(

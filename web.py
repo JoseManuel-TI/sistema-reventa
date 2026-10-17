@@ -1094,6 +1094,8 @@ def configuracion():
             "TIENDA_WA": request.form.get("TIENDA_WA", "#").strip(),
             "DOLAR_BLUE": request.form.get("DOLAR_BLUE", "1300").strip(),
             "DELIVERY_INFO": request.form.get("DELIVERY_INFO", "").strip(),
+            "ENVIO_CABA": request.form.get("ENVIO_CABA", "3500").strip(),
+            "ENVIO_GBA": request.form.get("ENVIO_GBA", "5500").strip(),
             "TELEGRAM_BOT_TOKEN": request.form.get("TELEGRAM_BOT_TOKEN", "").strip(),
             "TELEGRAM_CHAT_ID": request.form.get("TELEGRAM_CHAT_ID", "").strip(),
             "FB_PAGE_TOKEN": request.form.get("FB_PAGE_TOKEN", "").strip(),

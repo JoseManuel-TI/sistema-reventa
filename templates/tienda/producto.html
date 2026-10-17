@@ -91,7 +91,7 @@
         <div class="price-shipping afiliado" style="text-align:center;">Compra 100% segura con la garantía de {{ 'Hotmart' if plataforma == 'hotmart' else 'Amazon' }}</div>
         {% else %}
         <div class="big-price">$ {{ p.precio_venta|fmt_pesos }}</div>
-        <div class="price-shipping">Envío gratis</div>
+        <div class="price-shipping">Envío a CABA y GBA</div>
 
         {% if p.stock and p.stock > 0 %}
         <p class="stock ok">Stock disponible</p>
@@ -120,7 +120,7 @@
             {% endfor %}
         </ul>
 
-        <div class="delivery-badge">🚚 Envío gratis. {% if entrega_estimada == "hoy" %}Llega <strong>hoy</strong>{% elif entrega_estimada == "mañana" %}Llega <strong>mañana</strong>{% else %}Llega el <strong>{{ entrega_estimada }}</strong>{% endif %}</div>
+        <div class="delivery-badge">🚚 {% if entrega_estimada == "hoy" %}Llega <strong>hoy</strong> entre las 14 y las 21 hs{% elif entrega_estimada == "mañana" %}Llega <strong>mañana</strong> por la tarde{% else %}Llega el <strong>{{ entrega_estimada }}</strong>{% endif %} en CABA (de lunes a viernes). <a href="{{ url_for('tienda.envios') }}">Envíos y devoluciones</a></div>
         {% endif %}
 
         <div class="share-section">

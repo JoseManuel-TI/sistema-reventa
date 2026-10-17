@@ -87,6 +87,7 @@ def test_checkout_sin_stock_muestra_error(client):
             "email": "a@b.com",
             "telefono": "11",
             "direccion": "Calle 1",
+            "codigo_postal": "1406",
         },
         follow_redirects=True,
     )
@@ -108,6 +109,7 @@ def test_checkout_contra_entrega_crea_pedido(client):
             "email": "a@b.com",
             "telefono": "11",
             "direccion": "Calle 1",
+            "codigo_postal": "1406",
             "metodo_pago": "contra_entrega",
         },
         follow_redirects=True,
@@ -117,6 +119,166 @@ def test_checkout_contra_entrega_crea_pedido(client):
     assert len(pedidos) == 1
     assert pedidos[0]["metodo_pago"] == "contra_entrega"
     assert b"Contra entrega" in r.data
+
+
+def _checkout(client, pid, zona):
+    client.get("/login")
+    client.post(f"/carrito/agregar/{pid}", data={"cantidad": 1, "csrf_token": _csrf(client)})
+    return client.post(
+        "/checkout/procesar",
+        data={
+            "csrf_token": _csrf(client),
+            "nombre": "Ana",
+            "email": "a@b.com",
+            "telefono": "11",
+            "direccion": "Calle 1",
+            "codigo_postal": "1406",
+            "zona_envio": zona,
+        },
+        follow_redirects=True,
+    )
+
+
+def test_checkout_cobra_envio_gba(client):
+    import db
+
+    pid = crear_producto(stock=2, precio=1000)
+    r = _checkout(client, pid, "gba")
+    assert r.status_code == 200
+    pedido = db.get_pedidos()[0]
+    assert pedido["zona_envio"] == "gba"
+    assert pedido["envio_costo"] == 5500
+    assert pedido["total"] == 6500
+
+
+def test_checkout_caba_cobra_envio(client):
+    import db
+
+    pid = crear_producto(stock=2, precio=1000)
+    _checkout(client, pid, "caba")
+    pedido = db.get_pedidos()[0]
+    assert pedido["envio_costo"] == 3500
+    assert pedido["total"] == 4500
+
+
+def test_checkout_zona_interior_no_suma_envio(client):
+    import db
+
+    pid = crear_producto(stock=2, precio=1000)
+    _checkout(client, pid, "interior")
+    pedido = db.get_pedidos()[0]
+    assert pedido["zona_envio"] == "interior"
+    assert pedido["envio_costo"] == 0
+    assert pedido["total"] == 1000
+
+
+def test_checkout_zona_invalida_cae_en_caba(client):
+    import db
+
+    pid = crear_producto(stock=2, precio=1000)
+    _checkout(client, pid, "marte")
+    pedido = db.get_pedidos()[0]
+    assert pedido["zona_envio"] == "caba"
+    assert pedido["envio_costo"] == 3500
+
+
+def test_checkout_guarda_entre_calles_y_localidad(client):
+    import db
+
+    pid = crear_producto(stock=2, precio=1000)
+    client.get("/login")
+    client.post(f"/carrito/agregar/{pid}", data={"cantidad": 1, "csrf_token": _csrf(client)})
+    r = client.post(
+        "/checkout/procesar",
+        data={
+            "csrf_token": _csrf(client),
+            "nombre": "Ana",
+            "email": "a@b.com",
+            "telefono": "11",
+            "direccion": "Av. Rivadavia 1234",
+            "entre_calles": "Sarmiento y Perú",
+            "localidad": "Palermo",
+            "codigo_postal": "1406",
+            "zona_envio": "caba",
+        },
+        follow_redirects=True,
+    )
+    assert r.status_code == 200
+    pedido = db.get_pedidos()[0]
+    assert pedido["cliente_direccion"] == "Av. Rivadavia 1234"
+    assert pedido["cliente_entre_calles"] == "Sarmiento y Perú"
+    assert pedido["cliente_localidad"] == "Palermo"
+    assert pedido["cliente_codigo_postal"] == "1406"
+
+
+def test_checkout_sin_direccion_muestra_error(client):
+    import db
+
+    pid = crear_producto(stock=2, precio=1000)
+    client.get("/login")
+    client.post(f"/carrito/agregar/{pid}", data={"cantidad": 1, "csrf_token": _csrf(client)})
+    r = client.post(
+        "/checkout/procesar",
+        data={
+            "csrf_token": _csrf(client),
+            "nombre": "Ana",
+            "email": "a@b.com",
+            "telefono": "11",
+            "direccion": "",
+            "zona_envio": "caba",
+        },
+        follow_redirects=True,
+    )
+    assert r.status_code == 200
+    assert b"direcci" in r.data.lower()
+    assert db.get_pedidos() == []
+
+
+def test_checkout_sin_telefono_muestra_error(client):
+    import db
+
+    pid = crear_producto(stock=2, precio=1000)
+    client.get("/login")
+    client.post(f"/carrito/agregar/{pid}", data={"cantidad": 1, "csrf_token": _csrf(client)})
+    r = client.post(
+        "/checkout/procesar",
+        data={
+            "csrf_token": _csrf(client),
+            "nombre": "Ana",
+            "email": "a@b.com",
+            "telefono": "",
+            "direccion": "Calle 1",
+            "zona_envio": "caba",
+        },
+        follow_redirects=True,
+    )
+    assert r.status_code == 200
+    assert b"tel" in r.data.lower()
+    assert db.get_pedidos() == []
+
+
+def test_checkout_sin_codigo_postal_muestra_error(client):
+    import db
+
+    pid = crear_producto(stock=2, precio=1000)
+    client.get("/login")
+    client.post(f"/carrito/agregar/{pid}", data={"cantidad": 1, "csrf_token": _csrf(client)})
+    r = client.post(
+        "/checkout/procesar",
+        data={
+            "csrf_token": _csrf(client),
+            "nombre": "Ana",
+            "email": "a@b.com",
+            "telefono": "11",
+            "direccion": "Calle 1",
+            "codigo_postal": "",
+            "zona_envio": "caba",
+        },
+        follow_redirects=True,
+    )
+    assert r.status_code == 200
+    assert b"postal" in r.data.lower()
+    assert db.get_pedidos() == []
 
 
 def test_admin_pedido_detalle_render(client):

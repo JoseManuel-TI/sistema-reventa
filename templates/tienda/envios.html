@@ -1,0 +1,88 @@
+{% extends "tienda/layout.html" %}
+{% set og_title = store_name ~ ' · Envíos y Devoluciones' %}
+{% set og_desc = 'Zonas de entrega, plazos, costos y política de devoluciones de ClickYa.' %}
+{% block content %}
+
+<section class="nosotros-hero" aria-labelledby="envios-titulo">
+    <span class="nosotros-hero-badge">🚚 Envíos y devoluciones</span>
+    <h1 id="envios-titulo">Cómo, cuándo y dónde llega tu pedido.</h1>
+    <p class="nosotros-hero-sub">Entregamos en CABA y GBA con envío en el día y despachamos al resto del país por correo o transporte. Acá te contamos los costos, los tiempos y qué hacer si algo no sale como esperabas.</p>
+</section>
+
+<section class="nosotros-pilares" aria-labelledby="zonas-titulo">
+    <h2 id="zonas-titulo">Zonas, costos y tiempos</h2>
+    <div class="pilares-grid">
+        <article class="pilar-card">
+            <div class="pilar-icon" aria-hidden="true">🏙️</div>
+            <h3>CABA — Envío ${{ envio_caba|fmt_pesos }}</h3>
+            <p><strong>Entrega en el día, de lunes a viernes.</strong> Comprando <strong>hasta las 12:00</strong>, entregamos <strong>entre las 14 y las 21 hs</strong>. Comprando después de las 12 (y los sábados, domingos y feriados), llega el <strong>siguiente día hábil por la tarde</strong>.</p>
+        </article>
+        <article class="pilar-card">
+            <div class="pilar-icon" aria-hidden="true">🚚</div>
+            <h3>GBA — Envío ${{ envio_gba|fmt_pesos }}</h3>
+            <p>Gran Buenos Aires (Vicente López, San Isidro, San Martín, Morón, Avellaneda, Lanús, Quilmes, Lomas y alrededores). Coordinamos el día y horario por WhatsApp.</p>
+        </article>
+        <article class="pilar-card">
+            <div class="pilar-icon" aria-hidden="true">📦</div>
+            <h3>Interior — a cotizar</h3>
+            <p>Al resto del país despachamos por <strong>Correo Argentino o Andreani</strong>. Te cotizamos el envío por WhatsApp según tu código postal antes de confirmar.</p>
+        </article>
+    </div>
+</section>
+
+<section class="nosotros-about" aria-labelledby="pago-titulo">
+    <div class="nosotros-about-text">
+        <span class="nosotros-eyebrow">Formas de pago</span>
+        <h2 id="pago-titulo">Pagás como te quede más cómodo.</h2>
+        <p><strong>Transferencia bancaria:</strong> al confirmar el pedido te mostramos los datos (CBU o alias) para que transfieras. Enviamos todo una vez acreditado el pago.</p>
+        <p><strong>Contra entrega:</strong> coordinamos el envío y abonás en efectivo o por transferencia al momento de recibir el producto.</p>
+    </div>
+    <aside class="nosotros-about-card">
+        <h3>Qué necesitás para recibir</h3>
+        <ul>
+            <li>Nombre completo y teléfono de contacto.</li>
+            <li>Dirección de entrega (calle, número y localidad).</li>
+            <li>Estar disponible en el horario acordado.</li>
+            <li>En el interior, retirar en la sucursal o punto asignado por el correo.</li>
+        </ul>
+    </aside>
+</section>
+
+<section class="nosotros-pilares" aria-labelledby="devoluciones-titulo">
+    <h2 id="devoluciones-titulo">Política de devoluciones</h2>
+    <div class="pilares-grid">
+        <article class="pilar-card">
+            <div class="pilar-icon" aria-hidden="true">🛡️</div>
+            <h3>7 días por falla</h3>
+            <p>Si el producto llega defectuoso o no funciona, tenés <strong>7 días</strong> desde la recepción para reclamar, según la <strong>Ley 24.240</strong> de Defensa del Consumidor.</p>
+        </article>
+        <article class="pilar-card">
+            <div class="pilar-icon" aria-hidden="true">🔄</div>
+            <h3>Cómo pedir un cambio</h3>
+            <p>Escribinos por WhatsApp con el número de pedido y una descripción (o foto/video) del problema. Coordinamos el reemplazo o la devolución del importe.</p>
+        </article>
+        <article class="pilar-card">
+            <div class="pilar-icon" aria-hidden="true">📦</div>
+            <h3>Estado del producto</h3>
+            <p>Para gestionar la devolución, el producto debe conservar sus accesorios y embalaje original. Los productos de terceros (Amazon u otras plataformas) se rigen por la garantía de cada plataforma.</p>
+        </article>
+    </div>
+</section>
+
+<section class="nosotros-compromiso" aria-label="Compromiso">
+    <div class="compromiso-box">
+        <h3>🛡️ Compromiso con tu compra</h3>
+        <p>Ante cualquier duda sobre envíos, plazos o devoluciones, escribinos por WhatsApp: te respondemos y resolvemos de forma directa. Tu tranquilidad es parte del servicio.</p>
+    </div>
+</section>
+
+<section class="nosotros-cta" aria-labelledby="cta-titulo">
+    <h2 id="cta-titulo">¿Dudas con tu envío?</h2>
+    <p>Contanos tu zona y el producto que te interesa y te pasamos costo y plazo al toque.</p>
+    <div class="nosotros-cta-buttons">
+        <a href="{{ url_for('tienda.catalogo') }}" class="btn-cta primary">Explorar productos</a>
+        <a href="{{ wa_link }}" target="_blank" rel="noopener noreferrer" class="btn-cta wa">Consultar por WhatsApp</a>
+    </div>
+</section>
+
+{% endblock %}

@@ -64,6 +64,24 @@ def test_crear_pedido_guarda_metodo_pago_y_reserva():
     assert p["cobrado"] == 0
 
 
+def test_crear_pedido_suma_envio_al_total_y_guarda_zona():
+    pid = crear_producto(stock=3, precio=100)
+    items = {"1": {"producto_id": pid, "cantidad": 2, "nombre": "Producto Test"}}
+    pedido_id = db.crear_pedido("Ana", "a@b.com", "11", "x", 0, items,
+                                zona_envio="caba", envio_costo=3500)
+    p = db.get_pedido(pedido_id)
+    assert p["total"] == 200 + 3500
+    assert p["zona_envio"] == "caba"
+    assert p["envio_costo"] == 3500
+
+
+def test_crear_pedido_ignora_envio_negativo():
+    pid = crear_producto(stock=1, precio=100)
+    items = {"1": {"producto_id": pid, "cantidad": 1, "nombre": "Producto Test"}}
+    pedido_id = db.crear_pedido("Ana", "a@b.com", "11", "x", 0, items, envio_costo=-500)
+    assert db.get_pedido(pedido_id)["total"] == 100
+
+
 def test_liberar_reserva_devuelve_stock_una_sola_vez():
     pid = crear_producto(stock=3, precio=100)
     items = {"1": {"producto_id": pid, "cantidad": 2, "nombre": "Producto Test"}}

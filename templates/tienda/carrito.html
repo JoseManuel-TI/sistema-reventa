@@ -32,7 +32,7 @@
     </div>
     {% endfor %}
 </div>
-<div class="delivery-badge" style="margin:12px 0;">🚚 Envío gratis. {% if entrega_estimada == "hoy" %}Llega <strong>hoy</strong>{% elif entrega_estimada == "mañana" %}Llega <strong>mañana</strong>{% else %}Llega el <strong>{{ entrega_estimada }}</strong>{% endif %}</div>
+<div class="delivery-badge" style="margin:12px 0;">🚚 {% if entrega_estimada == "hoy" %}Llega <strong>hoy</strong> entre las 14 y las 21 hs{% elif entrega_estimada == "mañana" %}Llega <strong>mañana</strong> por la tarde{% else %}Llega el <strong>{{ entrega_estimada }}</strong>{% endif %} en CABA (de lunes a viernes). <a href="{{ url_for('tienda.envios') }}">Envíos y devoluciones</a></div>
 
 <div class="cart-footer">
     <div class="cart-total">Total: <strong>{{ peso(total) }}</strong></div>

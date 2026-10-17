@@ -38,6 +38,40 @@ METODOS_PAGO = {
     "contra_entrega": "Contra entrega (efectivo o transferencia al recibir)",
 }
 
+# Zonas de envío con costo fijo. El interior se cotiza por WhatsApp.
+ZONAS_ENVIO = ["caba", "gba", "interior"]
+
+
+def _numero(valor, default=0.0):
+    """Convierte un valor de config ('3500', '3.500', 3500) a float."""
+    if valor is None:
+        return default
+    if isinstance(valor, (int, float)):
+        return float(valor)
+    limpio = re.sub(r"[^0-9.,-]", "", str(valor)).replace(".", "").replace(",", ".")
+    try:
+        return float(limpio)
+    except (TypeError, ValueError):
+        return default
+
+
+def _envio_costo(zona):
+    """Costo de envío según la zona elegida ('caba', 'gba', 'interior')."""
+    if zona == "caba":
+        return round(_numero(config.get("ENVIO_CABA")), 2)
+    if zona == "gba":
+        return round(_numero(config.get("ENVIO_GBA")), 2)
+    return 0.0
+
+
+def _zonas_envio():
+    return [
+        {"key": "caba", "label": "CABA (Capital Federal)", "costo": _envio_costo("caba")},
+        {"key": "gba", "label": "GBA (Gran Buenos Aires)", "costo": _envio_costo("gba")},
+        {"key": "interior", "label": "Interior / otra zona (a cotizar por WhatsApp)", "costo": 0.0, "a_cotizar": True},
+    ]
+
+
 # ─── Auditorio público: categorías por slug (ClickYa) ──────────────
 GRUPOS_CATEGORIAS = {
     "tech": {
@@ -126,12 +160,28 @@ def _resumen_pedido(pedido, items):
     lineas = "\n".join(
         f"• {i['nombre']} x{i['cantidad']} — {_pesos(i['subtotal'])}" for i in items
     )
-    return (
-        f"Pedido #{pedido['id']}\n"
-        f"{lineas}\n"
-        f"Total: {_pesos(pedido['total'])}\n"
-        f"Pago: {metodo}"
-    )
+    entrega = _direccion_completa(pedido)
+    partes = [
+        f"Pedido #{pedido['id']}",
+        lineas,
+        f"Total: {_pesos(pedido['total'])}",
+        f"Pago: {metodo}",
+    ]
+    if entrega:
+        partes.append(f"Entrega: {entrega}")
+    return "\n".join(partes)
+
+
+def _direccion_completa(pedido):
+    """Arma la dirección de entrega con entre calles, localidad y CP si existen."""
+    partes = [pedido.get("cliente_direccion") or ""]
+    if pedido.get("cliente_entre_calles"):
+        partes.append(f"entre {pedido['cliente_entre_calles']}")
+    if pedido.get("cliente_localidad"):
+        partes.append(pedido["cliente_localidad"])
+    if pedido.get("cliente_codigo_postal"):
+        partes.append(f"CP {pedido['cliente_codigo_postal']}")
+    return ", ".join(p for p in partes if p)
 
 
 def _notificar_nuevo_pedido(pedido_id):
@@ -142,28 +192,49 @@ def _notificar_nuevo_pedido(pedido_id):
     items = db.get_pedido_items(pedido_id)
     metodo = METODOS_PAGO.get(pedido.get("metodo_pago") or "transferencia", "Transferencia bancaria")
     lineas = "\n".join(f"  • {i['nombre']} x{i['cantidad']}" for i in items)
+    zona = {"caba": "CABA", "gba": "GBA", "interior": "Interior"}.get(pedido.get("zona_envio"), "—")
     msg = (
         f"🛒 <b>NUEVO PEDIDO #{pedido_id}</b>\n"
         f"Pago: <b>{metodo}</b>\n\n"
         f"👤 {pedido['cliente_nombre']}\n"
         f"📱 {pedido.get('cliente_telefono') or '—'}\n"
         f"📧 {pedido.get('cliente_email') or '—'}\n"
-        f"🏠 {pedido.get('cliente_direccion') or '—'}\n\n"
+        f"🏠 {_direccion_completa(pedido) or '—'}\n"
+        f"🚚 Zona: {zona}\n\n"
         f"{lineas}\n\n"
         f"<b>Total: {_pesos(pedido['total'])}</b>"
     )
     notificaciones.telegram(msg)
 
 
-def _estimar_entrega():
-    """Entrega según el momento del día (hora local):
-    - Entre 12:00 AM y 11:59 AM (antes del mediodía) → 'hoy'
-    - El resto del día → 'mañana'
+DIAS_SEMANA = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"]
+
+
+def _es_dia_habil(dia):
+    """Entregamos de lunes a viernes; sábados y domingos no hay reparto."""
+    return dia.weekday() < 5
+
+
+def _estimar_entrega(ahora=None):
+    """Estima cuándo llega el pedido (CABA), salteando días no hábiles.
+
+    - Día hábil antes del mediodía → 'hoy'
+    - Día hábil a la tarde o fin de semana → próximo día hábil:
+      'mañana' si es el día siguiente, o 'lunes 20/10' si queda más lejos.
     """
-    ahora = datetime.now()
-    if ahora.hour < 12:
+    if ahora is None:
+        ahora = datetime.now()
+    if _es_dia_habil(ahora) and ahora.hour < 12:
         return "hoy"
-    return "mañana"
+
+    dia = ahora + timedelta(days=1)
+    while not _es_dia_habil(dia):
+        dia += timedelta(days=1)
+
+    if dia.date() == (ahora + timedelta(days=1)).date():
+        return "mañana"
+    return f"{DIAS_SEMANA[dia.weekday()]} {dia.strftime('%d/%m')}"
+
 
 DELIVERY_INFO = config.get("DELIVERY_INFO") or "Se entrega dentro de las 24 hs hábiles posteriores a la confirmación del pago."
 
@@ -186,6 +257,7 @@ def inject_globals():
         "entrega_estimada": _estimar_entrega(),
         "cant_carrito": _cant_carrito(),
         "metodos_pago": METODOS_PAGO,
+        "zonas_envio": _zonas_envio(),
         "meta_pixel_id": (config.get("META_PIXEL_ID") or "").strip(),
         "ga_id": (config.get("GA_MEASUREMENT_ID") or "").strip(),
         "public_url": (config.get("PUBLIC_URL") or "").rstrip("/"),
@@ -375,6 +447,14 @@ def bio():
 def nosotros():
     """Página institucional: quiénes somos, pilares y compromisos."""
     return render_template("tienda/nosotros.html", store_name=STORE_NAME)
+
+
+@tienda.route("/envios")
+def envios():
+    """Página informativa: zonas de entrega, plazos, costos y devoluciones."""
+    return render_template("tienda/envios.html", store_name=STORE_NAME,
+                           envio_caba=_envio_costo("caba"),
+                           envio_gba=_envio_costo("gba"))
 
 
 # ─── Catálogo ──────────────────────────────────────────────────────
@@ -591,9 +671,12 @@ def checkout():
         flash("El carrito está vacío.", "error")
         return redirect(url_for("tienda.catalogo"))
     total = sum(i["precio"] * i["cantidad"] for i in carrito.values())
+    zonas = _zonas_envio()
     return render_template("tienda/checkout.html",
                            carrito=carrito, total=total,
                            metodos_pago=METODOS_PAGO,
+                           zonas_envio=zonas,
+                           envio_default=zonas[0],
                            track_data=_track_carrito(carrito),
                            store_name=STORE_NAME, peso=_pesos)
 
@@ -609,14 +692,31 @@ def checkout_procesar():
     email = request.form.get("email", "").strip()
     telefono = request.form.get("telefono", "").strip()
     direccion = request.form.get("direccion", "").strip()
+    entre_calles = request.form.get("entre_calles", "").strip()
+    localidad = request.form.get("localidad", "").strip()
+    codigo_postal = request.form.get("codigo_postal", "").strip()
 
     if not nombre or not email:
         flash("Completá nombre y email.", "error")
+        return redirect(url_for("tienda.checkout"))
+    if not telefono:
+        flash("Completá el teléfono para coordinar la entrega.", "error")
+        return redirect(url_for("tienda.checkout"))
+    if not direccion:
+        flash("Completá la dirección de entrega.", "error")
+        return redirect(url_for("tienda.checkout"))
+    if not codigo_postal:
+        flash("Completá el código postal.", "error")
         return redirect(url_for("tienda.checkout"))
 
     metodo_pago = request.form.get("metodo_pago", "transferencia").strip()
     if metodo_pago not in METODOS_PAGO:
         metodo_pago = "transferencia"
+
+    zona_envio = request.form.get("zona_envio", "caba").strip()
+    if zona_envio not in ZONAS_ENVIO:
+        zona_envio = "caba"
+    envio_costo = _envio_costo(zona_envio)
 
     reserva_expira = ""
     if RESERVA_HORAS > 0:
@@ -625,7 +725,10 @@ def checkout_procesar():
     total = sum(i["precio"] * i["cantidad"] for i in carrito.values())
     try:
         pedido_id = db.crear_pedido(nombre, email, telefono, direccion, total, carrito,
-                                    metodo_pago=metodo_pago, reserva_expira=reserva_expira)
+                                    metodo_pago=metodo_pago, reserva_expira=reserva_expira,
+                                    zona_envio=zona_envio, envio_costo=envio_costo,
+                                    cliente_entre_calles=entre_calles, cliente_localidad=localidad,
+                                    cliente_codigo_postal=codigo_postal)
     except ValueError as e:
         flash(str(e), "error")
         return redirect(url_for("tienda.ver_carrito"))

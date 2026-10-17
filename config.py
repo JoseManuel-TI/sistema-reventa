@@ -24,6 +24,8 @@ DEFAULTS = {
     "DOLAR_BLUE": "1510",
     "DELIVERY_INFO": "Se entrega dentro de las 24 hs hábiles posteriores a la confirmación del pago.",
     "RESERVA_HORAS": "24",
+    "ENVIO_CABA": "3500",
+    "ENVIO_GBA": "5500",
     "TELEGRAM_BOT_TOKEN": "",
     "TELEGRAM_CHAT_ID": "",
     "FB_PAGE_TOKEN": "",

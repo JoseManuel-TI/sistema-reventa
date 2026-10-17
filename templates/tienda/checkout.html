@@ -16,12 +16,38 @@
                 <input type="email" id="email" name="email" required>
             </div>
             <div class="field">
-                <label for="telefono">Teléfono</label>
-                <input type="tel" id="telefono" name="telefono">
+                <label for="telefono">Teléfono / WhatsApp *</label>
+                <input type="tel" id="telefono" name="telefono" required placeholder="Ej: 11 2345-6789">
             </div>
             <div class="field">
-                <label for="direccion">Dirección de entrega</label>
-                <input type="text" id="direccion" name="direccion">
+                <label for="direccion">Dirección de entrega (calle y número) *</label>
+                <input type="text" id="direccion" name="direccion" required placeholder="Ej: Av. Rivadavia 1234, piso 3 dpto B">
+            </div>
+            <div class="field">
+                <label for="entre_calles">Entre calles (referencia)</label>
+                <input type="text" id="entre_calles" name="entre_calles" placeholder="Ej: entre Sarmiento y Perú">
+            </div>
+            <div class="field">
+                <label for="localidad">Barrio / localidad</label>
+                <input type="text" id="localidad" name="localidad" placeholder="Ej: Palermo, Lanús Este, Vicente López…">
+            </div>
+            <div class="field">
+                <label for="codigo_postal">Código postal *</label>
+                <input type="text" id="codigo_postal" name="codigo_postal" required placeholder="Ej: 1406, 1824…" inputmode="numeric" autocomplete="postal-code">
+            </div>
+            <p class="pago-ayuda" style="margin-top:-4px;">Ayudanos con las <strong>entre calles</strong> y el <strong>barrio/localidad</strong> para que el repartidor llegue sin demoras. El <strong>código postal</strong> nos permite cotizar envíos al interior.</p>
+
+            <div class="field">
+                <label>Zona de entrega</label>
+                {% for z in zonas_envio %}
+                <label class="pago-opcion">
+                    <input type="radio" name="zona_envio" value="{{ z.key }}"
+                           data-costo="{{ z.costo }}" data-cotizar="{{ '1' if z.a_cotizar else '0' }}"
+                           {% if loop.first %}checked{% endif %}>
+                    <span>{{ z.label }}{% if not z.a_cotizar %} — {{ peso(z.costo) }}{% endif %}</span>
+                </label>
+                {% endfor %}
+                <p class="pago-ayuda">En CABA y GBA el envío se suma al total. Al interior lo cotizamos por WhatsApp antes de despachar.</p>
             </div>
 
             <div class="field">
@@ -56,11 +82,19 @@
             <span>{{ peso(item.precio * item.cantidad) }}</span>
         </div>
         {% endfor %}
+        <div class="summary-row">
+            <span>Subtotal</span>
+            <span>{{ peso(total) }}</span>
+        </div>
+        <div class="summary-row">
+            <span>Envío</span>
+            <span id="envio-valor">{{ peso(envio_default.costo) }}</span>
+        </div>
         <div class="summary-total">
             <span>Total</span>
-            <strong>{{ peso(total) }}</strong>
+            <strong id="total-valor">{{ peso(total + envio_default.costo) }}</strong>
         </div>
-        <div class="delivery-badge" style="margin-top:12px;">🚚 Envío gratis. {% if entrega_estimada == "hoy" %}Llega <strong>hoy</strong>{% elif entrega_estimada == "mañana" %}Llega <strong>mañana</strong>{% else %}Llega el <strong>{{ entrega_estimada }}</strong>{% endif %}</div>
+        <div class="delivery-badge" style="margin-top:12px;">🚚 {% if entrega_estimada == "hoy" %}Llega <strong>hoy</strong>{% elif entrega_estimada == "mañana" %}Llega <strong>mañana</strong>{% else %}Llega el <strong>{{ entrega_estimada }}</strong>{% endif %} en CABA (de lunes a viernes). <a href="{{ url_for('tienda.envios') }}">Envíos y devoluciones</a></div>
         <div class="bank-info" id="pago-transferencia" {% if not banco_configurado %}style="display:none;"{% endif %}>
             <p class="bank-title">📲 Transferencia bancaria</p>
             <p>Al confirmar te mostramos los datos para transferir.</p>
@@ -92,6 +126,31 @@
     }
     radios.forEach(function (r) { r.addEventListener('change', actualizar); });
     actualizar();
+})();
+
+(function () {
+    var SUBTOTAL = {{ total }};
+    function fmt(v) {
+        return '$ ' + v.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+    var zonas = document.querySelectorAll('input[name="zona_envio"]');
+    var envioEl = document.getElementById('envio-valor');
+    var totalEl = document.getElementById('total-valor');
+    function actualizarZona() {
+        var sel = document.querySelector('input[name="zona_envio"]:checked');
+        if (!sel) return;
+        var costo = parseFloat(sel.getAttribute('data-costo')) || 0;
+        var cotizar = sel.getAttribute('data-cotizar') === '1';
+        if (cotizar) {
+            if (envioEl) envioEl.textContent = 'A cotizar';
+            if (totalEl) totalEl.textContent = fmt(SUBTOTAL);
+        } else {
+            if (envioEl) envioEl.textContent = fmt(costo);
+            if (totalEl) totalEl.textContent = fmt(SUBTOTAL + costo);
+        }
+    }
+    zonas.forEach(function (r) { r.addEventListener('change', actualizarZona); });
+    actualizarZona();
 })();
 </script>
 {% endblock %}

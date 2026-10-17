@@ -18,7 +18,7 @@
         <p><strong>Teléfono:</strong> {{ pedido.cliente_telefono }}</p>
         {% endif %}
         {% if pedido.cliente_direccion %}
-        <p><strong>Dirección:</strong> {{ pedido.cliente_direccion }}</p>
+        <p><strong>Dirección:</strong> {{ pedido.cliente_direccion }}{% if pedido.cliente_entre_calles %} (entre {{ pedido.cliente_entre_calles }}){% endif %}{% if pedido.cliente_localidad %} · {{ pedido.cliente_localidad }}{% endif %}{% if pedido.cliente_codigo_postal %} · CP {{ pedido.cliente_codigo_postal }}{% endif %}</p>
         {% endif %}
     </div>
 
@@ -36,6 +36,11 @@
             {% endfor %}
         </tbody>
         <tfoot>
+            <tr><td colspan="2">Subtotal</td><td>{{ peso(pedido.total - (pedido.envio_costo or 0)) }}</td></tr>
+            <tr>
+                <td colspan="2">Envío{% if pedido.zona_envio %} ({{ (zonas_envio | selectattr('key', 'equalto', pedido.zona_envio) | first).label }}){% endif %}</td>
+                <td>{% if pedido.envio_costo %}{{ peso(pedido.envio_costo) }}{% elif pedido.zona_envio == 'interior' %}A cotizar{% else %}—{% endif %}</td>
+            </tr>
             <tr><td colspan="2"><strong>Total</strong></td><td><strong>{{ peso(pedido.total) }}</strong></td></tr>
         </tfoot>
     </table>
@@ -65,7 +70,7 @@
     {% endif %}
 
     <div class="delivery-badge" style="display:block;text-align:center;margin-bottom:16px;">
-        🚚 Envío gratis. {% if entrega_estimada == "hoy" %}Llega <strong>hoy</strong>{% elif entrega_estimada == "mañana" %}Llega <strong>mañana</strong>{% else %}Llega el <strong>{{ entrega_estimada }}</strong>{% endif %} una vez confirmado el pedido.
+        🚚 {% if entrega_estimada == "hoy" %}Llega <strong>hoy</strong> entre las 14 y las 21 hs{% elif entrega_estimada == "mañana" %}Llega <strong>mañana</strong> por la tarde{% else %}Llega el <strong>{{ entrega_estimada }}</strong>{% endif %} en CABA una vez confirmado el pedido. <a href="{{ url_for('tienda.envios') }}">Envíos y devoluciones</a>
     </div>
 
     <a href="/tienda" class="btn-primary">Seguir viendo productos</a>
