@@ -3,6 +3,8 @@
 import json
 import os
 
+import feriados
+
 if os.environ.get("RAILWAY_ENVIRONMENT") or os.environ.get("RAILWAY_SERVICE_NAME"):
     CONFIG_PATH = os.path.join("/data", "config.json")
 else:
@@ -26,6 +28,7 @@ DEFAULTS = {
     "RESERVA_HORAS": "24",
     "ENVIO_CABA": "3500",
     "ENVIO_GBA": "5500",
+    "FERIADOS": feriados.TEXTO_DEFAULT,
     "TELEGRAM_BOT_TOKEN": "",
     "TELEGRAM_CHAT_ID": "",
     "FB_PAGE_TOKEN": "",

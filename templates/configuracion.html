@@ -87,6 +87,11 @@
             <input type="text" name="ENVIO_GBA" value="{{ cfg.ENVIO_GBA }}" placeholder="5500">
             <small>Costo fijo para entregas en Gran Buenos Aires (GBA). El interior se cotiza por WhatsApp.</small>
         </label>
+        <label>
+            Feriados (una fecha por línea, formato AAAA-MM-DD)
+            <textarea name="FERIADOS" rows="8" placeholder="2026-01-01&#10;2026-02-16">{{ cfg.FERIADOS }}</textarea>
+            <small>Días sin reparto además de sábados y domingos. Se usa para estimar la fecha de entrega. Ya viene cargado con el calendario oficial 2026.</small>
+        </label>
     </fieldset>
 
     <fieldset>

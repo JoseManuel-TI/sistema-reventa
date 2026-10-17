@@ -27,6 +27,33 @@ def test_estimar_entrega_saltea_fin_de_semana(momento, esperado):
     assert tienda._estimar_entrega(momento) == esperado
 
 
+@pytest.mark.parametrize("momento,esperado", [
+    # Viernes 12/06 tarde -> sáb 13 y dom 14 (finde) + lun 15/06 (Güemes) -> martes 16
+    (datetime(2026, 6, 12, 15, 0), "martes 16/06"),
+    # Miércoles 08/07 tarde -> jue 09/07 y vie 10/07 (feriados) + finde -> lunes 13/07
+    (datetime(2026, 7, 8, 15, 0), "lunes 13/07"),
+    # Jueves 24/12 tarde -> vie 25/12 (Navidad) + finde -> lunes 28/12
+    (datetime(2026, 12, 24, 15, 0), "lunes 28/12"),
+])
+def test_estimar_entrega_saltea_feriados(momento, esperado):
+    assert tienda._estimar_entrega(momento) == esperado
+
+
+def test_es_feriado_desde_config(monkeypatch):
+    monkeypatch.setattr(tienda.config, "get", lambda key, *a: "2026-03-24" if key == "FERIADOS" else "")
+    assert tienda._es_feriado(datetime(2026, 3, 24, 10, 0)) is True
+    assert tienda._es_feriado(datetime(2026, 3, 25, 10, 0)) is False
+
+
+def test_feriados_parsear_formatos():
+    import feriados
+
+    assert feriados.parsear("2026-01-01, 2026-02-16\n2026-05-25") == {
+        "2026-01-01", "2026-02-16", "2026-05-25",
+    }
+    assert feriados.parsear("no es fecha\n2026-12-25;2026-13-40") == {"2026-12-25"}
+
+
 def test_envio_costo_por_zona():
     assert tienda._envio_costo("caba") == 3500.0
     assert tienda._envio_costo("gba") == 5500.0

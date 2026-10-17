@@ -19,6 +19,7 @@ from flask import (
 
 import config
 import db
+import feriados
 import integraciones as itgr
 import notificaciones
 
@@ -210,9 +211,14 @@ def _notificar_nuevo_pedido(pedido_id):
 DIAS_SEMANA = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"]
 
 
+def _es_feriado(dia):
+    """True si la fecha figura en los feriados configurados (/configuracion)."""
+    return dia.strftime("%Y-%m-%d") in feriados.parsear(config.get("FERIADOS"))
+
+
 def _es_dia_habil(dia):
-    """Entregamos de lunes a viernes; sábados y domingos no hay reparto."""
-    return dia.weekday() < 5
+    """Entregamos de lunes a viernes, salvo feriados."""
+    return dia.weekday() < 5 and not _es_feriado(dia)
 
 
 def _estimar_entrega(ahora=None):
