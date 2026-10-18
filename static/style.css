@@ -36,6 +36,10 @@ a:hover { text-decoration:underline; }
 .stat-card .value.blue { color:#2563eb; }
 .stat-card .value.orange { color:#f59e0b; }
 
+/* Dashboard */
+.dash-cols { display:grid; grid-template-columns:minmax(0,2fr) minmax(0,1fr); gap:24px; align-items:start; }
+@media (max-width:1100px) { .dash-cols { grid-template-columns:1fr; } }
+
 /* Tables */
 .table-wrap { overflow-x:auto; }
 table { width:100%; border-collapse:collapse; }

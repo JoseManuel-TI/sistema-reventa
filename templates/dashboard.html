@@ -1,0 +1,157 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="page-header">
+    <h2>📊 Dashboard</h2>
+    <div class="btn-group">
+        <a href="/productos/nuevo" class="btn btn-primary">+ Nuevo producto</a>
+        <a href="/tienda" target="_blank" class="btn btn-outline">🛍️ Ver tienda</a>
+    </div>
+</div>
+
+<div class="stats">
+    <div class="stat-card">
+        <div class="label">Productos activos</div>
+        <div class="value blue">{{ stats.productos_activos }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="label">Publicados en tienda</div>
+        <div class="value">{{ stats.publicados }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="label">Stock bajo (≤ 3)</div>
+        <div class="value orange">{{ stats.stock_bajo }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="label">Sin precio asignado</div>
+        <div class="value {% if stats.sin_precio %}orange{% endif %}">{{ stats.sin_precio }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="label">Pedidos activos</div>
+        <div class="value blue">{{ stats.pedidos_activos }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="label">Ventas del mes</div>
+        <div class="value green">$ {{ stats.ventas_mes|fmt_pesos }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="label">A cobrar (contra entrega)</div>
+        <div class="value orange">$ {{ stats.a_cobrar|fmt_pesos }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="label">Ganancia estimada</div>
+        <div class="value green">$ {{ stats.ganancia_estimada|fmt_pesos }}</div>
+    </div>
+</div>
+
+<div class="dash-cols">
+    <div class="card">
+        <div class="card-header">Últimos productos</div>
+        {% if ultimos_productos %}
+        <div class="prod-grid">
+            {% for p in ultimos_productos %}
+            <div class="item">
+                <a href="/productos/{{ p.id }}" style="text-decoration:none;color:inherit;display:block;">
+                    {% if p.imagen %}
+                    <img src="/{{ p.imagen }}" alt="{{ p.nombre }}">
+                    {% else %}
+                    <div style="height:180px;background:#f1f5f9;display:flex;align-items:center;justify-content:center;color:#94a3b8;">Sin imagen</div>
+                    {% endif %}
+                    <div class="info">
+                        <h4>{{ p.nombre }}</h4>
+                        {% if p.precio_venta %}
+                        <div class="precio">$ {{ p.precio_venta|fmt_pesos }}</div>
+                        {% else %}
+                        <div class="precio" style="color:#f59e0b;font-size:13px;">Sin precio</div>
+                        {% endif %}
+                        <div style="font-size:12px;color:#94a3b8;">{{ p.proveedor_nombre or 'Sin proveedor' }}</div>
+                        <div style="margin-top:6px;">
+                            {% if (p.stock or 0) <= 0 %}
+                            <span class="badge badge-inactivo">Sin stock</span>
+                            {% elif (p.stock or 0) <= 3 %}
+                            <span class="badge badge-sin-precio">Stock: {{ p.stock }}</span>
+                            {% else %}
+                            <span class="badge badge-stock">Stock: {{ p.stock }}</span>
+                            {% endif %}
+                            {% if p.publicar %}
+                            <span class="badge badge-entregado">Publicado</span>
+                            {% else %}
+                            <span class="badge badge-inactivo">Oculto</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </a>
+                <div style="display:flex;gap:8px;padding:0 12px 12px;">
+                    <a href="/productos/{{ p.id }}/editar" class="btn btn-outline btn-sm">Editar</a>
+                    <form method="POST" action="/productos/{{ p.id }}/eliminar" style="display:inline;" onsubmit="return confirm('¿Eliminar {{ p.nombre }}?')">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <button type="submit" class="btn btn-danger btn-sm">Eliminar</button>
+                    </form>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p style="padding:24px;text-align:center;color:#94a3b8;">Todavía no cargaste productos.</p>
+        {% endif %}
+    </div>
+
+    <div class="card">
+        <div class="card-header">Pedidos recientes</div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Cliente</th>
+                        <th>Total</th>
+                        <th>Estado</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for ped in pedidos_recientes %}
+                    <tr>
+                        <td>{{ ped.id }}</td>
+                        <td>
+                            {{ ped.cliente_nombre }}
+                            <div style="font-size:12px;color:#94a3b8;">{{ ped.total_items }} ítem(s) · {{ (ped.created_at|string)[:10] }}</div>
+                        </td>
+                        <td class="precio">$ {{ ped.total|fmt_pesos }}</td>
+                        <td><span class="badge badge-{{ ped.estado }}">{{ ped.estado }}</span></td>
+                        <td style="white-space:nowrap;">
+                            <a href="/pedidos/{{ ped.id }}" class="btn btn-outline btn-sm">Ver</a>
+                            {% if ped.estado in ('pendiente', 'confirmado', 'comprado', 'pagado') %}
+                            <form method="POST" action="/pedidos/{{ ped.id }}/estado" style="display:inline;" onsubmit="return confirm('¿Cancelar pedido #{{ ped.id }} y devolver el stock?')">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                <input type="hidden" name="estado" value="cancelado">
+                                <button type="submit" class="btn btn-danger btn-sm">Cancelar</button>
+                            </form>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    {% if not pedidos_recientes %}
+                    <tr><td colspan="5" style="text-align:center;padding:24px;color:#94a3b8;">No hay pedidos.</td></tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+        <div style="margin-top:12px;">
+            <a href="/pedidos" class="btn btn-outline btn-sm">Ver todos los pedidos</a>
+        </div>
+    </div>
+</div>
+
+<div class="card" style="margin-top:24px;">
+    <div class="card-header">Acciones rápidas</div>
+    <div class="btn-group" style="flex-wrap:wrap;">
+        <a href="/productos/nuevo" class="btn btn-success">📦 Nuevo producto</a>
+        <a href="/productos" class="btn btn-outline">📦 Productos</a>
+        <a href="/pedidos" class="btn btn-outline">📋 Pedidos</a>
+        <a href="/precios" class="btn btn-outline">💰 Precios</a>
+        <a href="/categorias" class="btn btn-outline">🏷️ Categorías</a>
+        <a href="/proveedores" class="btn btn-outline">🏭 Proveedores</a>
+        <a href="/configuracion" class="btn btn-outline">⚙️ Configuración</a>
+    </div>
+</div>
+{% endblock %}

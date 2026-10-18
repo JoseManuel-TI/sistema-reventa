@@ -15,6 +15,7 @@ import secrets
 import traceback
 import urllib.parse
 import uuid
+from datetime import datetime
 from functools import wraps
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -126,7 +127,7 @@ def login():
             flash("ADMIN_PASSWORD no configurada. Configurala via ADMIN_PASSWORD env var o data/config.json", "error")
         elif hmac.compare_digest(password.encode(), str(admin_pass).encode()):
             session["admin"] = True
-            next_page = _safe_next(request.args.get("next")) or url_for("productos_listar")
+            next_page = _safe_next(request.args.get("next")) or url_for("dashboard")
             return redirect(next_page)
         flash("Contraseña incorrecta.", "error")
     return render_template("login.html", **_ruta("/login"))
@@ -306,13 +307,85 @@ def _check_persistent_storage():
 @app.context_processor
 def inject_globals():
     persist_ok, persist_msg = _check_persistent_storage()
-    return {"ruta": request.path, "persist_ok": persist_ok, "persist_msg": persist_msg}
+    return {
+        "ruta": request.path,
+        "persist_ok": persist_ok,
+        "persist_msg": persist_msg,
+        "store_name": config.get("TIENDA_NOMBRE") or "ClickYa",
+    }
 
 
 @app.route("/dashboard")
 @login_required
 def dashboard():
-    return redirect(url_for("productos_listar"))
+    db.liberar_reservas_expiradas()
+    productos = db.get_productos()
+    proveedores = db.get_proveedores()
+    pedidos = db.get_pedidos()
+
+    mes_actual = datetime.now().strftime("%Y-%m")
+    publicados = stock_bajo = sin_precio = 0
+    inversion_total = venta_potencial = 0
+    for p in productos:
+        stock = p.get("stock") or 0
+        precio = p.get("precio_venta") or 0
+        if p.get("publicar"):
+            publicados += 1
+        if stock <= 3:
+            stock_bajo += 1
+        if not precio:
+            sin_precio += 1
+        inversion_total += (p.get("costo") or 0) * stock
+        venta_potencial += precio * stock
+
+    activos = ("pendiente", "confirmado", "comprado", "pagado")
+    pedidos_activos = sum(1 for x in pedidos if x.get("estado") in activos)
+    pedidos_mes = [
+        x
+        for x in pedidos
+        if str(x.get("created_at") or "")[:7] == mes_actual
+        and x.get("estado") != "cancelado"
+    ]
+    ventas_mes = sum(x.get("total") or 0 for x in pedidos_mes)
+    a_cobrar = sum(
+        x.get("total") or 0
+        for x in pedidos
+        if x.get("metodo_pago") == "contra_entrega"
+        and not x.get("cobrado")
+        and x.get("estado") not in ("cancelado", "entregado")
+    )
+
+    ultimos_productos = productos[:6]
+    for p in ultimos_productos:
+        imgs = db.get_imagenes(p["id"])
+        p["imagen"] = imgs[0]["archivo"] if imgs else None
+
+    pedidos_recientes = pedidos[:8]
+    for ped in pedidos_recientes:
+        ped["total_items"] = sum(
+            i["cantidad"] for i in db.get_pedido_items(ped["id"])
+        )
+
+    stats = {
+        "productos_activos": len(productos),
+        "proveedores": len(proveedores),
+        "publicados": publicados,
+        "stock_bajo": stock_bajo,
+        "sin_precio": sin_precio,
+        "pedidos_activos": pedidos_activos,
+        "ventas_mes": ventas_mes,
+        "a_cobrar": a_cobrar,
+        "inversion_total": inversion_total,
+        "venta_potencial": venta_potencial,
+        "ganancia_estimada": max(0, venta_potencial - inversion_total),
+    }
+    return render_template(
+        "dashboard.html",
+        stats=stats,
+        ultimos_productos=ultimos_productos,
+        pedidos_recientes=pedidos_recientes,
+        **_ruta("/dashboard"),
+    )
 
 
 # ─── Productos ────────────────────────────────────────────────────
