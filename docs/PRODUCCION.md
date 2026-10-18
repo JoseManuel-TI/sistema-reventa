@@ -49,6 +49,10 @@ Secretos (no commitear):
 
 > Las env vars **pisan** lo que edites en `/configuracion`. Si querés gestionar una clave desde el panel, borrá su variable en Railway.
 
+> **Ojo con el servicio linkeado**: `railway variables --set` sin `--service` escribe en el servicio
+> linkeado, que puede no ser `web` (p. ej. tras crear `contenido-cron`). Usá siempre
+> `railway variable set --service web …` para la app.
+
 ## Flujo de deploy
 
 ```sh
