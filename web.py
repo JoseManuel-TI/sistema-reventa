@@ -167,9 +167,21 @@ def inject_csrf():
     return {"csrf_token": _csrf_token()}
 
 
+def _cron_autorizado():
+    """True si la petición trae el token del scheduler (`X-Cron-Token` o `?token=`)."""
+    esperado = config.get("CRON_TOKEN")
+    if not esperado:
+        return False
+    enviado = request.headers.get("X-Cron-Token") or request.args.get("token", "")
+    return bool(enviado) and hmac.compare_digest(enviado, esperado)
+
+
 @app.before_request
 def _proteger_csrf():
     if request.method not in ("POST", "PUT", "PATCH", "DELETE"):
+        return
+    # El endpoint de cron valida su propio `CRON_TOKEN` (headers/query), no sesión.
+    if request.endpoint == "contenido_cron":
         return
     enviado = request.form.get("csrf_token") or request.headers.get("X-CSRF-Token", "")
     esperado = session.get("_csrf_token", "")
@@ -1056,6 +1068,28 @@ def contenido_cancelar_atrasadas():
     count = cnt.cancelar_atrasadas()
     flash(f"Canceladas {count} publicaciones atrasadas.", "success")
     return redirect(url_for("contenido_calendario"))
+
+
+@app.route("/contenido/cron", methods=["GET", "POST"])
+def contenido_cron():
+    """Rutina diaria para el scheduler. Requiere `CRON_TOKEN` (`X-Cron-Token` o `?token=`)."""
+    if not _cron_autorizado():
+        abort(403, description="Token de cron ausente o inválido")
+    base_url = config.get("PUBLIC_URL") or "https://clickya.net"
+    resumen = cnt.rutina_diaria(base_url=base_url)
+    publicaciones = [
+        {"producto_id": pid, "ok": bool(ok), "detalle": msg}
+        for pid, ok, msg in resumen["publicaciones"]
+    ]
+    return jsonify({
+        "ok": True,
+        "programadas": len(resumen["programadas"]),
+        "publicadas": sum(1 for p in publicaciones if p["ok"]),
+        "errores": sum(1 for p in publicaciones if not p["ok"]),
+        "pendientes": resumen["pendientes"],
+        "telegram": resumen["telegram"],
+        "publicaciones": publicaciones,
+    })
 
 
 # ─── Imágenes (admin) ─────────────────────────────────────────────

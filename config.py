@@ -39,6 +39,7 @@ DEFAULTS = {
     "FB_PAGE_TOKEN": "",
     "FB_PAGE_ID": "",
     "IG_BUSINESS_ID": "",
+    "CRON_TOKEN": "",
     "PUBLIC_URL": "https://clickya.net",
     "META_PIXEL_ID": "",
     "GA_MEASUREMENT_ID": "",

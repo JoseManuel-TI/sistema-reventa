@@ -322,3 +322,33 @@ def test_admin_liberar_reserva(client):
     assert r.status_code == 302
     assert db.get_producto(pid)["stock"] == 2
     assert db.get_pedido(pedido_id)["estado"] == "cancelado"
+
+
+def test_contenido_cron_sin_token_rechaza(client):
+    assert client.get("/contenido/cron").status_code == 403
+
+
+def test_contenido_cron_token_incorrecto_rechaza(client, monkeypatch):
+    monkeypatch.setenv("CRON_TOKEN", "secreto")
+    r = client.post("/contenido/cron", headers={"X-Cron-Token": "otro"})
+    assert r.status_code == 403
+
+
+def test_contenido_cron_sin_configurar_rechaza(client):
+    r = client.get("/contenido/cron?token=secreto")
+    assert r.status_code == 403
+
+
+def test_contenido_cron_token_valido_por_header(client, monkeypatch):
+    monkeypatch.setenv("CRON_TOKEN", "secreto")
+    r = client.post("/contenido/cron", headers={"X-Cron-Token": "secreto"})
+    assert r.status_code == 200
+    data = r.get_json()
+    assert data["ok"] is True
+    assert "publicadas" in data
+    assert "pendientes" in data
+
+
+def test_contenido_cron_token_valido_por_query(client, monkeypatch):
+    monkeypatch.setenv("CRON_TOKEN", "secreto")
+    assert client.get("/contenido/cron?token=secreto").status_code == 200
