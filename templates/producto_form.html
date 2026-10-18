@@ -5,6 +5,18 @@
     <a href="/productos" class="btn btn-outline">← Volver</a>
 </div>
 
+{% if not producto %}
+<div class="card" style="margin-bottom:16px;border-left:4px solid #25D366;">
+    <div class="card-header">📲 Importar desde WhatsApp</div>
+    <p class="form-hint">Pegá el mensaje del grupo de mayoristas y se completan nombre, costo, beneficios y descripción. Después subí la foto.</p>
+    <textarea id="wa-texto" class="form-control" rows="6" placeholder="Pegá acá el mensaje del grupo..."></textarea>
+    <div style="margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <button type="button" id="btn-parsear-wa" class="btn btn-success">✨ Autocompletar</button>
+        <span id="wa-hint" class="form-hint"></span>
+    </div>
+</div>
+{% endif %}
+
 <div class="card">
     <form method="POST" enctype="multipart/form-data">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -273,7 +285,7 @@ if (btnFetchMeta) {
 
 function calcularPrecioVenta(costoArs) {
     const c = parseFloat(costoArs);
-    if (c > 0) return (c / (1 - MARGEN / 100)).toFixed(2);
+    if (c > 0) return (c * (1 + MARGEN / 100)).toFixed(2);
     return '';
 }
 
@@ -297,5 +309,49 @@ function actualizarDesdeCostoArs() {
 
 costoUsdInput.addEventListener('input', actualizarDesdeUSD);
 costoArsInput.addEventListener('input', actualizarDesdeCostoArs);
+
+const btnParsearWa = document.getElementById('btn-parsear-wa');
+if (btnParsearWa) {
+    btnParsearWa.addEventListener('click', async function () {
+        const texto = document.getElementById('wa-texto').value.trim();
+        const hint = document.getElementById('wa-hint');
+        if (!texto) {
+            hint.textContent = 'Pegá primero el mensaje del grupo.';
+            return;
+        }
+        btnParsearWa.disabled = true;
+        btnParsearWa.textContent = 'Analizando...';
+        hint.textContent = '';
+        try {
+            const resp = await fetch('/productos/parsear-whatsapp', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRF-Token': '{{ csrf_token }}'},
+                body: 'texto=' + encodeURIComponent(texto),
+            });
+            const data = await resp.json();
+            if (data.error) throw new Error(data.error);
+            const setVal = function (id, val) {
+                const el = document.getElementById(id);
+                if (el && val) el.value = val;
+            };
+            setVal('nombre', data.nombre);
+            setVal('descripcion', data.descripcion);
+            setVal('beneficios', data.beneficios);
+            if (data.costo) {
+                costoArsInput.value = data.costo;
+                actualizarDesdeCostoArs();
+            }
+            if (data.stock) {
+                document.getElementById('stock').value = data.stock;
+            }
+            hint.textContent = '✅ Campos completados. Revisá el costo, ajustá el stock y subí la imagen.';
+        } catch (err) {
+            hint.textContent = '⚠️ No se pudo autocompletar: ' + err.message;
+        } finally {
+            btnParsearWa.disabled = false;
+            btnParsearWa.textContent = '✨ Autocompletar';
+        }
+    });
+}
 </script>
 {% endblock %}

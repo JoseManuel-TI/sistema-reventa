@@ -1,7 +1,7 @@
 """
-Calculadora de precios — margen sobre precio de venta.
-Precio final = costo / (1 - margen/100)
-Precio desde USD = (costo_usd * dolar_blue) / (1 - margen/100)
+Calculadora de precios — margen sobre el costo (markup).
+Precio final = costo * (1 + margen/100)
+Precio desde USD = (costo_usd * dolar_blue) * (1 + margen/100)
 """
 
 import math
@@ -64,15 +64,15 @@ class ParametrosPrecio:
                 setattr(self, field_name, float(cleaned))
         if not math.isfinite(self.costo) or self.costo < 0:
             raise ValueError("El costo debe ser un número positivo.")
-        if not math.isfinite(self.margen_deseado) or not 0 <= self.margen_deseado < 100:
-            raise ValueError("El margen debe estar entre 0 y menos de 100.")
+        if not math.isfinite(self.margen_deseado) or not 0 <= self.margen_deseado <= 1000:
+            raise ValueError("El margen debe estar entre 0 y 1000.")
 
 
 def calcular_precio_final(params: ParametrosPrecio) -> dict:
     costo = params.costo
     margen = params.margen_deseado
 
-    precio_final = round(costo / (1 - margen / 100), 2)
+    precio_final = round(costo * (1 + margen / 100), 2)
     ganancia = round(precio_final - costo, 2)
 
     desglose = {
@@ -104,9 +104,15 @@ def calcular_precio_venta_rapido(costo: float, margen: float = 35) -> float:
 
 
 def precio_sugerido_ml(costo: float, comision: float = 20.5) -> dict:
-    """
-    Calcula precio sugerido para Mercado Libre considerando su comisión.
-    """
-    margen_ajustado = 35 + comision
-    params = ParametrosPrecio(costo=costo, margen_deseado=margen_ajustado)
-    return calcular_precio_final(params)
+    """Precio para Mercado Libre que, tras la comisión, deja un markup del 35%."""
+    margen = 35.0
+    base = costo * (1 + margen / 100)
+    precio_final = round(base / (1 - comision / 100), 2)
+    return {
+        "costo": round(costo, 2),
+        "precio_final": precio_final,
+        "ganancia": round(precio_final - costo, 2),
+        "margen_porcentaje": margen,
+        "comision_ml": comision,
+        "params_usados": {"costo": costo, "margen_deseado": margen, "comision": comision},
+    }

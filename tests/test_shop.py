@@ -220,7 +220,7 @@ class ShopTest(unittest.TestCase):
         with patch.dict(os.environ, {'SESSION_SECRET': ''}):
             first = config.session_secret()
             self.assertEqual(first, config.session_secret())
-        for margin in (100, 101, -1, float('nan')):
+        for margin in (-1, float('nan')):
             with self.assertRaises(ValueError):
                 precios.calcular_precio_venta_rapido(100, margin)
 

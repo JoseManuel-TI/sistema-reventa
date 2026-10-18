@@ -1,15 +1,15 @@
 import precios
 
 
-def test_calcular_precio_final_margen_sobre_venta():
+def test_calcular_precio_final_margen_sobre_costo():
     params = precios.ParametrosPrecio(costo=1000, margen_deseado=35)
     r = precios.calcular_precio_final(params)
-    assert r["precio_final"] == 1538.46
-    assert r["ganancia"] == 538.46
+    assert r["precio_final"] == 1350.00
+    assert r["ganancia"] == 350.00
 
 
 def test_calcular_precio_venta_rapido():
-    assert precios.calcular_precio_venta_rapido(1000, margen=35) == 1538.46
+    assert precios.calcular_precio_venta_rapido(1000, margen=35) == 1350.00
 
 
 def test_parametros_parsean_formato_argentino():
@@ -22,10 +22,11 @@ def test_precio_desde_usd(monkeypatch):
     monkeypatch.setattr(precios, "get_dolar_blue", lambda: 1000)
     r = precios.calcular_precio_desde_usd(costo_usd=10, margen=35)
     assert r["costo_ars"] == 10000
-    assert r["precio_final"] == 15384.62
+    assert r["precio_final"] == 13500.00
 
 
 def test_precio_sugerido_ml_incluye_comision():
     r = precios.precio_sugerido_ml(costo=1000, comision=20.5)
-    # margen ajustado 55.5% -> 1000 / (1 - 0.555)
-    assert r["precio_final"] == 2247.19
+    # markup 35% sobre el costo, cubriendo la comisión de ML
+    # 1000 * 1.35 = 1350 ; 1350 / (1 - 0.205) = 1698.11
+    assert r["precio_final"] == 1698.11

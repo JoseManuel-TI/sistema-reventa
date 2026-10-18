@@ -38,6 +38,7 @@ import config
 import contenido as cnt
 import db
 import exportar
+import importar_whatsapp
 import integraciones as itgr
 import notificaciones
 import precios as pcalc
@@ -419,6 +420,19 @@ def productos_fetch_metadata():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/productos/parsear-whatsapp", methods=["POST"])
+@login_required
+def productos_parsear_whatsapp():
+    try:
+        texto = request.form.get("texto", "").strip()
+        if not texto:
+            return jsonify({"error": "Pegá primero el mensaje."}), 400
+        return jsonify(importar_whatsapp.parsear_mensaje(texto))
+    except Exception as e:
+        logging.error("Error en parsear-whatsapp: %s", traceback.format_exc())
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route("/productos/nuevo", methods=["GET", "POST"])
 @login_required
 def productos_nuevo():
@@ -772,6 +786,35 @@ def precios():
         except ValueError:
             flash("Ingresá valores numéricos válidos para calcular el precio.", "error")
     return render_template("precios.html", datos=datos, resultado=resultado, **_ruta("/precios"))
+
+
+@app.route("/precios/recalcular-todos", methods=["POST"])
+@login_required
+def precios_recalcular_todos():
+    try:
+        margen = _parsear_numero_form(request.form.get("margen_deseado"), default=35)
+        actualizados = omitidos = 0
+        for p in db.get_productos(activos=True):
+            if p.get("es_afiliado") or p.get("tipo_producto") in ("amazon_affiliate", "afiliado_digital"):
+                omitidos += 1
+                continue
+            if p.get("costo_usd"):
+                calc = pcalc.calcular_precio_desde_usd(p["costo_usd"], margen=margen)
+                db.update_producto(p["id"], costo=calc["costo_ars"],
+                                   precio_venta=calc["precio_final"],
+                                   margen_porcentaje=margen)
+                actualizados += 1
+            elif (p.get("costo") or 0) > 0:
+                precio = pcalc.calcular_precio_venta_rapido(p["costo"], margen=margen)
+                db.update_producto(p["id"], precio_venta=precio, margen_porcentaje=margen)
+                actualizados += 1
+            else:
+                omitidos += 1
+        detalle = f" ({omitidos} sin costo o afiliados)" if omitidos else ""
+        flash(f"Recalculé {actualizados} productos con margen {margen}% sobre el costo{detalle}.", "success")
+    except ValueError:
+        flash("Ingresá un margen válido.", "error")
+    return redirect(url_for("precios"))
 
 
 @app.route("/precios/producto/<int:id>", methods=["GET", "POST"])
