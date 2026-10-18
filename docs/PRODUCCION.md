@@ -4,7 +4,9 @@
 
 ## Infraestructura
 
-- **Railway**: proyecto `mellow-determination`, servicio `web`, entorno `production`, región `sfo`.
+- **Railway**: proyecto `mellow-determination`, entorno `production`, región `sfo`.
+  - `web`: la aplicación (Gunicorn). Dominio `clickya.net`.
+  - `contenido-cron`: cron diario que dispara la rutina de contenido (ver “Contenido”).
 - **URL de servicio**: `https://web-production-127a7c.up.railway.app` (respaldo/administración).
 - **Backend**: Gunicorn (2 workers) sobre el `Procfile` (`python seed_railway.py; gunicorn web:app`).
 - **Base**: SQLite en el volume persistente (sin `DATABASE_URL`). Seeder solo si el catálogo está vacío.
@@ -41,6 +43,8 @@ Gestión de tienda (tienen prioridad sobre `/configuracion`):
 Secretos (no commitear):
 
 - `ADMIN_PASSWORD`, `TELEGRAM_BOT_TOKEN`, `SESSION_SECRET`
+- `CRON_TOKEN` (autentica el scheduler; en `contenido-cron` se referencia como `${{web.CRON_TOKEN}}`)
+- Instagram (cuando se active): `FB_PAGE_TOKEN`, `FB_PAGE_ID`, `IG_BUSINESS_ID`
 
 > Las env vars **pisan** lo que edites en `/configuracion`. Si querés gestionar una clave desde el panel, borrá su variable en Railway.
 
@@ -69,6 +73,15 @@ railway logs --deployment --lines 60
 
 En `/productos/nuevo`, bloque **“📲 Importar desde WhatsApp”**: pegás el mensaje del grupo mayorista y *Autocompletar* extrae nombre, costo, beneficios y descripción. Después subís la foto. Parser en `importar_whatsapp.py` (interpreta precios en formato argentino).
 
+### Contenido automático
+
+- La rutina diaria (`contenido.rutina_diaria`) programa 7 días, publica el cupo del día y manda
+  el resumen por Telegram (y a Instagram si está configurado).
+- Se dispara desde el servicio Railway **`contenido-cron`**: cron `0 13 * * *` (UTC) = **10:00 ART**,
+  con `python cron_contenido.py` → `POST /contenido/cron` autenticado con `CRON_TOKEN`.
+- También se puede lanzar a mano desde `/contenido` (botón **Rutina diaria**). Detalle:
+  [AUTOMATIZACION_FASE_1.md](AUTOMATIZACION_FASE_1.md).
+
 ### Modelo de precios
 
 - **Margen sobre el costo (markup)**: `precio = costo × (1 + margen/100)`, por defecto **35%**.
@@ -90,7 +103,8 @@ El `localhost` y `clickya.net` tienen **bases separadas**. Cargar productos en l
 
 ## Pendientes / próximos pasos
 
-1. **Contenido / Instagram**: activar publicación automática (`/contenido`, `schedule_publicar.py` vía cron/scheduler).
+1. **Instagram (auto-publicación)**: falta cargar `FB_PAGE_TOKEN`, `FB_PAGE_ID` e `IG_BUSINESS_ID`
+   (cuenta IG Business/Creator + página de Facebook + app en Meta). El cron ya queda activo con Telegram.
 2. **Carga de catálogo**: seguir cargando productos reales desde WhatsApp.
 3. **Menor**: filtro de cancelados en `/pedidos`.
 4. Backups del volume (`productos.db`, `config.json`, `imagenes/`).
