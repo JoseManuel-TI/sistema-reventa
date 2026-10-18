@@ -45,7 +45,14 @@ Secretos (no commitear):
 - `ADMIN_PASSWORD`, `TELEGRAM_BOT_TOKEN`, `SESSION_SECRET`
 - `CRON_TOKEN` (autentica el scheduler; en `contenido-cron` se referencia como `${{web.CRON_TOKEN}}`)
 - Instagram (activo): `FB_PAGE_ID=1216089164921856`, `IG_BUSINESS_ID=17841447050373553` y
-  `FB_PAGE_TOKEN` (token de Página **sin vencimiento**, `expires_at=0`). Cuenta: **@clickya.ar**.
+  `FB_PAGE_TOKEN`, que es un **token de usuario extendido, sin vencimiento** (`expires_at=0`).
+  Cuenta: **@clickya.ar**. Scopes: `instagram_basic`, `instagram_content_publish`,
+  `pages_show_list`, `pages_read_engagement`, `business_management`.
+
+  > Bajo *Facebook Login for Business* se necesita `business_management` para poder listar la
+  > Página (`me/accounts`); sin él devuelve vacío. Para renovar el token: Explorer → permisos →
+  > **Generate Access Token** → *Depurador de token* → **Extender** → `me/accounts?fields=id,name,access_token`
+  > → cargar el `access_token` resultante.
 
 > Las env vars **pisan** lo que edites en `/configuracion`. Si querés gestionar una clave desde el panel, borrá su variable en Railway.
 
