@@ -32,6 +32,7 @@ from flask import (
     session,
     url_for,
 )
+from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.utils import secure_filename
 
 import config
@@ -51,6 +52,9 @@ if not DATA_DIR and os.environ.get("RAILWAY_ENVIRONMENT"):
 DATA_DIR = DATA_DIR or os.path.join(BASE_DIR, "data")
 app = Flask(__name__, template_folder=os.path.join(BASE_DIR, "templates"),
             static_folder=os.path.join(BASE_DIR, "static"))
+
+# Detrás del proxy de Railway (TLS termina ahí): respeta X-Forwarded-Proto/Host
+app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 
 app.secret_key = config.session_secret()
 app.config["MAX_CONTENT_LENGTH"] = 20 * 1024 * 1024  # 20 MB
