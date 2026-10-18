@@ -69,6 +69,13 @@ app.config.update(SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE="Lax",
                   SESSION_COOKIE_SECURE=bool(os.environ.get("RAILWAY_ENVIRONMENT")))
 
 
+@app.before_request
+def redirigir_www():
+    host = request.host.split(":")[0].lower()
+    if host.startswith("www."):
+        return redirect(request.url.replace("://www.", "://", 1), code=301)
+
+
 @app.after_request
 def private_responses(response):
     if request.endpoint and request.endpoint not in {"static", "servir_imagen"}:
