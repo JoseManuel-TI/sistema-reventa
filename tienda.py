@@ -27,7 +27,8 @@ import notificaciones
 
 tienda = Blueprint("tienda", __name__, template_folder="templates")
 
-STORE_NAME = config.get("TIENDA_NOMBRE")
+def _store_name():
+    return config.get("TIENDA_NOMBRE") or "Mi Tienda"
 STORE_WA = config.whatsapp()
 
 # Horas que se reserva el stock de un pedido pendiente antes de liberarlo.
@@ -477,7 +478,7 @@ def bio():
     productos = _productos_publicados()
     _productos_con_imagen(productos)
     return render_template("tienda/bio.html",
-                           store_name=STORE_NAME,
+                           store_name=_store_name(),
                            destacados=productos[:6],
                            total_productos=len(productos))
 
@@ -485,13 +486,13 @@ def bio():
 @tienda.route("/nosotros")
 def nosotros():
     """Página institucional: quiénes somos, pilares y compromisos."""
-    return render_template("tienda/nosotros.html", store_name=STORE_NAME)
+    return render_template("tienda/nosotros.html", store_name=_store_name())
 
 
 @tienda.route("/envios")
 def envios():
     """Página informativa: zonas de entrega, plazos, costos y devoluciones."""
-    return render_template("tienda/envios.html", store_name=STORE_NAME,
+    return render_template("tienda/envios.html", store_name=_store_name(),
                            envio_caba=_envio_costo("caba"),
                            envio_gba=_envio_costo("gba"))
 
@@ -542,7 +543,7 @@ def catalogo():
     _productos_con_imagen(productos)
     return render_template("tienda/catalogo.html",
                            productos=productos,
-                           store_name=STORE_NAME,
+                           store_name=_store_name(),
                            cat_activa="",
                            origen_activa=origen,
                            origen_labels=ORIGEN_LABELS,
@@ -563,7 +564,7 @@ def categoria(slug):
     _productos_con_imagen(productos)
     return render_template("tienda/catalogo.html",
                            productos=productos,
-                           store_name=STORE_NAME,
+                           store_name=_store_name(),
                            cat_activa=slug,
                            origen_activa="",
                            origen_labels=ORIGEN_LABELS,
@@ -585,7 +586,7 @@ def producto(id):
         track_data = _track_item(p["id"], p["nombre"], p["precio_venta"], 1)
     return render_template("tienda/producto.html",
                            p=p, imagenes=imgs, track_data=track_data,
-                           store_name=STORE_NAME, peso=_pesos)
+                           store_name=_store_name(), peso=_pesos)
 
 
 @tienda.route("/s/<int:id>")
@@ -635,7 +636,7 @@ def ver_carrito():
     total = sum(i["precio"] * i["cantidad"] for i in carrito.values())
     return render_template("tienda/carrito.html",
                            carrito=carrito, total=total,
-                           store_name=STORE_NAME, peso=_pesos)
+                           store_name=_store_name(), peso=_pesos)
 
 
 @tienda.route("/carrito/agregar/<int:id>", methods=["POST"])
@@ -747,7 +748,7 @@ def checkout():
                            zonas_envio=zonas,
                            envio_default=zonas[0],
                            track_data=_track_carrito(carrito),
-                           store_name=STORE_NAME, peso=_pesos)
+                           store_name=_store_name(), peso=_pesos)
 
 
 @tienda.route("/checkout/procesar", methods=["POST"])
@@ -839,6 +840,7 @@ def merchant_feed():
 
     from flask import Response
 
+    store_name = _store_name()
     items = []
     for p in productos:
         imgs = db.get_imagenes(p["id"])
@@ -857,15 +859,15 @@ def merchant_feed():
       <g:availability>{'in_stock' if p.get('stock', 0) > 0 else 'out_of_stock'}</g:availability>
       <g:price>{p['precio_venta']:.2f} ARS</g:price>
       <g:condition>new</g:condition>
-      <g:brand>{escape(STORE_NAME)}</g:brand>
+      <g:brand>{escape(store_name)}</g:brand>
     </item>""")
 
     xml = f"""<?xml version="1.0" encoding="UTF-8"?>
 <rss xmlns:g="http://base.google.com/ns/1.0" version="2.0">
   <channel>
-    <title>{escape(STORE_NAME)}</title>
+    <title>{escape(store_name)}</title>
     <link>{request.host_url}</link>
-    <description>{escape(STORE_NAME)} - Productos</description>
+    <description>{escape(store_name)} - Productos</description>
 {chr(10).join(items)}
   </channel>
 </rss>"""
@@ -899,7 +901,7 @@ def gracias(id):
 
     return render_template("tienda/gracias.html",
                            pedido=pedido,
-                           store_name=STORE_NAME,
+                           store_name=_store_name(),
                            wa_link=STORE_WA,
                            wa_pedido=wa_pedido,
                            track_data=track_data,
