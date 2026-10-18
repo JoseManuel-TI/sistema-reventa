@@ -1,6 +1,10 @@
 # Operación de ClickYa
 
-Consultar [README.md](../README.md) para instalación y flujo completo de pedidos.
+Consultar [README.md](../README.md) para instalación y flujo completo de pedidos, y
+[PRODUCCION.md](PRODUCCION.md) para el entorno desplegado (`clickya.net`, volumen, variables).
+
+Ya en producción: dominio propio con HTTPS, **volume persistente** en `/data`, dashboard,
+importador de WhatsApp y precios con margen sobre el costo.
 
 Antes de operar:
 

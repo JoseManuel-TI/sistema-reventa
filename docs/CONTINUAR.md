@@ -1,4 +1,8 @@
-# Continuar — Amazon Afiliados (rama `feat/amazon-afiliados`)
+# Continuar — Amazon Afiliados (histórico)
+
+> **Nota (2026-10-18):** esta rama ya fue mergeada a `main` y está desplegada en
+> producción. El estado actual y la operación están en [PRODUCCION.md](PRODUCCION.md).
+> Lo de abajo se conserva como referencia histórica.
 
 > Para retomar el trabajo. Actualizado: 2026-08-01.
 

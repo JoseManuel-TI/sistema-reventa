@@ -12,7 +12,13 @@ export ADMIN_PASSWORD='elegí-una-contraseña-segura'
 python web.py
 ```
 
-Abrir `http://localhost:5000/tienda`. El panel está en `/productos`; los datos bancarios se editan en `/configuracion`. La base se inicializa automáticamente. Para comandos de consola: `python app.py --help`.
+Abrir `http://localhost:5000/tienda`. El panel abre en `/dashboard` (productos, precios, pedidos, contenido y configuración); los datos bancarios se editan en `/configuracion`. La base se inicializa automáticamente. Para comandos de consola: `python app.py --help`.
+
+## Productos y precios
+
+- **Cargar producto**: `/productos/nuevo`. Incluye **“📲 Importar desde WhatsApp”**: pegás el mensaje de un grupo mayorista y se autocompletan nombre, costo, beneficios y descripción (`importar_whatsapp.py`).
+- **Modelo de precios**: margen **sobre el costo** (markup) — `precio = costo × (1 + margen/100)`, por defecto 35%. El costo en USD se convierte con el dólar blue. En `/precios` hay **“Recalcular todos”** para aplicar el margen a todo el catálogo.
+- **Local ≠ producción**: tienen bases separadas; cargá los productos en el entorno de producción.
 
 ## Pedidos y transferencias
 
@@ -36,7 +42,9 @@ El detalle público del pedido solo puede consultarse en el navegador que lo cre
 - `ADMIN_PASSWORD`: contraseña administrativa. Las variables de entorno tienen prioridad sobre la configuración guardada.
 - `IMAGES_DIR` y `EXPORTS_DIR`: ubicaciones opcionales de imágenes y exportaciones.
 - PostgreSQL no sustituye al volumen: configuración, imágenes y el calendario SQLite de contenido siguen necesitando almacenamiento persistente.
-- En Railway se requieren HTTPS y volumen persistente. El `Procfile` ejecuta el seed y, solo si termina correctamente, Gunicorn con dos workers.
+- En Railway se requieren HTTPS y **volume persistente montado en `/data`**. El `Procfile` ejecuta el seed y, solo si termina correctamente, Gunicorn con dos workers.
+- **El volume es obligatorio**: sin él la base (productos, pedidos, imágenes) se reinicia en cada deploy.
+- Estado y operación del despliegue (dominio `clickya.net`, variables, deploy): [docs/PRODUCCION.md](docs/PRODUCCION.md).
 - El seed normal no modifica un catálogo existente. `--force` es una operación destructiva de reinicialización; no usar para actualizar producción.
 - Hacer copia de seguridad de la base y del volumen antes de desplegar. Las migraciones añaden campos de reserva e idempotencia, sin borrar pedidos ni columnas históricas de pagos.
 
@@ -45,7 +53,8 @@ La publicación automática necesita programar `schedule_publicar.py` mediante c
 ## Verificación
 
 ```sh
-.venv/bin/python -m unittest discover -s tests -v
+.venv/bin/ruff check .
+.venv/bin/pytest
 ```
 
-Las pruebas usan datos temporales y simulan notificaciones; no escriben pedidos en la base real ni publican mensajes. Cubren transferencias, privacidad, CSRF, cambios de precio, stock concurrente, doble envío, estados y páginas principales. La suite local utiliza SQLite; el despliegue PostgreSQL requiere una comprobación de integración en su entorno.
+Las 90 pruebas usan datos temporales y simulan notificaciones; no escriben pedidos en la base real ni publican mensajes. Cubren transferencias, privacidad, CSRF, cambios de precio, stock concurrente, doble envío, estados, cálculo de precios, parser de WhatsApp y páginas principales. La suite local utiliza SQLite; el despliegue PostgreSQL requiere una comprobación de integración en su entorno.
