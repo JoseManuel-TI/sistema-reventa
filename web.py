@@ -1024,6 +1024,21 @@ def contenido_publicar_ahora(id):
     return redirect(url_for("contenido_calendario"))
 
 
+@app.route("/contenido/republicar-instagram", methods=["POST"])
+@login_required
+def contenido_republicar_instagram():
+    base_url = config.get("PUBLIC_URL") or "https://clickya.net"
+    ok, fallidos, detalle = cnt.republicar_instagram(base_url=base_url)
+    if ok:
+        flash(f"📸 {ok} producto(s) republicado(s) en Instagram.", "success")
+    if fallidos:
+        primer = next((m for _, m in detalle if m), "")
+        flash(f"❌ {fallidos} fallaron en Instagram: {primer[:200]}", "error")
+    if not ok and not fallidos:
+        flash("No había productos pendientes de Instagram.", "info")
+    return redirect(url_for("contenido_calendario"))
+
+
 @app.route("/contenido/programar", methods=["POST"])
 @login_required
 def contenido_programar_todos():

@@ -6,9 +6,12 @@ Scheduler, cola de publicaciones, posteo a Telegram.
 import os
 import random
 import sqlite3
+import time
 import urllib.error
 import urllib.request
 from datetime import datetime, timedelta
+
+PAUSA_ENTRE_POSTEOS = 3
 
 BASE_DIR = os.path.dirname(__file__)
 
@@ -456,12 +459,69 @@ def publicar_pendientes(base_url="http://localhost:5000", limite=None, incluir_a
             )
             result.append((prod_id, ok, f"TG:{msg_tg} | IG:{msg_ig}"))
             if ok:
-                import time
-                time.sleep(3)
+                time.sleep(PAUSA_ENTRE_POSTEOS)
         conn.commit()
         return result
     finally:
         conn.close()
+
+
+def productos_sin_instagram(limite=10):
+    """Productos publicados que no tienen un posteo exitoso en Instagram.
+
+    Un posteo exitoso guarda en `contenido_log` el media_id (numérico); los
+    errores guardan texto. Por eso se distinguen con GLOB.
+    """
+    _init_db()
+    conn = _get_conn()
+    try:
+        filas = conn.execute(
+            "SELECT p.producto_id, MAX(p.publicada_en) AS cuando "
+            "FROM publicaciones p "
+            "WHERE p.estado='publicado' "
+            "AND p.producto_id NOT IN ("
+            "  SELECT producto_id FROM contenido_log "
+            "  WHERE canal='instagram' AND resultado GLOB '[0-9]*'"
+            ") "
+            "GROUP BY p.producto_id "
+            "ORDER BY cuando DESC LIMIT ?",
+            (int(limite),),
+        ).fetchall()
+        return [f[0] for f in filas]
+    finally:
+        conn.close()
+
+
+def republicar_instagram(limite=10, base_url="https://clickya.net"):
+    """Reenvía a Instagram los publicados que sólo salieron por Telegram.
+
+    Devuelve (ok, fallidos, detalle) con detalle = [(producto_id, mensaje)].
+    """
+    if not instagram_api.configurado():
+        return 0, 0, [("", "Instagram no configurado")]
+
+    ids = productos_sin_instagram(limite=limite)
+    ok_count, fallidos, detalle = 0, 0, []
+    conn = _get_conn()
+    try:
+        for pid in ids:
+            ok, msg = instagram_api.postear_producto(pid, base_url)
+            conn.execute(
+                "INSERT INTO contenido_log (producto_id, canal, resultado) "
+                "VALUES (?, 'instagram', ?)",
+                (pid, msg),
+            )
+            if ok:
+                ok_count += 1
+            else:
+                fallidos += 1
+            detalle.append((pid, msg))
+            if ok:
+                time.sleep(PAUSA_ENTRE_POSTEOS)
+        conn.commit()
+    finally:
+        conn.close()
+    return ok_count, fallidos, detalle
 
 
 def listar_publicaciones(limit=20):

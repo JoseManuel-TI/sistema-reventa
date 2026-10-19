@@ -17,6 +17,10 @@
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <button type="submit" class="btn btn-outline" style="background:#25D366;color:#fff;border:none;">Publicar pendientes ahora</button>
     </form>
+    <form action="/contenido/republicar-instagram" method="POST" style="display:inline;">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" class="btn btn-outline" title="Reenvía a Instagram los publicados que sólo salieron por Telegram">📸 Republicar en Instagram</button>
+    </form>
     <form action="/contenido/reprogramar-atrasadas" method="POST" style="display:inline;">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <button type="submit" class="btn btn-outline">Reprogramar atrasadas</button>

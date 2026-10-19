@@ -368,6 +368,18 @@ def test_backup_cron_token_valido_envia_telegram(client, monkeypatch):
     assert data["enviado_telegram"] is True
 
 
+def test_republicar_instagram_route(client, monkeypatch):
+    _login(client)
+    monkeypatch.setattr("web.cnt.republicar_instagram", lambda base_url="": (2, 0, []))
+    r = client.post(
+        "/contenido/republicar-instagram",
+        data={"csrf_token": _csrf(client)},
+        follow_redirects=True,
+    )
+    assert r.status_code == 200
+    assert b"republicado" in r.data
+
+
 def test_pedidos_filtro_cancelado(client):
     import db
 
