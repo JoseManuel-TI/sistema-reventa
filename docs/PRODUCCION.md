@@ -7,6 +7,7 @@
 - **Railway**: proyecto `mellow-determination`, entorno `production`, región `sfo`.
   - `web`: la aplicación (Gunicorn). Dominio `clickya.net`.
   - `contenido-cron`: cron diario que dispara la rutina de contenido (ver “Contenido”).
+  - `backup-cron`: cron diario (`0 6 * * *` UTC = 03:00 ART) que manda el respaldo del volume por Telegram (ver “Respaldos”).
 - **URL de servicio**: `https://web-production-127a7c.up.railway.app` (respaldo/administración).
 - **Backend**: Gunicorn (2 workers) sobre el `Procfile` (`python seed_railway.py; gunicorn web:app`).
 - **Base**: SQLite en el volume persistente (sin `DATABASE_URL`). Seeder solo si el catálogo está vacío.
@@ -99,8 +100,9 @@ En `/productos/nuevo`, bloque **“📲 Importar desde WhatsApp”**: pegás el 
 - El endpoint `POST /backup/cron` (protegido con `CRON_TOKEN`) arma un ZIP del volume
   (`productos.db` con copia consistente de SQLite, `contenido.db`, `config.json` e `imagenes/`)
   y lo manda por **Telegram**. Parser/armado en `backup.py`; cliente en `cron_backup.py`.
-- Se dispara desde el servicio Railway **`backup-cron`** (cron `0 6 * * *` UTC = **03:00 ART**,
-  `python cron_backup.py`). Si el ZIP supera ~45 MB, se reintenta sin imágenes.
+- Se dispara desde el servicio Railway **`backup-cron`** (`22863dae-e6fb-4d07-a126-d3b613a8cad9`,
+  cron `0 6 * * *` UTC = **03:00 ART**, `python cron_backup.py`, `CRON_TOKEN=${{web.CRON_TOKEN}}`).
+  Si el ZIP supera ~45 MB, se reintenta sin imágenes.
 - A mano: `python backup.py` (crea el ZIP local) o `POST /backup/cron` con `X-Cron-Token`.
 - El ZIP incluye `config.json` (tiene secretos): revisá que el chat de Telegram sea privado.
 
