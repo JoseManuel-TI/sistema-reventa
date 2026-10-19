@@ -15,6 +15,9 @@ desplegado en [PRODUCCION.md](PRODUCCION.md).
   autocompletan nombre, costo, beneficios y descripción (`importar_whatsapp.py`).
 - Afiliados de Amazon con seguimiento de clics, exportaciones y contenido programable.
 - Dominio propio `clickya.net` (+ `www` con 301), HTTPS y **volume persistente** en `/data`.
+- **Respaldos**: `POST /backup/cron` (`CRON_TOKEN`) comprime el volume y lo manda por Telegram
+  (`backup.py` + `cron_backup.py`; servicio Railway `backup-cron`).
+- Listado de **pedidos** con filtro por estado, incluido **Cancelados**.
 
 ## Notas
 
@@ -27,5 +30,5 @@ desplegado en [PRODUCCION.md](PRODUCCION.md).
 
 ## Verificación
 
-`ruff check .` limpio y `pytest` (90 tests) en verde. El seed no sobrescribe un catálogo
+`ruff check .` limpio y `pytest` (105 tests) en verde. El seed no sobrescribe un catálogo
 existente.

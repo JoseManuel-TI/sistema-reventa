@@ -35,6 +35,7 @@ from flask import (
 from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.utils import secure_filename
 
+import backup as bkp
 import config
 import contenido as cnt
 import db
@@ -180,8 +181,8 @@ def _cron_autorizado():
 def _proteger_csrf():
     if request.method not in ("POST", "PUT", "PATCH", "DELETE"):
         return
-    # El endpoint de cron valida su propio `CRON_TOKEN` (headers/query), no sesión.
-    if request.endpoint == "contenido_cron":
+    # Los endpoints de cron validan su propio `CRON_TOKEN` (headers/query), no sesión.
+    if request.endpoint in ("contenido_cron", "backup_cron"):
         return
     enviado = request.form.get("csrf_token") or request.headers.get("X-CSRF-Token", "")
     esperado = session.get("_csrf_token", "")
@@ -1092,6 +1093,32 @@ def contenido_cron():
     })
 
 
+@app.route("/backup/cron", methods=["GET", "POST"])
+def backup_cron():
+    """Respaldo del volume y envío a Telegram. Requiere `CRON_TOKEN`."""
+    if not _cron_autorizado():
+        abort(403, description="Token de cron ausente o inválido")
+    info = bkp.ejecutar()
+    enviado = notificaciones.telegram_documento(
+        info["path"], caption=f"🗄️ Respaldo ClickYa ({info['bytes'] / 1024:.0f} KB)"
+    )
+    if not enviado:
+        notificaciones.telegram(
+            f"⚠️ Respaldo creado pero no se pudo enviar por Telegram ({info['nombre']})."
+        )
+    try:
+        os.unlink(info["path"])
+    except OSError:
+        pass
+    return jsonify({
+        "ok": True,
+        "archivo": info["nombre"],
+        "bytes": info["bytes"],
+        "incluye_imagenes": info["incluye_imagenes"],
+        "enviado_telegram": enviado,
+    })
+
+
 # ─── Imágenes (admin) ─────────────────────────────────────────────
 
 IMAGENES_PROVEEDORES_DIR = os.path.join(IMAGENES_DIR, "proveedores")
@@ -1153,13 +1180,13 @@ METODOS_COBRO = ("efectivo", "transferencia")
 @login_required
 def pedidos_listar():
     db.liberar_reservas_expiradas()
-    estado = request.args.get("estado")
-    pedidos = db.get_pedidos(estado=estado)
+    estado = (request.args.get("estado") or "").strip()
+    pedidos = db.get_pedidos(estado=estado or None)
     for ped in pedidos:
         items = db.get_pedido_items(ped["id"])
         ped["items"] = items
         ped["total_items"] = sum(i["cantidad"] for i in items)
-    return render_template("pedidos.html", pedidos=pedidos, **_ruta("/pedidos"))
+    return render_template("pedidos.html", pedidos=pedidos, estado=estado, **_ruta("/pedidos"))
 
 
 @app.route("/pedidos/<int:id>")

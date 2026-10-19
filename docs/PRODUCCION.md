@@ -94,6 +94,16 @@ En `/productos/nuevo`, bloque **“📲 Importar desde WhatsApp”**: pegás el 
 - También se puede lanzar a mano desde `/contenido` (botón **Rutina diaria**). Detalle:
   [AUTOMATIZACION_FASE_1.md](AUTOMATIZACION_FASE_1.md).
 
+### Respaldos (backup)
+
+- El endpoint `POST /backup/cron` (protegido con `CRON_TOKEN`) arma un ZIP del volume
+  (`productos.db` con copia consistente de SQLite, `contenido.db`, `config.json` e `imagenes/`)
+  y lo manda por **Telegram**. Parser/armado en `backup.py`; cliente en `cron_backup.py`.
+- Se dispara desde el servicio Railway **`backup-cron`** (cron `0 6 * * *` UTC = **03:00 ART**,
+  `python cron_backup.py`). Si el ZIP supera ~45 MB, se reintenta sin imágenes.
+- A mano: `python backup.py` (crea el ZIP local) o `POST /backup/cron` con `X-Cron-Token`.
+- El ZIP incluye `config.json` (tiene secretos): revisá que el chat de Telegram sea privado.
+
 ### Modelo de precios
 
 - **Margen sobre el costo (markup)**: `precio = costo × (1 + margen/100)`, por defecto **35%**.
@@ -116,6 +126,5 @@ El `localhost` y `clickya.net` tienen **bases separadas**. Cargar productos en l
 ## Pendientes / próximos pasos
 
 1. **Carga de catálogo**: seguir cargando productos reales desde WhatsApp.
-2. **Menor**: filtro de cancelados en `/pedidos`.
-3. Backups del volume (`productos.db`, `config.json`, `imagenes/`).
-4. **Contenido**: probar la primera publicación real en Instagram y ajustar captions/hashtags.
+2. **Contenido**: revisar captions/hashtags de las publicaciones reales en Instagram.
+3. **Backups**: dejar corriendo el servicio `backup-cron` y chequear que llegue un ZIP por día.

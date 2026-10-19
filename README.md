@@ -47,6 +47,7 @@ El detalle público del pedido solo puede consultarse en el navegador que lo cre
 - Estado y operación del despliegue (dominio `clickya.net`, variables, deploy): [docs/PRODUCCION.md](docs/PRODUCCION.md).
 - El seed normal no modifica un catálogo existente. `--force` es una operación destructiva de reinicialización; no usar para actualizar producción.
 - Hacer copia de seguridad de la base y del volumen antes de desplegar. Las migraciones añaden campos de reserva e idempotencia, sin borrar pedidos ni columnas históricas de pagos.
+- **Respaldos automáticos**: `POST /backup/cron` (con `CRON_TOKEN`) arma un ZIP del volumen y lo manda por Telegram (`backup.py`); el servicio Railway `backup-cron` lo ejecuta a diario vía `cron_backup.py`. A mano: `python backup.py`.
 
 La publicación automática necesita programar `schedule_publicar.py` mediante cron o el scheduler del hosting. No se activa únicamente por arrancar la web. Ver `docs/AUTOMATIZACION_FASE_1.md`.
 
@@ -57,4 +58,4 @@ La publicación automática necesita programar `schedule_publicar.py` mediante c
 .venv/bin/pytest
 ```
 
-Las 90 pruebas usan datos temporales y simulan notificaciones; no escriben pedidos en la base real ni publican mensajes. Cubren transferencias, privacidad, CSRF, cambios de precio, stock concurrente, doble envío, estados, cálculo de precios, parser de WhatsApp y páginas principales. La suite local utiliza SQLite; el despliegue PostgreSQL requiere una comprobación de integración en su entorno.
+Las 105 pruebas usan datos temporales y simulan notificaciones; no escriben pedidos en la base real ni publican mensajes. Cubren transferencias, privacidad, CSRF, cambios de precio, stock concurrente, doble envío, estados, cálculo de precios, parser de WhatsApp y páginas principales. La suite local utiliza SQLite; el despliegue PostgreSQL requiere una comprobación de integración en su entorno.

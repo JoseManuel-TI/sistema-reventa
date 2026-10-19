@@ -3,10 +3,11 @@
 <div class="page-header">
     <h2>📋 Pedidos ({{ pedidos|length }})</h2>
     <div class="btn-group">
-        <a href="/pedidos?estado=pendiente" class="btn btn-outline btn-sm">Pendientes</a>
-        <a href="/pedidos?estado=confirmado" class="btn btn-outline btn-sm">Confirmados</a>
-        <a href="/pedidos?estado=entregado" class="btn btn-outline btn-sm">Entregados</a>
-        <a href="/pedidos" class="btn btn-outline btn-sm">Todos</a>
+        <a href="/pedidos?estado=pendiente" class="btn {{ 'btn-primary' if estado == 'pendiente' else 'btn-outline' }} btn-sm">Pendientes</a>
+        <a href="/pedidos?estado=confirmado" class="btn {{ 'btn-primary' if estado == 'confirmado' else 'btn-outline' }} btn-sm">Confirmados</a>
+        <a href="/pedidos?estado=entregado" class="btn {{ 'btn-primary' if estado == 'entregado' else 'btn-outline' }} btn-sm">Entregados</a>
+        <a href="/pedidos?estado=cancelado" class="btn {{ 'btn-primary' if estado == 'cancelado' else 'btn-outline' }} btn-sm">Cancelados</a>
+        <a href="/pedidos" class="btn {{ 'btn-primary' if not estado else 'btn-outline' }} btn-sm">Todos</a>
     </div>
 </div>
 

@@ -352,3 +352,35 @@ def test_contenido_cron_token_valido_por_header(client, monkeypatch):
 def test_contenido_cron_token_valido_por_query(client, monkeypatch):
     monkeypatch.setenv("CRON_TOKEN", "secreto")
     assert client.get("/contenido/cron?token=secreto").status_code == 200
+
+
+def test_backup_cron_sin_token_rechaza(client):
+    assert client.post("/backup/cron").status_code == 403
+
+
+def test_backup_cron_token_valido_envia_telegram(client, monkeypatch):
+    monkeypatch.setenv("CRON_TOKEN", "secreto")
+    monkeypatch.setattr("web.notificaciones.telegram_documento", lambda path, caption="": True)
+    r = client.post("/backup/cron", headers={"X-Cron-Token": "secreto"})
+    assert r.status_code == 200
+    data = r.get_json()
+    assert data["ok"] is True
+    assert data["enviado_telegram"] is True
+
+
+def test_pedidos_filtro_cancelado(client):
+    import db
+
+    pid = crear_producto(stock=2, precio=100)
+    atendido = db.crear_pedido(
+        "A", "a@b.com", "", "", 0, {"1": {"producto_id": pid, "cantidad": 1, "nombre": "P"}}
+    )
+    cancelado = db.crear_pedido(
+        "B", "b@b.com", "", "", 0, {"2": {"producto_id": pid, "cantidad": 1, "nombre": "P"}}
+    )
+    db.actualizar_estado_pedido(cancelado, "cancelado")
+    _login(client)
+    r = client.get("/pedidos?estado=cancelado")
+    assert r.status_code == 200
+    assert f'/{cancelado}"'.encode() in r.data
+    assert f'/{atendido}"'.encode() not in r.data
