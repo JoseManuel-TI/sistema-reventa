@@ -9,6 +9,10 @@
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <button type="submit" class="btn btn-primary">Programar todos</button>
     </form>
+    <form action="/contenido/programar-dos" method="POST" style="display:inline;">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" class="btn btn-primary" style="background:#7c3aed;border:none;" title="2 publicaciones por día desde mañana: una del catálogo + un perfume">Programar 2/día</button>
+    </form>
     <form action="/contenido/rutina-diaria" method="POST" style="display:inline;">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <button type="submit" class="btn btn-primary" style="background:#111827;border:none;">Rutina diaria</button>

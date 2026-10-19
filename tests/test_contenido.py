@@ -87,6 +87,49 @@ def test_republicar_instagram_falla_y_reintenta(monkeypatch):
     assert 3 in contenido.productos_sin_instagram()
 
 
+def _producto(nombre, categoria, precio=50000):
+    import db
+
+    prov = db.get_proveedor_por_nombre("Test") or None
+    prov_id = prov["id"] if prov else db.add_proveedor("Test")
+    pid = db.add_producto(
+        nombre=nombre,
+        descripcion="",
+        proveedor_id=prov_id,
+        costo=precio / 1.35,
+        categoria=categoria,
+        stock=2,
+        publicar=1,
+    )
+    db.update_producto(pid, precio_venta=precio)
+    return pid
+
+
+def test_programar_dos_diarias_una_por_categoria():
+    _producto("Perfume A", "Perfumes")
+    _producto("Perfume B", "Perfumes")
+    _producto("Celular A", "Celulares")
+    _producto("Celular B", "Celulares")
+
+    creadas = contenido.programar_dos_diarias(dias=2, por_dia=2)
+
+    assert len(creadas) == 4
+    por_fecha = {}
+    for c in creadas:
+        por_fecha.setdefault(c["fecha"], []).append(c["producto"])
+    for productos in por_fecha.values():
+        assert len(productos) == 2
+        assert sum("Perfume" in n for n in productos) == 1
+
+
+def test_programar_dos_diarias_es_idempotente():
+    _producto("Perfume A", "Perfumes")
+    _producto("Celular A", "Celulares")
+
+    assert len(contenido.programar_dos_diarias(dias=2, por_dia=2)) == 4
+    assert contenido.programar_dos_diarias(dias=2, por_dia=2) == []
+
+
 def test_republicar_instagram_sin_configurar(monkeypatch):
     monkeypatch.setattr(contenido.instagram_api, "configurado", lambda: False)
     ok, fallidos, detalle = contenido.republicar_instagram()

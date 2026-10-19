@@ -246,6 +246,88 @@ def programar_todos(fecha_inicio=None):
     return count
 
 
+def _hay_categoria_pendiente(conn, fecha, categoria):
+    cat = (categoria or "").strip().lower()
+    filas = conn.execute(
+        "SELECT producto_id FROM publicaciones "
+        "WHERE estado='pendiente' AND date(programada_para)=?",
+        (fecha,),
+    ).fetchall()
+    for (pid,) in filas:
+        prod = app_db.get_producto(pid)
+        if prod and (prod.get("categoria") or "").strip().lower() == cat:
+            return True
+    return False
+
+
+def programar_dos_diarias(
+    dias=14,
+    por_dia=2,
+    categoria_destacada="Perfumes",
+    incluir_externos=False,
+):
+    """Asegura `por_dia` publicaciones por día desde mañana.
+
+    Reserva un lugar diario para `categoria_destacada` (ej. perfumes) y
+    completa el resto con el catálogo general. Es idempotente por fecha.
+    """
+    _init_db()
+    publicables = [
+        p for p in app_db.get_productos(publicado_only=True)
+        if _producto_publicable(p, incluir_externos=incluir_externos)
+    ]
+    cat = (categoria_destacada or "").strip().lower()
+    destacados = [p for p in publicables if (p.get("categoria") or "").strip().lower() == cat]
+    normales = [p for p in publicables if (p.get("categoria") or "").strip().lower() != cat]
+    destacados.sort(key=_score_producto, reverse=True)
+    normales.sort(key=_score_producto, reverse=True)
+
+    conn = _get_conn()
+    creadas = []
+    now = datetime.now()
+    try:
+        usados = _productos_ya_programados(conn)
+        cola_dest = [p for p in destacados if p["id"] not in usados] or destacados
+        cola_norm = [p for p in normales if p["id"] not in usados] or normales
+
+        for offset in range(dias):
+            fecha = (now + timedelta(days=offset + 1)).strftime("%Y-%m-%d")
+            existentes = conn.execute(
+                "SELECT COUNT(*) FROM publicaciones "
+                "WHERE estado='pendiente' AND date(programada_para)=?",
+                (fecha,),
+            ).fetchone()[0]
+            if existentes >= por_dia:
+                continue
+
+            if not cola_dest:
+                cola_dest = list(destacados)
+            if not cola_norm:
+                cola_norm = list(normales)
+
+            if cola_dest and not _hay_categoria_pendiente(conn, fecha, categoria_destacada):
+                producto = cola_dest.pop(0)
+                conn.execute(
+                    "INSERT INTO publicaciones (producto_id, programada_para, caption) VALUES (?,?,?)",
+                    (producto["id"], fecha, generar_caption(producto)),
+                )
+                creadas.append({"producto_id": producto["id"], "producto": producto["nombre"], "fecha": fecha})
+                existentes += 1
+
+            while existentes < por_dia and cola_norm:
+                producto = cola_norm.pop(0)
+                conn.execute(
+                    "INSERT INTO publicaciones (producto_id, programada_para, caption) VALUES (?,?,?)",
+                    (producto["id"], fecha, generar_caption(producto)),
+                )
+                creadas.append({"producto_id": producto["id"], "producto": producto["nombre"], "fecha": fecha})
+                existentes += 1
+        conn.commit()
+    finally:
+        conn.close()
+    return creadas
+
+
 def registrar_publicacion_manual(producto_id, caption=None, resultado="OK manual"):
     """Guarda una publicacion ejecutada fuera de la cola programada."""
     _init_db()

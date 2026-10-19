@@ -1047,6 +1047,14 @@ def contenido_programar_todos():
     return redirect(url_for("contenido_calendario"))
 
 
+@app.route("/contenido/programar-dos", methods=["POST"])
+@login_required
+def contenido_programar_dos():
+    creadas = cnt.programar_dos_diarias()
+    flash(f"Programadas {len(creadas)} publicaciones (2/día con un perfume).", "success")
+    return redirect(url_for("contenido_calendario"))
+
+
 @app.route("/contenido/publicar-pendientes", methods=["POST"])
 @login_required
 def contenido_publicar_pendientes():
