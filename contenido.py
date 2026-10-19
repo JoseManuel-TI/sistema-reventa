@@ -16,6 +16,7 @@ import config
 import db as app_db
 import instagram_api
 import integraciones as itgr
+import marketing
 import notificaciones
 
 # Usamos el mismo DATA_DIR que db.py para que el schedule viva en el volumen
@@ -115,14 +116,23 @@ def generar_caption(producto):
     precio = f"$ {pv:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
     wa = config.whatsapp()
     wa_link = f"{wa}?text=Hola%2C+quiero+{nombre.replace(' ', '%20')}"
+    public_url = (config.get("PUBLIC_URL") or "https://clickya.net").rstrip("/")
+    producto_url = f"{public_url}/tienda/{producto['id']}"
+
+    beneficios = marketing.lineas_beneficios(producto)
+    bloque_benef = "".join(f"✅ {b}\n" for b in beneficios)
+    if bloque_benef:
+        bloque_benef += "\n"
 
     caption = (
         f"🛒 <b>{nombre}</b>\n\n"
         f"{desc}\n\n"
+        f"{bloque_benef}"
         f"💰 <b>Precio:</b> {precio}\n"
-        f"🚚 Envío gratis - 24 hs hábiles\n\n"
-        f"📲 <a href='{wa_link}'>Comprar por WhatsApp</a>\n\n"
-        f"#ClickYa #Oferta #EnvioGratis"
+        f"🚚 {marketing.ENVIO_TEXTO}\n\n"
+        f"📲 <a href='{wa_link}'>Comprar por WhatsApp</a>\n"
+        f"🔗 <a href='{producto_url}'>Ver en la tienda</a>\n\n"
+        f"{marketing.hashtags_producto(producto, extra=['oferta'], limite=10)}"
     )
     return caption
 

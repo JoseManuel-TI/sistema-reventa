@@ -22,6 +22,7 @@ import urllib.request
 
 import config
 import db
+import marketing
 
 GRAPH_API = "https://graph.facebook.com/v22.0"
 
@@ -109,6 +110,37 @@ def postear_foto(imagen_url, caption):
         return False, str(e)
 
 
+def construir_caption(producto):
+    """Arma el texto del posteo de Instagram (gancho, beneficios, CTA, hashtags)."""
+    nombre = producto["nombre"]
+    pv = producto.get("precio_venta") or 0
+    if pv:
+        precio = "$ " + f"{pv:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+        linea_precio = f"💰 Precio: {precio}"
+    else:
+        linea_precio = "💰 Precio: consultanos por DM"
+
+    beneficios = marketing.lineas_beneficios(producto)
+    bloque_benef = "".join(f"✅ {b}\n" for b in beneficios)
+    if bloque_benef:
+        bloque_benef += "\n"
+
+    public_url = (config.get("PUBLIC_URL") or "https://clickya.net").rstrip("/")
+    bio_url = public_url.replace("https://", "")
+
+    return (
+        f"🛒 {nombre}\n\n"
+        f"{bloque_benef}"
+        f"{linea_precio}\n"
+        f"🚚 {marketing.ENVIO_TEXTO}\n"
+        f"✅ Stock disponible\n\n"
+        f"👉 Todos los productos en el link de la bio ({bio_url}/bio)\n"
+        f"📲 o mandanos un DM «QUIERO»\n\n"
+        f".\n.\n.\n"
+        f"{marketing.hashtags_producto(producto)}"
+    )
+
+
 def postear_producto(producto_id, base_url="http://localhost:5000"):
     """Publica un producto en Instagram. Retorna (ok, msg)."""
     producto = db.get_producto(producto_id)
@@ -125,20 +157,7 @@ def postear_producto(producto_id, base_url="http://localhost:5000"):
     else:
         img_url = img_path
 
-    pv = producto.get("precio_venta") or 0
-    precio = f"$ {pv:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-    wa = config.whatsapp()
-
-    caption = (
-        f"🛒 {producto['nombre']}\n\n"
-        f"💰 Precio: {precio}\n"
-        f"🚚 Envío gratis - 24 hs hábiles\n\n"
-        f"📲 Comprá por WhatsApp: wa.me/{wa.replace('https://wa.me/', '')}\n\n"
-        f".\n.\n.\n"
-        f"#ClickYa #TiendaOnline #EnviosGratis #Argentina"
-    )
-
-    return postear_foto(img_url, caption)
+    return postear_foto(img_url, construir_caption(producto))
 
 
 def verificar_conexion():
