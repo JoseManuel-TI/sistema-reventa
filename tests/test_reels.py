@@ -142,3 +142,8 @@ def test_reel_incluye_colaboradores(monkeypatch):
 
     assert ok
     assert capturado["collaborators"] == ["esposa"]
+
+
+def test_limpiar_texto_quita_emoji_y_conserva_guion():
+    assert reels._limpiar_texto("⌚ APPLE WATCH SE 3 – 40MM") == "APPLE WATCH SE 3 – 40MM"
+    assert reels._limpiar_texto("📦 Combo  🎧 Auriculares") == "Combo Auriculares"

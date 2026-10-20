@@ -7,6 +7,7 @@ instalar ffmpeg en el servidor).
 
 import hashlib
 import os
+import re
 import subprocess
 import tempfile
 
@@ -25,6 +26,15 @@ REELS_DIR = os.path.join(IMAGENES_DIR, "reels")
 
 ANCHO, ALTO = 1080, 1920
 DURACION = 8
+_VERSION_FRAME = "2"
+
+_NO_DIBUJABLES = re.compile(r"[^\x20-\x7E\xA0-\xFF\u2010-\u203A\u20AC\u00A3\u00A5\u20BF]+")
+
+
+def _limpiar_texto(texto):
+    """Quita emojis/símbolos que la tipografía del video no puede dibujar (tofu)."""
+    limpio = _NO_DIBUJABLES.sub(" ", str(texto or ""))
+    return " ".join(limpio.split())
 
 _FUENTES_BOLD = [
     "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
@@ -159,7 +169,8 @@ def componer_frame(producto, imagen_path, salida):
     centrado(marketing.ENVIO_TEXTO, 160, f_sub, (209, 213, 219))
 
     y = 1310
-    for linea in _envolver(draw, producto.get("nombre"), f_titulo, 960, 3):
+    titulo = _limpiar_texto(producto.get("nombre"))
+    for linea in _envolver(draw, titulo, f_titulo, 960, 3):
         centrado(linea, y, f_titulo, (255, 255, 255))
         y += 72
 
@@ -196,7 +207,7 @@ def generar_reel(producto, base_url="https://clickya.net"):
         return False, f"Imagen no encontrada: {os.path.basename(origen)}"
 
     clave = hashlib.sha1(
-        f"{producto['id']}|{producto.get('nombre')}|{producto.get('precio_venta')}".encode()
+        f"{_VERSION_FRAME}|{producto['id']}|{producto.get('nombre')}|{producto.get('precio_venta')}".encode()
     ).hexdigest()[:10]
     os.makedirs(REELS_DIR, exist_ok=True)
     nombre = f"{producto['id']}_{clave}.mp4"
