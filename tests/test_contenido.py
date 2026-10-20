@@ -50,6 +50,12 @@ def test_productos_sin_instagram_incluye_fallidos():
     assert contenido.productos_sin_instagram() == [1]
 
 
+def test_productos_sin_instagram_reel_exitoso_no_es_candidato():
+    _publicado(8)
+    _log(8, "instagram", "reel:17841447050373553")
+    assert 8 not in contenido.productos_sin_instagram()
+
+
 def test_productos_sin_instagram_incluye_sin_log():
     _publicado(5)
     assert 5 in contenido.productos_sin_instagram()

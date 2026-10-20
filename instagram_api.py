@@ -23,6 +23,7 @@ import urllib.request
 import config
 import db
 import marketing
+import reels
 
 GRAPH_API = "https://graph.facebook.com/v22.0"
 
@@ -110,6 +111,51 @@ def postear_foto(imagen_url, caption):
         return False, str(e)
 
 
+def esperar_video(creation_id, intentos=40, espera=3):
+    """Espera a que Meta termine de procesar el video del reel."""
+    for _ in range(intentos):
+        estado = _api_call("GET", creation_id, params={"fields": "status_code,status"})
+        codigo = estado.get("status_code")
+        if codigo == "FINISHED":
+            return True, "FINISHED"
+        if codigo in ("ERROR", "EXPIRED"):
+            return False, estado.get("status") or codigo
+        time.sleep(espera)
+    return False, "Timeout esperando el procesamiento del video"
+
+
+def postear_reel(producto, caption, base_url):
+    """Publica un Reel 9:16 generado desde la foto del producto."""
+    ok, video_url = reels.generar_reel(producto, base_url)
+    if not ok:
+        return False, video_url
+
+    _, ig_id = _get_config()
+    try:
+        data = {
+            "media_type": "REELS",
+            "video_url": video_url,
+            "caption": caption[:2200],
+            "share_to_feed": "true",
+        }
+        result = _api_call("POST", f"{ig_id}/media", data=data)
+        creation_id = result.get("id")
+        if not creation_id:
+            return False, f"No se obtuvo creation_id: {result}"
+
+        ok_video, detalle = esperar_video(creation_id)
+        if not ok_video:
+            return False, f"Video no procesado: {detalle}"
+
+        publish = _api_call("POST", f"{ig_id}/media_publish", data={"creation_id": creation_id})
+        media_id = publish.get("id")
+        if not media_id:
+            return False, f"No se obtuvo media_id: {publish}"
+        return True, media_id
+    except InstagramError as e:
+        return False, str(e)
+
+
 def construir_caption(producto):
     """Arma el texto del posteo de Instagram (gancho, beneficios, CTA, hashtags)."""
     nombre = producto["nombre"]
@@ -151,13 +197,27 @@ def postear_producto(producto_id, base_url="http://localhost:5000"):
     if not imgs:
         return False, "Producto sin imagen"
 
+    caption = construir_caption(producto)
+    usar_reel = reels.disponible()
+    msg_reel = ""
+
+    if usar_reel:
+        ok, msg = postear_reel(producto, caption, base_url)
+        if ok:
+            return True, f"reel:{msg}"
+        # Si falla el reel, cae a foto para no perder la publicación.
+        msg_reel = msg
+
     img_path = imgs[0]["archivo"]
     if not img_path.startswith("http"):
         img_url = f"{base_url.rstrip('/')}/{img_path.lstrip('/')}"
     else:
         img_url = img_path
 
-    return postear_foto(img_url, construir_caption(producto))
+    ok, msg = postear_foto(img_url, caption)
+    if not ok and usar_reel:
+        return False, f"reel: {msg_reel} | foto: {msg}"
+    return ok, msg
 
 
 def verificar_conexion():

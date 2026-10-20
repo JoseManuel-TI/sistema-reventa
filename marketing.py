@@ -8,11 +8,30 @@ lugar.
 import re
 import unicodedata
 
-# Hashtags base (ver docs/marketing/copies_instagram_facebook.md)
+# Hashtags base: local + intención de compra (ver docs/marketing/copies_instagram_facebook.md)
 HASHTAGS_BASE = [
-    "#clickya", "#comprasargentina", "#tiendaonline", "#amba",
-    "#caba", "#gba", "#enviolocal", "#compraenargentina",
+    "#clickya", "#buenosaires", "#caba", "#gba", "#zonasur",
+    "#envios24h", "#comprasonline", "#ofertasargentina",
 ]
+
+# Marcas/keywords frecuentes → hashtags extra para descubrimiento.
+MARCAS = {
+    "lattafa": ["#lattafa", "#perfumesarabes"],
+    "armaf": ["#armaf", "#perfumesarabes"],
+    "perfume": ["#perfumesarabes"],
+    "samsung": ["#samsung", "#samsungargentina"],
+    "galaxy": ["#samsung"],
+    "iphone": ["#apple", "#iphone"],
+    "apple": ["#apple"],
+    "watch": ["#applewatch", "#smartwatch"],
+    "xiaomi": ["#xiaomi", "#redmi"],
+    "redmi": ["#xiaomi", "#redmi"],
+    "playstation": ["#playstation", "#gaming"],
+    "auricular": ["#audio", "#auriculares"],
+    "airpods": ["#airpods", "#audio"],
+    "aspiradora": ["#hogar"],
+    "freidora": ["#hogar", "#cocina"],
+}
 
 ENVIO_TEXTO = "Envíos a CABA y GBA · entrega en 24 h"
 
@@ -31,18 +50,23 @@ def hashtags_producto(producto, extra=None, limite=15):
     if len(categoria) >= 3:
         tags.append("#" + categoria)
 
+    nombre = (producto.get("nombre") or "").lower()
+    for clave, extras in MARCAS.items():
+        if clave in nombre:
+            tags.extend(extras)
+
     palabras = [
         _slug_hashtag(p)
         for p in re.split(r"\s+", producto.get("nombre") or "")
         if len(_slug_hashtag(p)) >= 4
     ]
-    tags.extend("#" + p for p in palabras[:2])
+    tags.extend("#" + p for p in palabras[:2] if p.lower() not in categoria.lower())
     tags.extend("#" + _slug_hashtag(e) for e in (extra or []))
 
     vistos, salida = set(), []
     for t in tags:
         clave = t.lower()
-        if len(t) > 4 and clave not in vistos:
+        if len(t) > 1 and clave not in vistos:
             vistos.add(clave)
             salida.append(t)
     return " ".join(salida[:limite])

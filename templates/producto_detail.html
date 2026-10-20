@@ -5,6 +5,7 @@
     <div class="btn-group">
         <a href="/productos/{{ p.id }}/editar" class="btn btn-primary">✏️ Editar</a>
         <a href="/precios/producto/{{ p.id }}" class="btn btn-outline">💰 Calcular precio</a>
+        <a href="/productos/{{ p.id }}/reel" target="_blank" class="btn btn-outline">🎬 Ver Reel</a>
         <form method="POST" action="/productos/{{ p.id }}/eliminar" style="display:inline;" onsubmit="return confirm('¿Eliminar {{ p.nombre }}?')">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <button type="submit" class="btn btn-danger">🗑️ Eliminar</button>

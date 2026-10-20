@@ -64,3 +64,13 @@ def test_caption_telegram_tiene_link_y_sin_envio_gratis():
     assert "Comprar por WhatsApp" in caption
     assert "/tienda/7" in caption
     assert "33.750" in caption
+
+
+def test_hashtags_incluyen_locales_y_marca():
+    tags = marketing.hashtags_producto(
+        {"nombre": "Perfume Árabe Lattafa Yara Moi 100 ml", "categoria": "Perfumes"}
+    )
+    assert "#caba" in tags
+    assert "#gba" in tags
+    assert "#lattafa" in tags
+    assert "#perfumesarabes" in tags

@@ -44,6 +44,7 @@ import importar_whatsapp
 import integraciones as itgr
 import notificaciones
 import precios as pcalc
+import reels
 from tienda import tienda
 
 BASE_DIR = os.path.dirname(__file__)
@@ -670,6 +671,20 @@ def productos_editar(id):
         logging.error("Error en productos_editar(%s): %s", id, traceback.format_exc())
         flash(f"Error inesperado: {e}", "error")
         return redirect(url_for("productos_listar"))
+
+
+@app.route("/productos/<int:id>/reel")
+@login_required
+def producto_reel(id):
+    p = db.get_producto(id)
+    if not p:
+        abort(404)
+    base_url = config.get("PUBLIC_URL") or request.host_url.rstrip("/")
+    ok, resultado = reels.generar_reel(p, base_url)
+    if not ok:
+        flash(f"🎬 No se pudo generar el reel: {resultado}", "error")
+        return redirect(url_for("productos_detalle", id=id))
+    return redirect(resultado)
 
 
 @app.route("/productos/<int:id>/eliminar", methods=["POST"])

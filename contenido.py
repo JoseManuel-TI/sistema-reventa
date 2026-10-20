@@ -551,8 +551,8 @@ def publicar_pendientes(base_url="http://localhost:5000", limite=None, incluir_a
 def productos_sin_instagram(limite=10):
     """Productos publicados que no tienen un posteo exitoso en Instagram.
 
-    Un posteo exitoso guarda en `contenido_log` el media_id (numérico); los
-    errores guardan texto. Por eso se distinguen con GLOB.
+    Un posteo exitoso guarda en `contenido_log` el media_id numérico (foto) o
+    `reel:<id>` (video); los errores guardan texto. Por eso se distinguen con GLOB.
     """
     _init_db()
     conn = _get_conn()
@@ -563,7 +563,8 @@ def productos_sin_instagram(limite=10):
             "WHERE p.estado='publicado' "
             "AND p.producto_id NOT IN ("
             "  SELECT producto_id FROM contenido_log "
-            "  WHERE canal='instagram' AND resultado GLOB '[0-9]*'"
+            "  WHERE canal='instagram' "
+            "  AND (resultado GLOB '[0-9]*' OR resultado GLOB 'reel:[0-9]*')"
             ") "
             "GROUP BY p.producto_id "
             "ORDER BY cuando DESC LIMIT ?",
@@ -698,8 +699,12 @@ def diagnostico_comercial():
 
 
 def rutina_diaria(base_url="https://clickya.net", dias_programados=7):
-    """Rutina diaria: rellena calendario, publica pendientes y emite resumen."""
-    nuevas = programar_automatico(dias=dias_programados)
+    """Rutina diaria: rellena calendario (2/día), publica 1 y emite resumen.
+
+    Se ejecuta dos veces al día (12:00 y 20:00 ART): cada corrida publica una,
+    dejando 2 publicaciones diarias en total.
+    """
+    nuevas = programar_dos_diarias(dias=dias_programados)
     publicados = publicar_pendientes(base_url=base_url, limite=1, incluir_atrasadas=False)
     pubs = listar_publicaciones(limit=100)
     pendientes = sum(1 for p in pubs if p["estado"] == "pendiente")
