@@ -26,7 +26,7 @@ REELS_DIR = os.path.join(IMAGENES_DIR, "reels")
 
 ANCHO, ALTO = 1080, 1920
 DURACION = 8
-_VERSION_FRAME = "2"
+_VERSION_FRAME = "3"
 
 _NO_DIBUJABLES = re.compile(r"[^\x20-\x7E\xA0-\xFF\u2010-\u203A\u20AC\u00A3\u00A5\u20BF]+")
 
@@ -37,12 +37,14 @@ def _limpiar_texto(texto):
     return " ".join(limpio.split())
 
 _FUENTES_BOLD = [
+    os.path.join(BASE_DIR, "fonts", "DejaVuSans-Bold.ttf"),
     "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
     "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
     "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
     "/System/Library/Fonts/Helvetica.ttc",
 ]
 _FUENTES_REG = [
+    os.path.join(BASE_DIR, "fonts", "DejaVuSans.ttf"),
     "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
     "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
     "/System/Library/Fonts/Supplemental/Arial.ttf",
