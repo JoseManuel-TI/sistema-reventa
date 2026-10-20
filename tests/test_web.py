@@ -559,3 +559,11 @@ def test_comisiones_dashboard_y_afiliados(client):
     assert "Comisiones por mes" in html
     assert "7.50" in html
     assert "US$ 7.50" in client.get("/dashboard").data.decode()
+
+
+def test_manual_instagram_usa_url_corta_valida(client):
+    pid = crear_producto()
+    _login(client)
+    html = client.get(f"/contenido/manual/{pid}").data.decode()
+    assert f"/tienda/{pid}" in html
+    assert "/tienda/producto/" not in html

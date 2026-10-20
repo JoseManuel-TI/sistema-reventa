@@ -1002,7 +1002,7 @@ def contenido_manual(id):
     imgs = db.get_imagenes(id)
     p["imagen_principal"] = imgs[0]["archivo"] if imgs else None
     base_url = (config.get("PUBLIC_URL") or request.host_url.rstrip("/")).rstrip("/")
-    tienda_url = f"{base_url}/tienda/producto/{id}"
+    tienda_url = f"{base_url}/tienda/{id}"
     share_url = "https://www.facebook.com/sharer/sharer.php?u=" + urllib.parse.quote(tienda_url, safe="")
     return render_template(
         "contenido_manual.html",
