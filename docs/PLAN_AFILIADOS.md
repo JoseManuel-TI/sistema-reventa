@@ -158,3 +158,29 @@ Implementación:
 4. ¿Arrancamos con 3 selecciones? Propuesta: “Setup gamer”, “Casa inteligente”, “Cursos para emprender”.
 5. ¿Mantenemos un solo dominio? (recomendado: sí).
 6. ¿Querés “Mi lista” o alcanza con selecciones?
+
+## 11. Anexo: de dónde sacar cada dato (implementado 20/10)
+
+Estado: **Fase 0, 2 y 3 implementadas** (commit `0404ffc`). Fase 1 (landings propias) no.
+
+### Tag de Amazon (Associates)
+1. Amazon Associates → **SiteStripe** en la barra superior de cualquier producto.
+2. Clic en **“Get Link”** → pestaña **“Full Link”** (no el corto `amzn.to`).
+3. El link trae `?tag=clickya-20` (tu tag). Copiarlo completo.
+4. Pegarlo en el producto como `link_afiliado`/`external_url`.
+5. Opcional: cargar `AMAZON_TAG` en Railway; el sistema agrega el tag si falta.
+6. La atribución por ubicación viaja en `ascsubtag` (`clickya_web_card_42`, `clickya_tg_42`, etc.).
+7. **Comisiones**: Associates → *Reports* → *Commission Income* (mensual) → **Download CSV**.
+   Impacto ~60 días; cargar el neto en `/contenido/afiliados`.
+
+### Hotmart
+1. No hay “ID de afiliado” aparte: el **HotLink** (`https://go.hotmart.com/A…`) ya identifica.
+2. Hotmart → **Mercado** → buscar producto → **“Afiliarse”** → copiar **“Link de afiliado”**.
+3. Pegarlo en el producto con plataforma `hotmart` y tipo `afiliado_digital`.
+4. El sistema agrega `?src=clickya_<ubicacion>_<id>` para atribución.
+5. **Comisiones**: Hotmart → *Ventas* → **“Informe de comisiones”** → exportar CSV (USD).
+   Cargar bruto/fees/neto por mes en `/contenido/afiliados`.
+
+### Selecciones
+No requieren datos externos: se arman en `/selecciones` con productos ya cargados
+y quedan públicas en `/coleccion/<slug>` (también aparecen en `/bio`).
