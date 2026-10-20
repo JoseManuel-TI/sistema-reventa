@@ -357,12 +357,17 @@ def dashboard():
         precio = p.get("precio_venta") or 0
         if p.get("publicar"):
             publicados += 1
+        externo = bool(p.get("es_afiliado")) or itgr.es_externo(p.get("tipo_producto"))
+        if externo:
+            continue
         if stock <= 3:
             stock_bajo += 1
         if not precio:
             sin_precio += 1
         inversion_total += (p.get("costo") or 0) * stock
         venta_potencial += precio * stock
+
+    clicks_af = db.get_clicks_afiliados_resumen()
 
     activos = ("pendiente", "confirmado", "comprado", "pagado")
     pedidos_activos = sum(1 for x in pedidos if x.get("estado") in activos)
@@ -404,6 +409,9 @@ def dashboard():
         "inversion_total": inversion_total,
         "venta_potencial": venta_potencial,
         "ganancia_estimada": max(0, venta_potencial - inversion_total),
+        "clicks_afiliados_7d": clicks_af.get("ultimos_7_dias") or 0,
+        "clicks_afiliados_hoy": clicks_af.get("hoy") or 0,
+        "clicks_afiliados_total": clicks_af.get("total") or 0,
     }
     return render_template(
         "dashboard.html",

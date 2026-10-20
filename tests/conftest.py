@@ -49,7 +49,7 @@ def _clean_db():
     db.init_db()
     conn = db.get_connection()
     try:
-        for tabla in ("pedido_items", "pedidos", "imagenes", "productos", "proveedores", "categorias"):
+        for tabla in ("clicks_afiliados", "pedido_items", "pedidos", "imagenes", "productos", "proveedores", "categorias"):
             conn.execute(db._sql(f"DELETE FROM {tabla}"))
         conn.commit()
     finally:

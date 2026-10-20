@@ -409,3 +409,31 @@ def test_dashboard_muestra_invertido_en_stock(client):
     assert b"$ 7.500" in r.data
     assert b"Invertido en stock" in r.data
     assert b"$ 3.000" in r.data
+
+
+def _stat(client, label):
+    import re
+
+    html = client.get("/dashboard").data.decode()
+    m = re.search(
+        r'<div class="label">' + re.escape(label) + r'</div>\s*<div class="value[^"]*">([^<]+)</div>',
+        html,
+    )
+    return m.group(1).strip() if m else None
+
+
+def test_dashboard_excluye_afiliados_y_muestra_clics(client):
+    from helpers import crear_proveedor
+
+    import db
+
+    pid = db.add_producto(
+        "Curso afiliado", "", crear_proveedor("Afiliados Amazon"), 0, "Cursos", stock=1,
+        es_afiliado=1, link_afiliado="https://amzn.to/x", tipo_producto="amazon_affiliate",
+    )
+    db.registrar_click_afiliado(pid, "amazon", "https://amzn.to/x")
+    _login(client)
+
+    assert _stat(client, "Sin precio asignado") == "0"
+    assert _stat(client, "Stock bajo (≤ 3)") == "0"
+    assert _stat(client, "Clics afiliados (7 días)") == "1"

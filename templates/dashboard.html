@@ -29,6 +29,10 @@
         <div class="label">Pedidos activos</div>
         <div class="value blue">{{ stats.pedidos_activos }}</div>
     </div>
+    <div class="stat-card" title="Hoy: {{ stats.clicks_afiliados_hoy }} · Total: {{ stats.clicks_afiliados_total }}">
+        <div class="label">Clics afiliados (7 días)</div>
+        <div class="value blue">{{ stats.clicks_afiliados_7d }}</div>
+    </div>
     <div class="stat-card">
         <div class="label">Ventas del mes</div>
         <div class="value green">$ {{ stats.ventas_mes|fmt_pesos }}</div>
