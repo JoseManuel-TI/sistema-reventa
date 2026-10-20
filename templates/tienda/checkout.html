@@ -133,7 +133,7 @@
 (function () {
     var SUBTOTAL = {{ total }};
     function fmt(v) {
-        return '$ ' + v.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        return '$ ' + v.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
     }
     var zonas = document.querySelectorAll('input[name="zona_envio"]');
     var envioEl = document.getElementById('envio-valor');

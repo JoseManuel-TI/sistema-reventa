@@ -46,7 +46,7 @@ def test_caption_instagram_no_dice_envio_gratis():
     caption = instagram_api.construir_caption(_producto())
     assert "Envío gratis" not in caption
     assert marketing.ENVIO_TEXTO in caption
-    assert "33.750,00" in caption
+    assert "33.750" in caption
     assert "Resistente al agua" in caption
     assert "link de la bio" in caption
     assert "#clickya" in caption
@@ -63,4 +63,4 @@ def test_caption_telegram_tiene_link_y_sin_envio_gratis():
     assert "Envío gratis" not in caption
     assert "Comprar por WhatsApp" in caption
     assert "/tienda/7" in caption
-    assert "33.750,00" in caption
+    assert "33.750" in caption

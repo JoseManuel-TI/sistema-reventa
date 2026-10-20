@@ -115,7 +115,7 @@ def construir_caption(producto):
     nombre = producto["nombre"]
     pv = producto.get("precio_venta") or 0
     if pv:
-        precio = "$ " + f"{pv:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+        precio = "$ " + f"{pv:,.0f}".replace(",", ".")
         linea_precio = f"💰 Precio: {precio}"
     else:
         linea_precio = "💰 Precio: consultanos por DM"

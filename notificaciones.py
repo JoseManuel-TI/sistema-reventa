@@ -97,9 +97,9 @@ def _enviar_documento(token, cuerpo, boundary):
 
 def _fmt_pesos(valor):
     try:
-        return f"$ {float(valor):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+        return f"$ {float(valor):,.0f}".replace(",", ".")
     except (TypeError, ValueError):
-        return "$ 0,00"
+        return "$ 0"
 
 
 def pedido_nuevo(pedido, items):

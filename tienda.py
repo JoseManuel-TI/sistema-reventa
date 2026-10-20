@@ -454,7 +454,7 @@ def producto_badge(p):
 def _pesos(val):
     if val is None:
         return "-"
-    return f"$ {val:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    return f"$ {val:,.0f}".replace(",", ".")
 
 
 def _productos_con_imagen(productos):

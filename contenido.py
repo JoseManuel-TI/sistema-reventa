@@ -116,7 +116,7 @@ def generar_caption(producto):
         return caption
 
     pv = producto.get("precio_venta") or 0
-    precio = f"$ {pv:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    precio = f"$ {pv:,.0f}".replace(",", ".")
     wa = config.whatsapp()
     wa_link = f"{wa}?text=Hola%2C+quiero+{nombre.replace(' ', '%20')}"
     public_url = (config.get("PUBLIC_URL") or "https://clickya.net").rstrip("/")

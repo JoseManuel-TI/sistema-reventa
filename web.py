@@ -207,7 +207,7 @@ def _ruta(actual=""):
 def _formatear_pesos(valor):
     if valor is None or valor == 0:
         return "-"
-    return f"$ {valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    return f"$ {valor:,.0f}".replace(",", ".")
 
 
 def _guardar_imagen_producto(producto_id, nombre_producto, proveedor_id, imagen):
@@ -297,7 +297,7 @@ def _categorias_form(producto_categoria=None):
 def _fmt_pesos(valor):
     if valor is None or valor == 0:
         return "-"
-    return f"{valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    return f"{valor:,.0f}".replace(",", ".")
 
 def _fmt_num(valor):
     if valor is None:

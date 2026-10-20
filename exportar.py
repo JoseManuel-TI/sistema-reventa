@@ -92,7 +92,7 @@ def exportar_catalogo_html(productos, nombre_archivo=None):
     for p in productos:
         img = p.get("imagen_principal") or ""
         pv = p.get("precio_venta")
-        precio = f"$ {pv:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".") if pv else "Consultar"
+        precio = f"$ {pv:,.0f}".replace(",", ".") if pv else "Consultar"
         tarjetas += f"""
         <div class="card">
             {"<img src='{}' alt='{}'>".format(img, p["nombre"]) if img else "<div class='sin-imagen'>Sin imagen</div>"}
@@ -195,7 +195,7 @@ def exportar_instagram_html(productos, nombre_archivo=None, base_url="https://cl
             cta_clase = "cta amazon"
         else:
             pv = p.get("precio_venta")
-            precio = f"$ {pv:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".") if pv else "Consultar"
+            precio = f"$ {pv:,.0f}".replace(",", ".") if pv else "Consultar"
             cta_label = "Comprar por WhatsApp"
             cta_link = f"{wa_link}?text=Hola%2C+quiero+{p['nombre'].replace(' ', '%20')}"
             _cta_wa = wa_link
