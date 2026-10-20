@@ -396,3 +396,14 @@ def test_pedidos_filtro_cancelado(client):
     assert r.status_code == 200
     assert f'/{cancelado}"'.encode() in r.data
     assert f'/{atendido}"'.encode() not in r.data
+
+
+def test_dashboard_muestra_invertido_en_stock(client):
+    crear_producto(nombre="Inv", stock=3, precio=2500, costo=1000)
+    _login(client)
+
+    r = client.get("/dashboard")
+
+    assert r.status_code == 200
+    assert b"Invertido en stock" in r.data
+    assert b"$ 3.000" in r.data
