@@ -37,9 +37,13 @@
         <div class="label">A cobrar (contra entrega)</div>
         <div class="value orange">$ {{ stats.a_cobrar|fmt_pesos }}</div>
     </div>
+    <div class="stat-card" title="Precio de venta × stock actual">
+        <div class="label">Venta potencial del stock</div>
+        <div class="value blue">$ {{ stats.venta_potencial|fmt_pesos }}</div>
+    </div>
     <div class="stat-card" title="Costo de compra × stock actual">
         <div class="label">Invertido en stock</div>
-        <div class="value blue">$ {{ stats.inversion_total|fmt_pesos }}</div>
+        <div class="value orange">$ {{ stats.inversion_total|fmt_pesos }}</div>
     </div>
     <div class="stat-card">
         <div class="label">Ganancia estimada</div>

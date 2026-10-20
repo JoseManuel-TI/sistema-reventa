@@ -405,5 +405,7 @@ def test_dashboard_muestra_invertido_en_stock(client):
     r = client.get("/dashboard")
 
     assert r.status_code == 200
+    assert b"Venta potencial del stock" in r.data
+    assert b"$ 7.500" in r.data
     assert b"Invertido en stock" in r.data
     assert b"$ 3.000" in r.data
