@@ -1225,6 +1225,16 @@ def contenido_rutina_diaria():
     return redirect(url_for("contenido_calendario"))
 
 
+@app.route("/contenido/publicacion/<int:id>/cancelar", methods=["POST"])
+@login_required
+def contenido_cancelar_publicacion(id):
+    if cnt.cancelar_publicacion(id):
+        flash("Publicación cancelada.", "success")
+    else:
+        flash("No hay una publicación pendiente con ese ID.", "error")
+    return redirect(url_for("contenido_calendario"))
+
+
 @app.route("/contenido/reprogramar-atrasadas", methods=["POST"])
 @login_required
 def contenido_reprogramar_atrasadas():

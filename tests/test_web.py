@@ -567,3 +567,16 @@ def test_manual_instagram_usa_url_corta_valida(client):
     html = client.get(f"/contenido/manual/{pid}").data.decode()
     assert f"/tienda/{pid}" in html
     assert "/tienda/producto/" not in html
+
+
+def test_cancelar_publicacion_puntual(client):
+    import contenido as cnt
+
+    pid = crear_producto()
+    pub_id = cnt.programar_publicacion(pid, "2030-01-01 12:00:00")
+    _login(client)
+
+    r = client.post(f"/contenido/publicacion/{pub_id}/cancelar", data={"csrf_token": _csrf(client)})
+    assert r.status_code == 302
+    pub = next(p for p in cnt.listar_publicaciones(50) if p["id"] == pub_id)
+    assert pub["estado"] == "cancelado"

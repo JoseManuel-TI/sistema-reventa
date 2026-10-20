@@ -350,6 +350,21 @@ def registrar_publicacion_manual(producto_id, caption=None, resultado="OK manual
         conn.close()
 
 
+def cancelar_publicacion(pub_id):
+    """Cancela una publicación puntual que todavía está pendiente."""
+    _init_db()
+    conn = _get_conn()
+    try:
+        cur = conn.execute(
+            "UPDATE publicaciones SET estado='cancelado' WHERE id=? AND estado='pendiente'",
+            (pub_id,),
+        )
+        conn.commit()
+        return cur.rowcount > 0
+    finally:
+        conn.close()
+
+
 def cancelar_atrasadas():
     """Cancela pendientes anteriores a hoy para evitar backlog obsoleto."""
     _init_db()

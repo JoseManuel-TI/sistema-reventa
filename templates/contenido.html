@@ -127,6 +127,11 @@ fetch('/api/instagram-status').then(r=>r.json()).then(d=>{
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
           <button type="submit" class="btn btn-sm" style="background:#25D366;color:#fff;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;">Publicar ahora</button>
         </form>
+        <form action="/contenido/publicacion/{{ pub.id }}/cancelar" method="POST" style="display:inline;"
+              onsubmit="return confirm('¿Cancelar esta publicación programada?');">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button type="submit" class="btn btn-sm btn-danger" style="padding:4px 10px;">Cancelar</button>
+        </form>
         {% endif %}
       </td>
     </tr>
