@@ -1,4 +1,5 @@
 {% extends "tienda/layout.html" %}
+{% from "tienda/_aviso.html" import aviso_afiliado with context %}
 {% set og_title = store_name ~ ' · Enlaces' %}
 {% set og_desc = 'Recomendaciones y tecnología con envío a Argentina.' %}
 {% block body_class %}bio-page{% endblock %}
@@ -12,11 +13,27 @@
         <p class="bio-bio">Recomendaciones y tecnología con envío a Argentina.</p>
     </div>
 
+    {% if selecciones %}
+    <div class="bio-secciones">
+        <h2 class="bio-secciones-title">Selecciones</h2>
+        {% for s in selecciones %}
+        <a href="/coleccion/{{ s.slug }}" class="bio-seccion">
+            <span class="bio-seccion-icon">🧩</span>
+            <span class="bio-seccion-body">
+                <strong>{{ s.titulo }}</strong>
+                <small>{{ s.productos|length }} productos{% if s.descripcion %} · {{ s.descripcion[:70] }}{% endif %}</small>
+            </span>
+            <span class="bio-seccion-arrow">→</span>
+        </a>
+        {% endfor %}
+    </div>
+    {% endif %}
+
     {% if destacados %}
     <ul class="bio-list">
         {% for p in destacados %}
-        {% set cta = cta_producto(p) %}
-        {% set badge = 'Amazon' if cta.externo else (producto_badge(p) or 'Recomendado') %}
+        {% set cta = cta_producto(p, 'bio') %}
+        {% set badge = ('Hotmart' if cta.plataforma == 'hotmart' else 'Amazon') if cta.externo else (producto_badge(p) or 'Recomendado') %}
         <li class="bio-item">
             {% if p.imagen %}
             <img class="bio-thumb" src="/{{ p.imagen }}" alt="{{ p.nombre }}" loading="lazy">
@@ -27,9 +44,9 @@
                 <h3 class="bio-item-title">{{ p.nombre[:60] }}</h3>
                 <span class="bio-item-badge {{ 'amazon' if badge == 'Amazon' else '' }}">{{ badge }}</span>
             </div>
-            <a href="{{ cta.url }}" class="bio-item-btn"
-               {% if cta.externo %}target="_blank" rel="noopener noreferrer"{% endif %}>
-                {{ 'Ver en Amazon' if badge == 'Amazon' else cta.label }} ↗
+            <a href="{{ url_para(p, 'bio') if cta.externo else cta.url }}" class="bio-item-btn"
+               {% if cta.externo %}target="_blank" rel="sponsored nofollow noopener" data-afiliado="1" data-producto="{{ p.id }}" data-src="bio"{% endif %}>
+                {{ cta.label }} ↗
             </a>
         </li>
         {% endfor %}
@@ -37,6 +54,8 @@
     {% endif %}
 
     <a href="{{ url_for('tienda.catalogo') }}" class="bio-all">Ver catálogo completo →</a>
+
+    <p class="afiliado-aviso bio-aviso">Enlaces de afiliado: podemos recibir una comisión sin costo extra para vos. Amazon, Hotmart y el resto de las plataformas venden y entregan sus productos.</p>
 
     <div class="bio-social">
         <a class="social-link" href="{{ wa_link }}" target="_blank" rel="noopener noreferrer" aria-label="WhatsApp">💬</a>

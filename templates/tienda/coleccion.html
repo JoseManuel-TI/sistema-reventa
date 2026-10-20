@@ -1,0 +1,32 @@
+{% extends "tienda/layout.html" %}
+{% from "tienda/_card.html" import product_card with context %}
+{% set og_title = sel.titulo ~ ' · ' ~ store_name %}
+{% set og_desc = sel.descripcion or 'Selección de productos recomendados por ClickYa.' %}
+{% block content %}
+<section class="hero">
+    <div class="hero-icon">🧩</div>
+    <h1>{{ sel.titulo }}</h1>
+    {% if sel.descripcion %}<p>{{ sel.descripcion }}</p>{% endif %}
+    <span class="hero-cta">{{ productos|length }} productos en esta selección</span>
+</section>
+
+{% if not productos %}
+<div class="empty">
+    <div class="big">🛒</div>
+    <p>Esta selección todavía no tiene productos.</p>
+    <a href="{{ url_for('tienda.catalogo') }}" class="btn-primary">Ver todos los productos</a>
+</div>
+{% else %}
+<div class="product-grid">
+    {% for p in productos %}
+    {{ product_card(p) }}
+    {% endfor %}
+</div>
+{% endif %}
+
+<p class="afiliado-aviso" style="text-align:center;max-width:620px;margin:22px auto 0;">
+    Algunos enlaces son de afiliado: podemos recibir una comisión sin costo extra para vos.
+    La compra, el pago y la garantía de esos productos los gestiona la plataforma
+    (Amazon, Hotmart o la que se indique).
+</p>
+{% endblock %}

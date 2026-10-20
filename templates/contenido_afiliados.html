@@ -28,6 +28,119 @@
 </div>
 
 <div class="card">
+    <div class="card-header">Comisiones por mes</div>
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr><th>Mes</th><th>Moneda</th><th>Bruto</th><th>Fees</th><th>Neto</th></tr>
+            </thead>
+            <tbody>
+                {% for c in comisiones_mes %}
+                <tr>
+                    <td><strong>{{ c.mes }}</strong></td>
+                    <td>{{ c.moneda }}</td>
+                    <td>{{ '%.2f'|format(c.bruto or 0) }}</td>
+                    <td>{{ '%.2f'|format(c.fees or 0) }}</td>
+                    <td><strong>{{ '%.2f'|format(c.neto or 0) }}</strong></td>
+                </tr>
+                {% endfor %}
+                {% if not comisiones_mes %}
+                <tr><td colspan="5" style="text-align:center;color:#94a3b8;padding:20px;">Sin comisiones cargadas.</td></tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+    <form method="POST" class="form-grid" style="margin-top:16px;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <input type="hidden" name="accion" value="comision">
+        <div class="form-group">
+            <label>Mes</label>
+            <input type="month" name="mes" required>
+        </div>
+        <div class="form-group">
+            <label>Plataforma</label>
+            <select name="plataforma">
+                <option value="amazon">Amazon</option>
+                <option value="hotmart">Hotmart</option>
+                <option value="aliexpress">AliExpress</option>
+                <option value="mercadolibre">Mercado Libre</option>
+                <option value="otro">Otra</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>Bruto</label>
+            <input type="number" name="bruto" step="0.01" min="0" required>
+        </div>
+        <div class="form-group">
+            <label>Fees</label>
+            <input type="number" name="fees" step="0.01" min="0" value="0">
+        </div>
+        <div class="form-group">
+            <label>Moneda</label>
+            <select name="moneda">
+                <option value="USD">USD</option>
+                <option value="ARS">ARS</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>Nota</label>
+            <input type="text" name="nota" placeholder="Reporte Amazon, Hotmart, etc.">
+        </div>
+        <div class="form-group" style="align-self:end;">
+            <button type="submit" class="btn btn-primary">Registrar comisión</button>
+        </div>
+    </form>
+</div>
+
+{% if comisiones %}
+<div class="card">
+    <div class="card-header">Detalle de comisiones</div>
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr><th>Mes</th><th>Plataforma</th><th>Bruto</th><th>Fees</th><th>Neto</th><th>Nota</th><th></th></tr>
+            </thead>
+            <tbody>
+                {% for c in comisiones %}
+                <tr>
+                    <td>{{ c.mes }}</td>
+                    <td>{{ c.plataforma }}</td>
+                    <td>{{ '%.2f'|format(c.bruto or 0) }} {{ c.moneda }}</td>
+                    <td>{{ '%.2f'|format(c.fees or 0) }}</td>
+                    <td><strong>{{ '%.2f'|format(c.neto or 0) }}</strong></td>
+                    <td>{{ c.nota or '-' }}</td>
+                    <td>
+                        <form method="POST" style="display:inline;" onsubmit="return confirm('¿Eliminar esta comisión?');">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                            <input type="hidden" name="accion" value="eliminar_comision">
+                            <input type="hidden" name="comision_id" value="{{ c.id }}">
+                            <button type="submit" class="btn btn-danger btn-sm">Eliminar</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+<div class="card">
+    <div class="card-header">Clicks por ubicación (7 días)</div>
+    <table class="table">
+        <thead><tr><th>Origen</th><th>Clicks</th></tr></thead>
+        <tbody>
+            {% for o in origenes %}
+            <tr><td>{{ o.origen }}</td><td><strong>{{ o.clics }}</strong></td></tr>
+            {% endfor %}
+            {% if not origenes %}
+            <tr><td colspan="2" style="text-align:center;color:#94a3b8;padding:16px;">Sin clicks en 7 días.</td></tr>
+            {% endif %}
+        </tbody>
+    </table>
+</div>
+
+<div class="card">
     <div class="card-header">Ranking</div>
     {% if stats %}
     <table class="table">

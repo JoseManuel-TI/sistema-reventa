@@ -196,6 +196,25 @@ document.addEventListener('DOMContentLoaded', function() {
         if (inp.value && document.querySelector('.product-card')) buscarProductos();
     }
 });
+
+document.addEventListener('click', function(ev) {
+    var a = ev.target.closest ? ev.target.closest('a[data-afiliado]') : null;
+    if (!a) return;
+    var id = a.getAttribute('data-producto');
+    var src = a.getAttribute('data-src') || 'web';
+    if (!id) return;
+    var body = JSON.stringify({src: src});
+    try {
+        if (navigator.sendBeacon) {
+            navigator.sendBeacon('/api/click/' + id, new Blob([body], {type: 'application/json'}));
+        } else if (window.fetch) {
+            fetch('/api/click/' + id, {
+                method: 'POST', body: body, keepalive: true,
+                headers: {'Content-Type': 'application/json'}
+            });
+        }
+    } catch (e) { /* el link sigue andando */ }
+});
 </script>
 {% block body_extra %}{% endblock %}
 </body>

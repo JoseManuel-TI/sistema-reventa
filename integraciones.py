@@ -11,6 +11,8 @@ import urllib.parse
 import urllib.request
 from html.parser import HTMLParser
 
+import config
+
 USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
 
 TIPO_PRODUCTO_LABELS = {
@@ -213,6 +215,48 @@ def producto_url_externa(producto):
     """Devuelve la URL externa a usar (external_url o link_afiliado)."""
     url = (producto.get("external_url") or producto.get("link_afiliado") or "").strip()
     return url or None
+
+
+def _param(url, clave):
+    partes = urllib.parse.urlsplit(url)
+    for k, v in urllib.parse.parse_qsl(partes.query, keep_blank_values=True):
+        if k == clave:
+            return v
+    return ""
+
+
+def _con_param(url, clave, valor):
+    """Agrega (o reemplaza) un parámetro de query sin romper los existentes."""
+    partes = urllib.parse.urlsplit(url)
+    query = [(k, v) for k, v in urllib.parse.parse_qsl(partes.query, keep_blank_values=True) if k != clave]
+    query.append((clave, valor))
+    return urllib.parse.urlunsplit(partes._replace(query=urllib.parse.urlencode(query)))
+
+
+def url_afiliada(producto, ubicacion="web"):
+    """URL directa a la plataforma con el identificador de la ubicación.
+
+    Amazon exige enlaces directos (sin redirecciones propias) y acepta
+    `ascsubtag` para atribuir la ubicación. Hotmart usa `src`. El resto de
+    plataformas devuelve el link tal cual.
+    """
+    url = producto_url_externa(producto)
+    if not url:
+        return None
+    plataforma = producto.get("plataforma_afiliado") or detectar_plataforma(url)
+    etiqueta = f"clickya_{ubicacion}_{producto.get('id', '')}".replace(" ", "_")[:50]
+
+    if plataforma == "amazon":
+        if not _param(url, "tag"):
+            tag = config.get("AMAZON_TAG")
+            if tag:
+                url = _con_param(url, "tag", tag)
+        # Los enlaces cortos (amzn.to) no siempre respetan parámetros extra.
+        if "amzn.to" not in urllib.parse.urlsplit(url).netloc:
+            url = _con_param(url, "ascsubtag", etiqueta)
+    elif plataforma == "hotmart":
+        url = _con_param(url, "src", etiqueta)
+    return url
 
 
 if __name__ == "__main__":

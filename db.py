@@ -208,6 +208,32 @@ def init_db():
                     ip_hash TEXT DEFAULT '',
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )""",
+                """CREATE TABLE IF NOT EXISTS selecciones (
+                    id SERIAL PRIMARY KEY,
+                    slug TEXT NOT NULL UNIQUE,
+                    titulo TEXT NOT NULL,
+                    descripcion TEXT DEFAULT '',
+                    activo INTEGER DEFAULT 1,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )""",
+                """CREATE TABLE IF NOT EXISTS seleccion_items (
+                    id SERIAL PRIMARY KEY,
+                    seleccion_id INTEGER NOT NULL REFERENCES selecciones(id) ON DELETE CASCADE,
+                    producto_id INTEGER NOT NULL REFERENCES productos(id) ON DELETE CASCADE,
+                    posicion INTEGER DEFAULT 0,
+                    UNIQUE(seleccion_id, producto_id)
+                )""",
+                """CREATE TABLE IF NOT EXISTS comisiones_afiliados (
+                    id SERIAL PRIMARY KEY,
+                    mes TEXT NOT NULL,
+                    plataforma TEXT DEFAULT '',
+                    bruto DOUBLE PRECISION DEFAULT 0,
+                    fees DOUBLE PRECISION DEFAULT 0,
+                    neto DOUBLE PRECISION DEFAULT 0,
+                    moneda TEXT DEFAULT 'USD',
+                    nota TEXT DEFAULT '',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )""",
             ]:
                 conn.execute(ddl)
         else:
@@ -293,6 +319,32 @@ def init_db():
                     referer TEXT DEFAULT '',
                     user_agent TEXT DEFAULT '',
                     ip_hash TEXT DEFAULT '',
+                    created_at TEXT DEFAULT (datetime('now','localtime'))
+                );
+                CREATE TABLE IF NOT EXISTS selecciones (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    slug TEXT NOT NULL UNIQUE,
+                    titulo TEXT NOT NULL,
+                    descripcion TEXT,
+                    activo INTEGER DEFAULT 1,
+                    created_at TEXT DEFAULT (datetime('now','localtime'))
+                );
+                CREATE TABLE IF NOT EXISTS seleccion_items (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    seleccion_id INTEGER NOT NULL REFERENCES selecciones(id) ON DELETE CASCADE,
+                    producto_id INTEGER NOT NULL REFERENCES productos(id) ON DELETE CASCADE,
+                    posicion INTEGER DEFAULT 0,
+                    UNIQUE(seleccion_id, producto_id)
+                );
+                CREATE TABLE IF NOT EXISTS comisiones_afiliados (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    mes TEXT NOT NULL,
+                    plataforma TEXT DEFAULT '',
+                    bruto REAL DEFAULT 0,
+                    fees REAL DEFAULT 0,
+                    neto REAL DEFAULT 0,
+                    moneda TEXT DEFAULT 'USD',
+                    nota TEXT DEFAULT '',
                     created_at TEXT DEFAULT (datetime('now','localtime'))
                 );
             """)
@@ -722,6 +774,182 @@ def get_clicks_afiliados_resumen():
             "ultimos_7_dias": row["ultimos_7_dias"] or 0,
             "productos_con_clicks": row["productos_con_clicks"] or 0,
         }
+    finally:
+        conn.close()
+
+
+# ─── Selecciones (colecciones curadas de afiliados) ───────────────
+
+def get_selecciones(activo_only=False):
+    conn = get_connection()
+    try:
+        q = ("SELECT s.*, (SELECT COUNT(*) FROM seleccion_items i WHERE i.seleccion_id = s.id) AS cantidad "
+             "FROM selecciones s")
+        if activo_only:
+            q += " WHERE s.activo = 1"
+        q += " ORDER BY s.id DESC"
+        rows = conn.execute(_sql(q)).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+def get_seleccion(seleccion_id):
+    conn = get_connection()
+    try:
+        row = conn.execute(
+            _sql("SELECT * FROM selecciones WHERE id = ?"), (seleccion_id,)
+        ).fetchone()
+        return dict(row) if row else None
+    finally:
+        conn.close()
+
+
+def get_seleccion_por_slug(slug):
+    conn = get_connection()
+    try:
+        row = conn.execute(
+            _sql("SELECT * FROM selecciones WHERE slug = ? AND activo = 1"), (slug,)
+        ).fetchone()
+        return dict(row) if row else None
+    finally:
+        conn.close()
+
+
+def add_seleccion(slug, titulo, descripcion="", activo=1):
+    conn = get_connection()
+    try:
+        sid = _insert_and_get_id(
+            conn,
+            "INSERT INTO selecciones (slug, titulo, descripcion, activo) VALUES (?, ?, ?, ?)",
+            (slug, titulo, descripcion, activo),
+        )
+        conn.commit()
+        return sid
+    finally:
+        conn.close()
+
+
+def update_seleccion(seleccion_id, slug, titulo, descripcion="", activo=1):
+    conn = get_connection()
+    try:
+        conn.execute(
+            _sql("UPDATE selecciones SET slug = ?, titulo = ?, descripcion = ?, activo = ? WHERE id = ?"),
+            (slug, titulo, descripcion, activo, seleccion_id),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def delete_seleccion(seleccion_id):
+    conn = get_connection()
+    try:
+        conn.execute(_sql("DELETE FROM selecciones WHERE id = ?"), (seleccion_id,))
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def set_seleccion_items(seleccion_id, producto_ids):
+    """Reemplaza los items de una selección respetando el orden recibido."""
+    conn = get_connection()
+    try:
+        conn.execute(_sql("DELETE FROM seleccion_items WHERE seleccion_id = ?"), (seleccion_id,))
+        for pos, pid in enumerate(producto_ids):
+            conn.execute(
+                _sql("INSERT INTO seleccion_items (seleccion_id, producto_id, posicion) VALUES (?, ?, ?)"),
+                (seleccion_id, pid, pos),
+            )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def get_seleccion_items(seleccion_id):
+    conn = get_connection()
+    try:
+        rows = conn.execute(
+            _sql(
+                "SELECT p.*, i.posicion FROM seleccion_items i "
+                "JOIN productos p ON p.id = i.producto_id "
+                "WHERE i.seleccion_id = ? AND p.activo = 1 AND p.publicar = 1 "
+                "ORDER BY i.posicion, i.id"
+            ),
+            (seleccion_id,),
+        ).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+# ─── Comisiones de afiliados (carga manual) ────────────────────────
+
+def add_comision(mes, plataforma, bruto, fees=0, neto=None, moneda="USD", nota=""):
+    neto = (float(bruto) - float(fees)) if neto is None else float(neto)
+    conn = get_connection()
+    try:
+        cid = _insert_and_get_id(
+            conn,
+            "INSERT INTO comisiones_afiliados (mes, plataforma, bruto, fees, neto, moneda, nota) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (mes, plataforma, float(bruto), float(fees), neto, moneda, nota),
+        )
+        conn.commit()
+        return cid
+    finally:
+        conn.close()
+
+
+def delete_comision(comision_id):
+    conn = get_connection()
+    try:
+        conn.execute(_sql("DELETE FROM comisiones_afiliados WHERE id = ?"), (comision_id,))
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def get_comisiones(limite=24):
+    conn = get_connection()
+    try:
+        rows = conn.execute(
+            _sql("SELECT * FROM comisiones_afiliados ORDER BY mes DESC, id DESC LIMIT ?"),
+            (limite,),
+        ).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+def get_comisiones_por_mes(limite=12):
+    conn = get_connection()
+    try:
+        rows = conn.execute(
+            _sql(
+                "SELECT mes, moneda, SUM(bruto) AS bruto, SUM(fees) AS fees, SUM(neto) AS neto "
+                "FROM comisiones_afiliados GROUP BY mes, moneda ORDER BY mes DESC LIMIT ?"
+            ),
+            (limite,),
+        ).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+def get_clicks_afiliados_por_origen():
+    conn = get_connection()
+    try:
+        if USE_POSTGRES:
+            q = ("SELECT COALESCE(NULLIF(origen, ''), '(sin origen)') AS origen, COUNT(*) AS clics "
+                 "FROM clicks_afiliados WHERE created_at >= NOW() - INTERVAL '7 days' "
+                 "GROUP BY 1 ORDER BY clics DESC")
+        else:
+            q = ("SELECT COALESCE(NULLIF(origen, ''), '(sin origen)') AS origen, COUNT(*) AS clics "
+                 "FROM clicks_afiliados WHERE created_at >= datetime('now', '-7 days') "
+                 "GROUP BY 1 ORDER BY clics DESC")
+        rows = conn.execute(_sql(q)).fetchall()
+        return [dict(r) for r in rows]
     finally:
         conn.close()
 

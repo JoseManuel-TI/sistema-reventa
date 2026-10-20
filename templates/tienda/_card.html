@@ -1,11 +1,12 @@
+{% from "tienda/_aviso.html" import aviso_afiliado with context %}
 {% macro product_card(p) %}
 {% set badge = producto_badge(p) %}
-{% set cta = cta_producto(p) %}
+{% set cta = cta_producto(p, 'web_card_cta') %}
 <article class="product-card {% if p.stock == 0 and not cta.externo %}agotado{% endif %}"
          data-categoria="{{ (p.categoria or '')|lower }}"
          data-nombre="{{ p.nombre|lower }}">
-    <a href="{{ cta.url }}{% if cta.externo %}?src=card_media{% endif %}" class="card-media" aria-label="{{ p.nombre }}"
-       {% if cta.externo %}target="_blank" rel="sponsored nofollow noopener"{% endif %}>
+    <a href="{{ url_para(p, 'web_card_media') if cta.externo else cta.url }}" class="card-media" aria-label="{{ p.nombre }}"
+       {% if cta.externo %}target="_blank" rel="sponsored nofollow noopener" data-afiliado="1" data-producto="{{ p.id }}" data-src="web_card_media"{% endif %}>
         {% if badge %}
         {% set bclase = 'env' %}
         {% if badge == 'Top Ventas' %}{% set bclase = 'top' %}
@@ -21,7 +22,7 @@
         {% endif %}
     </a>
     <div class="card-body">
-        <h3 class="card-title"><a href="{{ cta.url }}{% if cta.externo %}?src=card_title{% endif %}" {% if cta.externo %}target="_blank" rel="sponsored nofollow noopener"{% endif %}>{{ p.nombre[:60] }}</a></h3>
+        <h3 class="card-title"><a href="{{ url_para(p, 'web_card_title') if cta.externo else cta.url }}" {% if cta.externo %}target="_blank" rel="sponsored nofollow noopener" data-afiliado="1" data-producto="{{ p.id }}" data-src="web_card_title"{% endif %}>{{ p.nombre[:60] }}</a></h3>
         {% if p.categoria and not cta.externo %}
         <span class="card-cat">{{ p.categoria }}</span>
         {% endif %}
@@ -33,12 +34,21 @@
         <div class="card-cta">
             {% if cta.externo %}
             <div class="offer-tags">
-                <span class="offer-tag">Oferta disponible</span>
-                <span class="offer-tag envio">Envío a Argentina</span>
+                {% if cta.plataforma == 'hotmart' %}
+                <span class="offer-tag">Acceso inmediato</span>
+                <span class="offer-tag envio">Pago con Mercado Pago</span>
+                {% elif cta.plataforma == 'amazon' %}
+                <span class="offer-tag">Precio en Amazon</span>
+                <span class="offer-tag envio">Envío según Amazon</span>
+                {% else %}
+                <span class="offer-tag">Oferta en {{ cta.plataforma|capitalize }}</span>
+                {% endif %}
             </div>
-            <a href="{{ cta.url }}?src=card_cta" target="_blank" rel="sponsored nofollow noopener" class="btn-cta amazon">
+            <a href="{{ url_para(p, 'web_card_cta') }}" target="_blank" rel="sponsored nofollow noopener"
+               class="btn-cta amazon" data-afiliado="1" data-producto="{{ p.id }}" data-src="web_card_cta">
                 <span class="kicker">{{ cta.kicker }}</span>{{ cta.label }} 🛒
             </a>
+            {{ aviso_afiliado(cta.plataforma, corto=True) }}
             {% else %}
             <div class="card-price"><span class="cur">$</span> {{ p.precio_venta|fmt_pesos }}</div>
             <a href="/tienda/{{ p.id }}" class="btn-cta primary">Ver producto</a>

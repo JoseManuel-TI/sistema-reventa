@@ -438,3 +438,19 @@ ul{list-style:none}
   .cart-footer{flex-direction:column;align-items:stretch}
   .cart-actions{flex-direction:column}
 }
+
+/* Divulgación de enlaces de afiliado */
+.afiliado-aviso{font-size:12px;line-height:1.45;color:#64748b;margin:10px 0 0}
+.afiliado-aviso.corto{font-size:10.5px;margin:6px 0 0;color:#94a3b8}
+.bio-aviso{text-align:center;margin:16px auto 0;max-width:520px;font-size:11.5px}
+
+/* Selecciones en bio */
+.bio-secciones{margin:0 0 14px;display:flex;flex-direction:column;gap:8px}
+.bio-secciones-title{font-size:12px;text-transform:uppercase;letter-spacing:1px;color:#94a3b8;text-align:center;margin:0 0 2px}
+.bio-seccion{display:flex;align-items:center;gap:11px;background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:12px 14px;text-decoration:none;color:#0f172a;box-shadow:0 1px 2px rgba(15,23,42,.05)}
+.bio-seccion:hover{border-color:#0ea5e9;box-shadow:0 4px 14px rgba(14,165,233,.15)}
+.bio-seccion-icon{font-size:20px}
+.bio-seccion-body{display:flex;flex-direction:column;min-width:0;flex:1}
+.bio-seccion-body strong{font-size:14px}
+.bio-seccion-body small{font-size:11.5px;color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bio-seccion-arrow{color:#0ea5e9;font-weight:800}

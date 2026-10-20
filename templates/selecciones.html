@@ -1,0 +1,70 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="page-header">
+    <h2>🧩 Selecciones</h2>
+</div>
+
+<div class="card" style="margin-bottom:20px;">
+    <h3 style="margin-top:0;">Nueva selección</h3>
+    <p style="color:#64748b;font-size:13px;">
+        Una selección es una página curada (ej: “Kit para viajar”, “Cursos de IA”) con productos
+        locales y de afiliados. Ideal para compartir en Instagram y la bio.
+    </p>
+    <form method="POST" class="form-grid">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <div class="form-group">
+            <label>Título</label>
+            <input type="text" name="titulo" placeholder="Kit para viajar" required>
+        </div>
+        <div class="form-group">
+            <label>Slug (URL)</label>
+            <input type="text" name="slug" placeholder="kit-para-viajar">
+        </div>
+        <div class="form-group" style="grid-column:1/-1;">
+            <label>Descripción</label>
+            <textarea name="descripcion" rows="2" placeholder="Los imprescindibles para tu próximo viaje."></textarea>
+        </div>
+        <div class="form-group">
+            <label><input type="checkbox" name="activo" checked> Publicada</label>
+        </div>
+        <div class="form-group" style="align-self:end;">
+            <button type="submit" class="btn btn-primary">Crear selección</button>
+        </div>
+    </form>
+</div>
+
+<div class="card">
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr><th>ID</th><th>Título</th><th>Slug</th><th>Estado</th><th>Productos</th><th></th></tr>
+            </thead>
+            <tbody>
+                {% for s in selecciones %}
+                <tr>
+                    <td>{{ s.id }}</td>
+                    <td><strong>{{ s.titulo }}</strong></td>
+                    <td><code>/coleccion/{{ s.slug }}</code></td>
+                    <td>
+                        {% if s.activo %}<span class="badge badge-stock">Publicada</span>
+                        {% else %}<span class="badge">Borrador</span>{% endif %}
+                    </td>
+                    <td>{{ s.cantidad|default('') }}</td>
+                    <td>
+                        <div class="btn-group">
+                            <a href="/selecciones/{{ s.id }}" class="btn btn-outline btn-sm">Editar</a>
+                            {% if s.activo %}
+                            <a href="/coleccion/{{ s.slug }}" target="_blank" class="btn btn-outline btn-sm">Ver</a>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+                {% if not selecciones %}
+                <tr><td colspan="6" style="text-align:center;padding:32px;color:#94a3b8;">Todavía no hay selecciones.</td></tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

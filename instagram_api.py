@@ -22,6 +22,7 @@ import urllib.request
 
 import config
 import db
+import integraciones as itgr
 import marketing
 import reels
 
@@ -168,23 +169,48 @@ def postear_reel(producto, caption, base_url):
         return False, str(e)
 
 
+def _es_externo(producto):
+    tipo = producto.get("tipo_producto")
+    return bool(producto.get("es_afiliado")) or tipo in ("amazon_affiliate", "afiliado_digital")
+
+
 def construir_caption(producto):
     """Arma el texto del posteo de Instagram (gancho, beneficios, CTA, hashtags)."""
     nombre = producto["nombre"]
-    pv = producto.get("precio_venta") or 0
-    if pv:
-        precio = "$ " + f"{pv:,.0f}".replace(",", ".")
-        linea_precio = f"💰 Precio: {precio}"
-    else:
-        linea_precio = "💰 Precio: consultanos por DM"
+    public_url = (config.get("PUBLIC_URL") or "https://clickya.net").rstrip("/")
+    bio_url = public_url.replace("https://", "")
 
     beneficios = marketing.lineas_beneficios(producto)
     bloque_benef = "".join(f"✅ {b}\n" for b in beneficios)
     if bloque_benef:
         bloque_benef += "\n"
 
-    public_url = (config.get("PUBLIC_URL") or "https://clickya.net").rstrip("/")
-    bio_url = public_url.replace("https://", "")
+    if _es_externo(producto):
+        url = itgr.producto_url_externa(producto) or ""
+        plataforma = producto.get("plataforma_afiliado") or itgr.detectar_plataforma(url)
+        destino = {
+            "hotmart": "Hotmart",
+            "aliexpress": "AliExpress",
+            "mercadolibre": "Mercado Libre",
+        }.get(plataforma, "Amazon")
+        return (
+            f"🛒 {nombre}\n\n"
+            f"{bloque_benef}"
+            f"👉 Disponible en {destino}\n"
+            f"🔗 Enlace en la bio ({bio_url}/bio)\n"
+            f"📲 o mandanos un DM «QUIERO»\n\n"
+            f"Enlace de afiliado: podemos recibir una comisión sin costo extra para vos.\n"
+            f"La compra y la garantía las gestiona {destino}.\n\n"
+            f".\n.\n.\n"
+            f"{marketing.hashtags_producto(producto)} #Publicidad"
+        )
+
+    pv = producto.get("precio_venta") or 0
+    if pv:
+        precio = "$ " + f"{pv:,.0f}".replace(",", ".")
+        linea_precio = f"💰 Precio: {precio}"
+    else:
+        linea_precio = "💰 Precio: consultanos por DM"
 
     return (
         f"🛒 {nombre}\n\n"

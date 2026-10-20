@@ -40,6 +40,8 @@ Gestión de tienda (tienen prioridad sobre `/configuracion`):
 - `META_PIXEL_ID=1834745577959538`, `GA_MEASUREMENT_ID=G-46K933MCRW`
 - `TELEGRAM_CHAT_ID=8888470402`
 - `PUBLIC_URL=https://clickya.net`
+- `AMAZON_TAG` (opcional): tag de Associates; se agrega a los links de Amazon que no lo tengan.
+  La atribución de ubicación va por `ascsubtag` (Amazon) y `src` (Hotmart), sin redirección propia.
 
 Secretos (no commitear):
 

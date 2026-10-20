@@ -74,3 +74,29 @@ def test_hashtags_incluyen_locales_y_marca():
     assert "#gba" in tags
     assert "#lattafa" in tags
     assert "#perfumesarabes" in tags
+
+
+def _afiliado(**extra):
+    base = _producto(
+        id=12, nombre="Samsung T7 SSD 1TB", precio_venta=0, tipo_producto="amazon_affiliate",
+        es_afiliado=1, external_url="https://www.amazon.com/dp/X", plataforma_afiliado="amazon",
+    )
+    base.update(extra)
+    return base
+
+
+def test_caption_instagram_afiliado_sin_precio_ni_stock_y_con_divulgacion():
+    caption = instagram_api.construir_caption(_afiliado())
+    assert "Precio: $" not in caption
+    assert "Stock disponible" not in caption
+    assert "Enlace de afiliado" in caption
+    assert "#Publicidad" in caption
+    assert "Amazon" in caption
+
+
+def test_caption_telegram_afiliado_link_directo_y_divulgacion():
+    caption = contenido.generar_caption(_afiliado())
+    assert "https://www.amazon.com/dp/X?ascsubtag=clickya_telegram_12" in caption
+    assert "Enlace de afiliado" in caption
+    assert "#Publicidad" in caption
+    assert "/out/" not in caption

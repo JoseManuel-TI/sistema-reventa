@@ -1,0 +1,8 @@
+{% macro aviso_afiliado(plataforma, corto=False) %}
+{% set nombre = 'Hotmart' if plataforma == 'hotmart' else ('AliExpress' if plataforma == 'aliexpress' else ('Mercado Libre' if plataforma == 'mercadolibre' else 'Amazon')) %}
+{% if corto %}
+<p class="afiliado-aviso corto">Enlace de afiliado · podemos recibir una comisión</p>
+{% else %}
+<p class="afiliado-aviso">🔗 Enlace de afiliado: podemos recibir una comisión sin costo extra para vos. La compra se completa en {{ nombre }}.</p>
+{% endif %}
+{% endmacro %}

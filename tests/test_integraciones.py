@@ -53,3 +53,26 @@ def test_fetch_metadata_bloquea_ssrf():
     r = itgr.fetch_metadata("http://127.0.0.1:8000")
     assert r["ok"] is False
     assert r.get("error") == "URL no permitida"
+
+
+def test_url_afiliada_amazon_agrega_ascsubtag_sin_romper_query():
+    p = {"id": 12, "external_url": "https://www.amazon.com/dp/X?ref_=abc", "plataforma_afiliado": "amazon"}
+    url = itgr.url_afiliada(p, "card_cta")
+    assert "https://www.amazon.com/dp/X?" in url
+    assert "ref_=abc" in url
+    assert "ascsubtag=clickya_card_cta_12" in url
+    assert url.count("?") == 1
+
+
+def test_url_afiliada_amazon_no_toca_amzn_to():
+    p = {"id": 3, "external_url": "https://amzn.to/xyz", "plataforma_afiliado": "amazon"}
+    assert itgr.url_afiliada(p, "bio") == "https://amzn.to/xyz"
+
+
+def test_url_afiliada_hotmart_usa_src():
+    p = {"id": 9, "external_url": "https://go.hotmart.com/A123", "plataforma_afiliado": "hotmart"}
+    assert itgr.url_afiliada(p, "telegram") == "https://go.hotmart.com/A123?src=clickya_telegram_9"
+
+
+def test_url_afiliada_sin_url_devuelve_none():
+    assert itgr.url_afiliada({"id": 1}, "web") is None

@@ -185,6 +185,9 @@ def _proteger_csrf():
     # Los endpoints de cron validan su propio `CRON_TOKEN` (headers/query), no sesión.
     if request.endpoint in ("contenido_cron", "backup_cron"):
         return
+    # Beacon de clicks afiliados: público, solo registra un click (no muta datos de negocio).
+    if request.endpoint == "tienda.api_click":
+        return
     enviado = request.form.get("csrf_token") or request.headers.get("X-CSRF-Token", "")
     esperado = session.get("_csrf_token", "")
     if enviado and esperado and hmac.compare_digest(enviado, esperado):
@@ -368,6 +371,11 @@ def dashboard():
         venta_potencial += precio * stock
 
     clicks_af = db.get_clicks_afiliados_resumen()
+    comisiones = db.get_comisiones_por_mes(limite=12)
+    comisiones_mes_usd = sum(
+        c["neto"] or 0 for c in comisiones if c.get("mes") == mes_actual and c.get("moneda") == "USD"
+    )
+    comisiones_12m_usd = sum(c["neto"] or 0 for c in comisiones if c.get("moneda") == "USD")
 
     activos = ("pendiente", "confirmado", "comprado", "pagado")
     pedidos_activos = sum(1 for x in pedidos if x.get("estado") in activos)
@@ -412,6 +420,8 @@ def dashboard():
         "clicks_afiliados_7d": clicks_af.get("ultimos_7_dias") or 0,
         "clicks_afiliados_hoy": clicks_af.get("hoy") or 0,
         "clicks_afiliados_total": clicks_af.get("total") or 0,
+        "comisiones_mes_usd": comisiones_mes_usd,
+        "comisiones_12m_usd": comisiones_12m_usd,
     }
     return render_template(
         "dashboard.html",
@@ -1004,10 +1014,37 @@ def contenido_manual(id):
     )
 
 
-@app.route("/contenido/afiliados")
+@app.route("/contenido/afiliados", methods=["GET", "POST"])
 @login_required
 def contenido_afiliados():
     db.init_db()
+    if request.method == "POST":
+        accion = request.form.get("accion", "")
+        if accion == "comision":
+            mes = (request.form.get("mes") or "").strip()
+            plataforma = (request.form.get("plataforma") or "amazon").strip()
+            try:
+                bruto = float(request.form.get("bruto") or 0)
+                fees = float(request.form.get("fees") or 0)
+            except ValueError:
+                bruto = fees = -1
+            if not re.fullmatch(r"\d{4}-\d{2}", mes) or bruto < 0 or fees < 0:
+                flash("Mes (AAAA-MM) y montos válidos son obligatorios.", "error")
+            else:
+                db.add_comision(
+                    mes, plataforma, bruto, fees,
+                    moneda=(request.form.get("moneda") or "USD").strip().upper(),
+                    nota=(request.form.get("nota") or "").strip(),
+                )
+                flash("✅ Comisión registrada.", "success")
+        elif accion == "eliminar_comision":
+            try:
+                db.delete_comision(int(request.form.get("comision_id") or 0))
+                flash("Comisión eliminada.", "success")
+            except (TypeError, ValueError):
+                flash("Comisión inválida.", "error")
+        return redirect(url_for("contenido_afiliados"))
+
     resumen = db.get_clicks_afiliados_resumen()
     stats = db.get_clicks_afiliados_stats(limit=50)
     productos = [
@@ -1026,8 +1063,95 @@ def contenido_afiliados():
         resumen=resumen,
         stats=stats,
         sin_clicks=sin_clicks,
+        origenes=db.get_clicks_afiliados_por_origen(),
+        comisiones=db.get_comisiones(),
+        comisiones_mes=db.get_comisiones_por_mes(),
         **_ruta("/contenido"),
     )
+
+
+def _slug(texto):
+    limpio = re.sub(r"[^a-z0-9]+", "-", (texto or "").lower().strip())
+    return limpio.strip("-")[:60]
+
+
+@app.route("/selecciones", methods=["GET", "POST"])
+@login_required
+def selecciones_lista():
+    if request.method == "POST":
+        titulo = (request.form.get("titulo") or "").strip()
+        slug = _slug(request.form.get("slug") or titulo)
+        descripcion = (request.form.get("descripcion") or "").strip()
+        existentes = {s["slug"] for s in db.get_selecciones()}
+        if not titulo or not slug:
+            flash("Título y slug son obligatorios.", "error")
+        elif slug in existentes:
+            flash("Ya existe una selección con ese slug.", "error")
+        else:
+            sid = db.add_seleccion(slug, titulo, descripcion, 1 if request.form.get("activo") else 0)
+            flash("✅ Selección creada. Ahora elegí los productos.", "success")
+            return redirect(url_for("seleccion_editar", id=sid))
+    return render_template(
+        "selecciones.html",
+        selecciones=db.get_selecciones(),
+        **_ruta("/selecciones"),
+    )
+
+
+@app.route("/selecciones/<int:id>", methods=["GET", "POST"])
+@login_required
+def seleccion_editar(id):
+    sel = db.get_seleccion(id)
+    if not sel:
+        abort(404)
+
+    if request.method == "POST":
+        titulo = (request.form.get("titulo") or "").strip()
+        slug = _slug(request.form.get("slug") or titulo)
+        descripcion = (request.form.get("descripcion") or "").strip()
+        activo = 1 if request.form.get("activo") else 0
+        otros = {s["slug"] for s in db.get_selecciones() if s["id"] != id}
+        if not titulo or not slug:
+            flash("Título y slug son obligatorios.", "error")
+        elif slug in otros:
+            flash("Ese slug ya lo usa otra selección.", "error")
+        else:
+            db.update_seleccion(id, slug, titulo, descripcion, activo)
+            elegidos = []
+            for p in db.get_productos():
+                pid = p["id"]
+                if request.form.get(f"incluir_{pid}"):
+                    try:
+                        orden = int(request.form.get(f"orden_{pid}") or 0)
+                    except ValueError:
+                        orden = 0
+                    elegidos.append((orden, pid))
+            elegidos.sort(key=lambda x: (x[0], x[1]))
+            db.set_seleccion_items(id, [pid for _, pid in elegidos])
+            flash("✅ Selección guardada.", "success")
+            return redirect(url_for("seleccion_editar", id=id))
+
+    items = db.get_seleccion_items(id)
+    orden_por_producto = {p["id"]: i + 1 for i, p in enumerate(items)}
+    productos = db.get_productos()
+    for p in productos:
+        p["orden"] = orden_por_producto.get(p["id"], "")
+        p["incluido"] = p["id"] in orden_por_producto
+    return render_template(
+        "seleccion_editar.html",
+        sel=sel,
+        productos=productos,
+        public_url=(config.get("PUBLIC_URL") or "").rstrip("/"),
+        **_ruta("/selecciones"),
+    )
+
+
+@app.route("/selecciones/<int:id>/eliminar", methods=["POST"])
+@login_required
+def seleccion_eliminar(id):
+    db.delete_seleccion(id)
+    flash("Selección eliminada.", "success")
+    return redirect(url_for("selecciones_lista"))
 
 
 @app.route("/contenido/publicar/<int:id>", methods=["POST"])

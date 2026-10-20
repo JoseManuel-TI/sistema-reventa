@@ -1,7 +1,13 @@
 {% extends "tienda/layout.html" %}
 {% from "tienda/_card.html" import product_card with context %}
 {% set og_title = store_name ~ ' - Productos recomendados' %}
-{% set og_desc = 'Descubrí productos recomendados con envío a Argentina y comprá desde Amazon de forma segura.' %}
+{% if origen_activa == 'digital' %}
+{% set og_desc = 'Cursos y productos digitales recomendados: acceso inmediato, compra segura en Hotmart.' %}
+{% elif origen_activa == 'amazon' %}
+{% set og_desc = 'Productos importados recomendados: precio, stock y envío se confirman directamente en Amazon.' %}
+{% else %}
+{% set og_desc = 'Productos con stock local en AMBA, envío a todo el país y compra segura.' %}
+{% endif %}
 {% block content %}
 {% if grupo %}
 <section class="hero">
@@ -16,9 +22,17 @@
 <section class="amazon-strip">
     <div>
         <strong>Importados recomendados</strong>
-        <span>Precio, stock y envio se confirman directamente en Amazon.</span>
+        <span>Precio, stock y envío se confirman directamente en Amazon.</span>
     </div>
-    <small>ClickYa puede recibir una comision sin costo extra para vos.</small>
+    <small>ClickYa puede recibir una comisión sin costo extra para vos.</small>
+</section>
+{% elif origen_activa == 'digital' %}
+<section class="amazon-strip digital-strip">
+    <div>
+        <strong>Cursos y productos digitales</strong>
+        <span>Acceso inmediato y compra segura a través de Hotmart.</span>
+    </div>
+    <small>ClickYa puede recibir una comisión sin costo extra para vos.</small>
 </section>
 {% endif %}
 

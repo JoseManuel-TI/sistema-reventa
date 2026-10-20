@@ -437,3 +437,125 @@ def test_dashboard_excluye_afiliados_y_muestra_clics(client):
     assert _stat(client, "Sin precio asignado") == "0"
     assert _stat(client, "Stock bajo (≤ 3)") == "0"
     assert _stat(client, "Clics afiliados (7 días)") == "1"
+
+
+def test_api_click_registra_sin_csrf(client):
+    from helpers import crear_proveedor
+
+    import db
+
+    pid = db.add_producto(
+        "SSD afiliado", "", crear_proveedor("Afiliados"), 0, "Tecnología", stock=0,
+        es_afiliado=1, link_afiliado="https://www.amazon.com/dp/X", tipo_producto="amazon_affiliate",
+        publicar=1,
+    )
+    r = client.post(f"/api/click/{pid}", json={"src": "web_card_cta"})
+    assert r.status_code == 204
+    stats = db.get_clicks_afiliados_resumen()
+    assert stats["total"] == 1
+
+
+def test_api_click_rechaza_producto_local(client):
+    pid = crear_producto()
+    assert client.post(f"/api/click/{pid}", json={"src": "x"}).status_code == 404
+
+
+def test_card_afiliada_usa_link_directo_y_divulga(client):
+    from helpers import crear_proveedor
+
+    import db
+
+    db.add_producto(
+        "SSD afiliado", "", crear_proveedor("Afiliados"), 0, "Tecnología", stock=0,
+        es_afiliado=1, link_afiliado="https://www.amazon.com/dp/X", tipo_producto="amazon_affiliate",
+        publicar=1,
+    )
+    html = client.get("/tienda").data.decode()
+    assert "ascsubtag=clickya_web_card_cta_" in html
+    assert "Enlace de afiliado" in html
+    assert "/out/" not in html
+
+
+def test_detalle_hotmart_link_directo_y_divulgacion(client):
+    from helpers import crear_proveedor
+
+    import db
+
+    pid = db.add_producto(
+        "Curso de ventas", "", crear_proveedor("Hotmart"), 0, "Cursos", stock=0,
+        es_afiliado=1, link_afiliado="https://go.hotmart.com/A123", plataforma_afiliado="hotmart",
+        tipo_producto="afiliado_digital", publicar=1,
+    )
+    html = client.get(f"/tienda/{pid}").data.decode()
+    assert f"https://go.hotmart.com/A123?src=clickya_web_detail_{pid}" in html
+    assert "Enlace de afiliado" in html
+    assert "ClickYa no procesa este pago" in html
+
+
+def test_seleccion_publica_muestra_productos_en_orden(client):
+    from helpers import crear_proveedor
+
+    import db
+
+    prov = crear_proveedor("Sel")
+    p1 = db.add_producto("Primero", "", prov, 0, "Tecnología", stock=2, publicar=1,
+                         es_afiliado=1, link_afiliado="https://www.amazon.com/dp/A",
+                         tipo_producto="amazon_affiliate")
+    p2 = db.add_producto("Segundo", "", prov, 0, "Tecnología", stock=2, publicar=1,
+                         es_afiliado=1, link_afiliado="https://www.amazon.com/dp/B",
+                         tipo_producto="amazon_affiliate")
+    sid = db.add_seleccion("kit-viaje", "Kit para viajar", "Los imprescindibles")
+    db.set_seleccion_items(sid, [p2, p1])
+
+    html = client.get("/coleccion/kit-viaje").data.decode()
+    assert html.index("Segundo") < html.index("Primero")
+    assert "Enlace de afiliado" in html
+
+
+def test_seleccion_inactiva_o_inexistente_da_404(client):
+    import db
+
+    sid = db.add_seleccion("borrador", "Borrador", "", activo=0)
+    assert client.get("/coleccion/borrador").status_code == 404
+    assert client.get("/coleccion/no-existe").status_code == 404
+    assert sid
+
+
+def test_admin_crea_y_edita_seleccion(client):
+    from helpers import crear_proveedor
+
+    import db
+
+    _login(client)
+    pid = db.add_producto("Elegido", "", crear_proveedor("Sel"), 0, "Cursos", stock=0,
+                          publicar=1, es_afiliado=1, link_afiliado="https://go.hotmart.com/A1",
+                          plataforma_afiliado="hotmart", tipo_producto="afiliado_digital")
+    r = client.post("/selecciones", data={
+        "titulo": "Cursos de IA", "slug": "cursos-ia", "descripcion": "Para arrancar",
+        "activo": "on", "csrf_token": _csrf(client),
+    })
+    assert r.status_code == 302
+    sel = db.get_seleccion_por_slug("cursos-ia")
+    assert sel and sel["titulo"] == "Cursos de IA"
+
+    r = client.post(f"/selecciones/{sel['id']}", data={
+        "titulo": "Cursos de IA", "slug": "cursos-ia", "descripcion": "Actualizado",
+        "activo": "on", f"incluir_{pid}": "on", f"orden_{pid}": "1",
+        "csrf_token": _csrf(client),
+    })
+    assert r.status_code == 302
+    items = db.get_seleccion_items(sel["id"])
+    assert [p["id"] for p in items] == [pid]
+
+
+def test_comisiones_dashboard_y_afiliados(client):
+    from datetime import datetime
+
+    import db
+
+    db.add_comision(datetime.now().strftime("%Y-%m"), "amazon", 10.0, 2.5)
+    _login(client)
+    html = client.get("/contenido/afiliados").data.decode()
+    assert "Comisiones por mes" in html
+    assert "7.50" in html
+    assert "US$ 7.50" in client.get("/dashboard").data.decode()

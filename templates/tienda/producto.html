@@ -1,4 +1,5 @@
 {% extends "tienda/layout.html" %}
+{% from "tienda/_aviso.html" import aviso_afiliado with context %}
 {% set og_title = p.nombre %}
 {% set og_desc = (p.descripcion or '')[:200] %}
 {% set og_image = (public_url or request.host_url.rstrip('/')) + '/' + (imagenes[0].archivo if imagenes else 'static/brand/logo.svg') %}
@@ -16,8 +17,7 @@
   {% if es_ext %}
   ,"offers": {
     "@type": "Offer",
-    "url": {{ (p.external_url or p.link_afiliado or '')|tojson }},
-    "availability": "https://schema.org/InStock"
+    "url": {{ (p.external_url or p.link_afiliado or '')|tojson }}
   }
   {% else %}
   ,"offers": {
@@ -84,11 +84,16 @@
             {% endfor %}
         </ul>
 
-        {% set cta = cta_producto(p) %}
-        <a href="{{ cta.url }}?src=detail_cta" class="btn-cta amazon" target="_blank" rel="sponsored nofollow noopener">
+        {% set cta = cta_producto(p, 'web_detail') %}
+        <a href="{{ url_para(p, 'web_detail') }}" class="btn-cta amazon" target="_blank" rel="sponsored nofollow noopener"
+           data-afiliado="1" data-producto="{{ p.id }}" data-src="web_detail">
             <span class="kicker">{{ cta.kicker }}</span>{{ cta.label }} 🛒
         </a>
-        <div class="price-shipping afiliado" style="text-align:center;">Compra 100% segura con la garantía de {{ 'Hotmart' if plataforma == 'hotmart' else 'Amazon' }}</div>
+        {{ aviso_afiliado(cta.plataforma) }}
+        <div class="price-shipping afiliado" style="text-align:center;">
+            Vendido y entregado por {{ 'Hotmart' if plataforma == 'hotmart' else 'Amazon' }}.
+            ClickYa no procesa este pago.
+        </div>
         {% else %}
         <div class="big-price">$ {{ p.precio_venta|fmt_pesos }}</div>
         <div class="price-shipping">Envío a CABA y GBA</div>

@@ -44,11 +44,7 @@ def _ruta_imagen_local(archivo):
 
 
 def _tracking_url(producto, origen):
-    url_ext = itgr.producto_url_externa(producto)
-    if not url_ext:
-        return None
-    base_url = (config.get("PUBLIC_URL") or "https://clickya.net").rstrip("/")
-    return f"{base_url}/out/{producto['id']}?src={origen}"
+    return itgr.url_afiliada(producto, origen)
 
 
 def _init_db():
@@ -110,8 +106,9 @@ def generar_caption(producto):
             f"🛒 <b>{nombre}</b>\n\n"
             f"{desc}\n\n"
             f"{cta}\n\n"
-            f"✅ Compra 100% segura con garantía de la plataforma\n\n"
-            f"{tag} #ClickYa"
+            f"🔗 Enlace de afiliado: podemos recibir una comisión sin costo extra para vos.\n"
+            f"✅ La compra y la garantía las gestiona la plataforma\n\n"
+            f"{tag} #Publicidad #ClickYa"
         )
         return caption
 

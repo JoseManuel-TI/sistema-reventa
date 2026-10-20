@@ -311,6 +311,7 @@ def inject_globals():
         "producto_beneficios": producto_beneficios,
         "producto_badge": producto_badge,
         "cta_producto": cta_producto,
+        "url_para": _url_para,
         "producto_tipo_label": producto_tipo_label,
     }
 
@@ -332,12 +333,18 @@ def producto_tipo_label(p):
     return "Stock Local (AMBA)"
 
 
-def cta_producto(p):
-    """Devuelve los datos del botón de compra según el tipo de producto."""
+def cta_producto(p, ubicacion="web"):
+    """Devuelve los datos del botón de compra según el tipo de producto.
+
+    Para afiliados devuelve el link **directo** a la plataforma (Amazon no
+    permite ocultar el destino) con el identificador de la ubicación.
+    """
     tipo = p.get("tipo_producto")
     if _es_externo(p):
-        url = itgr.producto_url_externa(p)
-        plataforma = p.get("plataforma_afiliado") or itgr.detectar_plataforma(url or "")
+        plataforma = p.get("plataforma_afiliado") or itgr.detectar_plataforma(
+            itgr.producto_url_externa(p) or ""
+        )
+        url = itgr.url_afiliada(p, ubicacion)
         if tipo == "afiliado_digital" and plataforma == "hotmart":
             label, kicker = "Acceder al curso", "Curso digital de acceso inmediato"
         elif plataforma == "aliexpress":
@@ -347,7 +354,7 @@ def cta_producto(p):
         else:
             label, kicker = "Ver en Amazon", "Precio y envío calculados en Amazon"
         return {
-            "url": url_for("tienda.out_afiliado", id=p["id"]) if url else url_for("tienda.producto", id=p["id"]),
+            "url": url or url_for("tienda.producto", id=p["id"]),
             "label": label, "kicker": kicker, "externo": True,
             "tipo": tipo, "plataforma": plataforma,
         }
@@ -356,6 +363,13 @@ def cta_producto(p):
         "label": "Ver producto", "kicker": None, "externo": False,
         "tipo": tipo or "fisico_local", "plataforma": "",
     }
+
+
+def _url_para(p, ubicacion):
+    """URL de compra para una ubicación concreta (afiliado directo o ficha local)."""
+    if _es_externo(p):
+        return itgr.url_afiliada(p, ubicacion) or url_for("tienda.producto", id=p["id"])
+    return url_for("tienda.producto", id=p["id"])
 
 
 # ─── Helpers de card (afiliado/Amazon) ─────────────────────────────
@@ -477,10 +491,26 @@ def bio():
     """Vista móvil estilo Link-in-bio, separada de la home (punto de entrada desde redes sociales)."""
     productos = _productos_publicados()
     _productos_con_imagen(productos)
+    selecciones = [
+        {**s, "productos": db.get_seleccion_items(s["id"])}
+        for s in db.get_selecciones(activo_only=True)
+    ]
+    selecciones = [s for s in selecciones if s["productos"]]
     return render_template("tienda/bio.html",
                            store_name=_store_name(),
                            destacados=productos[:6],
+                           selecciones=selecciones,
                            total_productos=len(productos))
+
+
+@tienda.route("/coleccion/<slug>")
+def coleccion(slug):
+    sel = db.get_seleccion_por_slug(slug)
+    if not sel:
+        abort(404)
+    productos = _productos_con_imagen(db.get_seleccion_items(sel["id"]))
+    return render_template("tienda/coleccion.html", sel=sel, productos=productos,
+                           store_name=_store_name())
 
 
 @tienda.route("/nosotros")
@@ -599,32 +629,47 @@ def enlace_corto(id):
     return redirect(url_for("tienda.producto", id=id))
 
 
-@tienda.route("/out/<int:id>")
-def out_afiliado(id):
-    """Registra el clic afiliado y redirige a la plataforma externa."""
-    p = db.get_producto(id)
-    if not p or not _es_externo(p):
-        abort(404)
-    destino = itgr.producto_url_externa(p)
-    if not destino:
-        return redirect(url_for("tienda.producto", id=id))
-
+def _registrar_clic(p, origen=""):
+    """Guarda el click afiliado (sin romper la navegación si falla)."""
+    destino = itgr.producto_url_externa(p) or ""
     plataforma = p.get("plataforma_afiliado") or itgr.detectar_plataforma(destino)
-    origen = request.args.get("src", "").strip()[:40]
     ip_raw = request.headers.get("X-Forwarded-For", request.remote_addr or "").split(",")[0].strip()
     ip_hash = hashlib.sha256(ip_raw.encode()).hexdigest()[:16] if ip_raw else ""
     try:
         db.registrar_click_afiliado(
-            producto_id=id,
+            producto_id=p["id"],
             plataforma=plataforma,
             destino=destino,
-            origen=origen,
+            origen=(origen or "")[:40],
             referer=(request.referrer or "")[:500],
             user_agent=(request.user_agent.string or "")[:500],
             ip_hash=ip_hash,
         )
     except Exception:
         pass
+
+
+@tienda.route("/api/click/<int:id>", methods=["POST"])
+def api_click(id):
+    """Beacon de clicks para enlaces afiliados directos (sin redirección propia)."""
+    p = db.get_producto(id)
+    if not p or not _es_externo(p):
+        abort(404)
+    datos = request.get_json(silent=True) or {}
+    _registrar_clic(p, str(datos.get("src") or ""))
+    return "", 204
+
+
+@tienda.route("/out/<int:id>")
+def out_afiliado(id):
+    """Compatibilidad con links viejos: registra y redirige al destino directo."""
+    p = db.get_producto(id)
+    if not p or not _es_externo(p):
+        abort(404)
+    destino = itgr.url_afiliada(p, request.args.get("src", "") or "out")
+    if not destino:
+        return redirect(url_for("tienda.producto", id=id))
+    _registrar_clic(p, request.args.get("src", ""))
     return redirect(destino)
 
 

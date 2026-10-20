@@ -33,6 +33,16 @@
         <div class="label">Clics afiliados (7 días)</div>
         <div class="value blue">{{ stats.clicks_afiliados_7d }}</div>
     </div>
+    <div class="stat-card" title="Comisiones netas cargadas del mes (USD)">
+        <div class="label">Comisiones afiliados (mes)</div>
+        <div class="value {% if stats.comisiones_mes_usd %}green{% endif %}">
+            {% if stats.comisiones_mes_usd %}US$ {{ '%.2f'|format(stats.comisiones_mes_usd) }}{% else %}-{% endif %}
+        </div>
+    </div>
+    <div class="stat-card" title="Comisiones netas cargadas en los últimos 12 meses (USD)">
+        <div class="label">Comisiones afiliados (12m)</div>
+        <div class="value">{% if stats.comisiones_12m_usd %}US$ {{ '%.2f'|format(stats.comisiones_12m_usd) }}{% else %}-{% endif %}</div>
+    </div>
     <div class="stat-card">
         <div class="label">Ventas del mes</div>
         <div class="value green">$ {{ stats.ventas_mes|fmt_pesos }}</div>

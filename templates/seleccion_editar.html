@@ -1,0 +1,73 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="page-header">
+    <h2>🧩 {{ sel.titulo }}</h2>
+    <div class="btn-group">
+        {% if sel.activo %}
+        <a href="/coleccion/{{ sel.slug }}" target="_blank" class="btn btn-outline">Ver página</a>
+        {% endif %}
+        <form method="POST" action="/selecciones/{{ sel.id }}/eliminar" style="display:inline;"
+              onsubmit="return confirm('¿Eliminar la selección “{{ sel.titulo }}”?');">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit" class="btn btn-danger">Eliminar</button>
+        </form>
+    </div>
+</div>
+
+<form method="POST">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+    <div class="card" style="margin-bottom:20px;">
+        <div class="form-grid">
+            <div class="form-group">
+                <label>Título</label>
+                <input type="text" name="titulo" value="{{ sel.titulo }}" required>
+            </div>
+            <div class="form-group">
+                <label>Slug (URL)</label>
+                <input type="text" name="slug" value="{{ sel.slug }}">
+                <small>{{ public_url }}/coleccion/{{ sel.slug }}</small>
+            </div>
+            <div class="form-group" style="grid-column:1/-1;">
+                <label>Descripción</label>
+                <textarea name="descripcion" rows="2">{{ sel.descripcion or '' }}</textarea>
+            </div>
+            <div class="form-group">
+                <label><input type="checkbox" name="activo" {% if sel.activo %}checked{% endif %}> Publicada</label>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3 style="margin-top:0;">Productos</h3>
+        <p style="color:#64748b;font-size:13px;">
+            Marcá los productos y asigná un número de orden (1 = primero). Los productos locales
+            se compran en ClickYa; los de afiliado se completan en la plataforma.
+        </p>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr><th>Incluir</th><th>Orden</th><th>Producto</th><th>Tipo</th><th>Precio</th></tr>
+                </thead>
+                <tbody>
+                    {% for p in productos %}
+                    <tr>
+                        <td><input type="checkbox" name="incluir_{{ p.id }}" {% if p.incluido %}checked{% endif %}></td>
+                        <td style="width:80px;">
+                            <input type="number" name="orden_{{ p.id }}" min="1" step="1"
+                                   value="{{ p.orden }}" style="width:64px;">
+                        </td>
+                        <td>{{ p.nombre }}</td>
+                        <td><span class="badge">{{ 'Afiliado' if p.es_afiliado else 'Local' }}</span></td>
+                        <td>{% if p.precio_venta %}$ {{ '{:,.0f}'.format(p.precio_venta).replace(',', '.') }}{% else %}-{% endif %}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div style="margin-top:16px;">
+            <button type="submit" class="btn btn-primary">Guardar selección</button>
+        </div>
+    </div>
+</form>
+{% endblock %}
