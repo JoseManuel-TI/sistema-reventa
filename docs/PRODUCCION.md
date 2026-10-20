@@ -49,6 +49,9 @@ Secretos (no commitear):
   `FB_PAGE_TOKEN`, que es un **token de usuario extendido, sin vencimiento** (`expires_at=0`).
   Cuenta: **@clickya.ar**. Scopes: `instagram_basic`, `instagram_content_publish`,
   `pages_show_list`, `pages_read_engagement`, `business_management`.
+- `IG_COLLABORATORS` (opcional): usernames separados por coma para publicar como
+  **Collab post** (aparece también en el feed de esas cuentas). Sin `@`.
+- `IG_REELS=0` (opcional): desactiva la generación/publicación de Reels y vuelve a foto.
 
   > Bajo *Facebook Login for Business* se necesita `business_management` para poder listar la
   > Página (`me/accounts`); sin él devuelve vacío. Para renovar el token: Explorer → permisos →

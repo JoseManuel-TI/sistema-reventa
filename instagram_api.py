@@ -43,6 +43,12 @@ def configurado():
     return bool(token and ig_id)
 
 
+def _colaboradores():
+    """Usernames de IG para Collab posts (env `IG_COLLABORATORS`, separados por coma)."""
+    raw = config.get("IG_COLLABORATORS") or ""
+    return [u.strip().lstrip("@") for u in str(raw).split(",") if u.strip()]
+
+
 def _api_call(method, endpoint, data=None, params=None):
     token, _ = _get_config()
     if not token:
@@ -91,6 +97,9 @@ def postear_foto(imagen_url, caption):
             "image_url": imagen_url,
             "caption": caption[:2200],
         }
+        colabs = _colaboradores()
+        if colabs:
+            data["collaborators"] = colabs
         result = _api_call("POST", f"{ig_id}/media", data=data)
         creation_id = result.get("id")
         if not creation_id:
@@ -138,6 +147,9 @@ def postear_reel(producto, caption, base_url):
             "caption": caption[:2200],
             "share_to_feed": "true",
         }
+        colabs = _colaboradores()
+        if colabs:
+            data["collaborators"] = colabs
         result = _api_call("POST", f"{ig_id}/media", data=data)
         creation_id = result.get("id")
         if not creation_id:

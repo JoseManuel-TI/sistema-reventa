@@ -110,3 +110,35 @@ def test_postear_producto_cae_a_foto_si_falla_reel(monkeypatch):
 
     assert ok
     assert msg == "foto1"
+
+
+def test_colaboradores_parsea_usuarios(monkeypatch):
+    monkeypatch.setattr(
+        instagram_api.config,
+        "get",
+        lambda clave: "@esposa, amigo ," if clave == "IG_COLLABORATORS" else None,
+    )
+    assert instagram_api._colaboradores() == ["esposa", "amigo"]
+
+
+def test_reel_incluye_colaboradores(monkeypatch):
+    monkeypatch.setattr(instagram_api, "_get_config", lambda: ("tok", "ig"))
+    monkeypatch.setattr(instagram_api, "_colaboradores", lambda: ["esposa"])
+    monkeypatch.setattr(instagram_api.reels, "generar_reel", lambda p, b: (True, "https://x/r.mp4"))
+
+    capturado = {}
+
+    def fake_api(method, endpoint, data=None, params=None):
+        if endpoint.endswith("/media"):
+            capturado.update(data)
+            return {"id": "c1"}
+        if endpoint == "c1":
+            return {"status_code": "FINISHED"}
+        return {"id": "m1"}
+
+    monkeypatch.setattr(instagram_api, "_api_call", fake_api)
+
+    ok, _ = instagram_api.postear_reel({"id": 1, "nombre": "x", "precio_venta": 1}, "cap", "https://clickya.net")
+
+    assert ok
+    assert capturado["collaborators"] == ["esposa"]
