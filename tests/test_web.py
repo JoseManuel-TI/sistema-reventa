@@ -57,6 +57,24 @@ def test_admin_requiere_login(client):
     assert "/login" in r.headers["Location"]
 
 
+def test_redondear_precios_actuales_conserva_costos_y_omite_afiliados(client):
+    import db
+
+    _login(client)
+    primero = crear_producto(nombre="Primero", precio=17567, costo=10000)
+    segundo = crear_producto(nombre="Segundo", precio=45611, costo=30000)
+    afiliado = crear_producto(nombre="Afiliado", precio=17567, costo=10000)
+    db.update_producto(afiliado, es_afiliado=1)
+
+    r = client.post("/precios/redondear-actuales", data={"csrf_token": _csrf(client)})
+
+    assert r.status_code == 302
+    assert db.get_producto(primero)["precio_venta"] == 17600
+    assert db.get_producto(segundo)["precio_venta"] == 45600
+    assert db.get_producto(primero)["costo"] == 10000
+    assert db.get_producto(afiliado)["precio_venta"] == 17567
+
+
 def test_gracias_sin_permiso_no_muestra_pedido(client):
     r = client.get("/gracias/1")
     assert r.status_code == 302

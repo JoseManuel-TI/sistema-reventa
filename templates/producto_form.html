@@ -285,7 +285,7 @@ if (btnFetchMeta) {
 
 function calcularPrecioVenta(costoArs) {
     const c = parseFloat(costoArs);
-    if (c > 0) return (c * (1 + MARGEN / 100)).toFixed(2);
+    if (c > 0) return String(Math.round(c * (1 + MARGEN / 100) / 100) * 100);
     return '';
 }
 
@@ -294,7 +294,7 @@ function actualizarDesdeUSD() {
     if (usd > 0) {
         const costoArs = usd * DOLAR_BLUE;
         costoArsInput.value = costoArs.toFixed(2);
-        precioVentaInput.value = calcularPrecioVenta(costoArs);
+        precioVentaInput.value = calcularPrecioVenta(costoArsInput.value);
     } else {
         costoArsInput.value = '';
         precioVentaInput.value = '';

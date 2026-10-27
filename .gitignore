@@ -5,6 +5,7 @@ __pycache__/
 *.db
 *.db-shm
 *.db-wal
+*.db.bak_*
 data/config.json
 data/import_state.json
 data/schedule.log

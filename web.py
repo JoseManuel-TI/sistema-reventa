@@ -874,6 +874,24 @@ def precios_recalcular_todos():
     return redirect(url_for("precios"))
 
 
+@app.route("/precios/redondear-actuales", methods=["POST"])
+@login_required
+def precios_redondear_actuales():
+    actualizados = 0
+    for p in db.get_productos(activos=True):
+        if p.get("es_afiliado") or p.get("tipo_producto") in ("amazon_affiliate", "afiliado_digital"):
+            continue
+        precio = p.get("precio_venta") or 0
+        if precio <= 0:
+            continue
+        redondeado = pcalc.redondear_precio_venta(precio)
+        if redondeado != precio:
+            db.update_producto(p["id"], precio_venta=redondeado)
+            actualizados += 1
+    flash(f"Redondeé el precio de {actualizados} productos a la centena más cercana.", "success")
+    return redirect(url_for("precios"))
+
+
 @app.route("/precios/producto/<int:id>", methods=["GET", "POST"])
 @login_required
 def precios_producto(id):

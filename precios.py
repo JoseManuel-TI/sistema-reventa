@@ -7,11 +7,18 @@ Precio desde USD = (costo_usd * dolar_blue) * (1 + margen/100)
 import math
 import time
 from dataclasses import dataclass
+from decimal import ROUND_HALF_UP, Decimal
 
 import config
 
 _DOLAR_CACHE = {"valor": None, "ts": 0.0}
 _DOLAR_TTL = 3600  # segundos: refrescamos la cotización como mucho 1 vez por hora
+
+
+def redondear_precio_venta(precio: float) -> float:
+    """Redondea un precio de venta a la centena más cercana (50 hacia arriba)."""
+    redondeado = (Decimal(str(precio)) / 100).quantize(Decimal("1"), rounding=ROUND_HALF_UP) * 100
+    return float(max(Decimal("100"), redondeado)) if precio > 0 else 0.0
 
 
 def get_dolar_blue():
@@ -72,7 +79,7 @@ def calcular_precio_final(params: ParametrosPrecio) -> dict:
     costo = params.costo
     margen = params.margen_deseado
 
-    precio_final = round(costo * (1 + margen / 100), 2)
+    precio_final = redondear_precio_venta(costo * (1 + margen / 100))
     ganancia = round(precio_final - costo, 2)
 
     desglose = {
@@ -107,7 +114,7 @@ def precio_sugerido_ml(costo: float, comision: float = 20.5) -> dict:
     """Precio para Mercado Libre que, tras la comisión, deja un markup del 35%."""
     margen = 35.0
     base = costo * (1 + margen / 100)
-    precio_final = round(base / (1 - comision / 100), 2)
+    precio_final = redondear_precio_venta(base / (1 - comision / 100))
     return {
         "costo": round(costo, 2),
         "precio_final": precio_final,
