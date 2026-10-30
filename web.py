@@ -888,7 +888,7 @@ def precios_redondear_actuales():
         if redondeado != precio:
             db.update_producto(p["id"], precio_venta=redondeado)
             actualizados += 1
-    flash(f"Redondeé el precio de {actualizados} productos a la centena más cercana.", "success")
+    flash(f"Redondeé el precio de {actualizados} productos: a centenas bajo $20.000 y a miles desde $20.000.", "success")
     return redirect(url_for("precios"))
 
 

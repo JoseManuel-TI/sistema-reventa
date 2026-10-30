@@ -63,6 +63,8 @@ def test_redondear_precios_actuales_conserva_costos_y_omite_afiliados(client):
     _login(client)
     primero = crear_producto(nombre="Primero", precio=17567, costo=10000)
     segundo = crear_producto(nombre="Segundo", precio=45611, costo=30000)
+    tercero = crear_producto(nombre="Tercero", precio=76500, costo=50000)
+    cuarto = crear_producto(nombre="Cuarto", precio=76499, costo=50000)
     afiliado = crear_producto(nombre="Afiliado", precio=17567, costo=10000)
     db.update_producto(afiliado, es_afiliado=1)
 
@@ -70,7 +72,9 @@ def test_redondear_precios_actuales_conserva_costos_y_omite_afiliados(client):
 
     assert r.status_code == 302
     assert db.get_producto(primero)["precio_venta"] == 17600
-    assert db.get_producto(segundo)["precio_venta"] == 45600
+    assert db.get_producto(segundo)["precio_venta"] == 46000
+    assert db.get_producto(tercero)["precio_venta"] == 77000
+    assert db.get_producto(cuarto)["precio_venta"] == 76000
     assert db.get_producto(primero)["costo"] == 10000
     assert db.get_producto(afiliado)["precio_venta"] == 17567
 

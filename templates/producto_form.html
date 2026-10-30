@@ -285,7 +285,11 @@ if (btnFetchMeta) {
 
 function calcularPrecioVenta(costoArs) {
     const c = parseFloat(costoArs);
-    if (c > 0) return String(Math.round(c * (1 + MARGEN / 100) / 100) * 100);
+    if (c > 0) {
+        const base = c * (1 + MARGEN / 100);
+        const escala = base >= 20000 ? 1000 : 100;
+        return String(Math.max(100, Math.round(base / escala) * escala));
+    }
     return '';
 }
 

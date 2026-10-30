@@ -14,9 +14,18 @@ def test_calcular_precio_venta_rapido():
 
 def test_redondeo_precio_venta_a_centenas():
     assert precios.redondear_precio_venta(17567) == 17600
-    assert precios.redondear_precio_venta(45611) == 45600
+    assert precios.redondear_precio_venta(19949) == 19900
     assert precios.redondear_precio_venta(17550) == 17600
     assert precios.redondear_precio_venta(20) == 100
+
+
+def test_redondeo_precio_venta_a_miles_desde_20000():
+    assert precios.redondear_precio_venta(76500) == 77000
+    assert precios.redondear_precio_venta(76499) == 76000
+    assert precios.redondear_precio_venta(45611) == 46000
+    assert precios.redondear_precio_venta(20000) == 20000
+    assert precios.redondear_precio_venta(19950) == 20000
+    assert precios.calcular_precio_venta_rapido(56666.67, margen=35) == 77000
 
 
 def test_parametros_parsean_formato_argentino():

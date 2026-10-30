@@ -46,7 +46,7 @@
 
 <div class="card" style="max-width:400px;margin-top:16px;">
     <div class="card-header">Redondear precios actuales</div>
-    <p class="form-hint">Ajusta los precios de venta activos a la centena más cercana, sin recalcular márgenes ni cambiar costos. Omite afiliados.</p>
+    <p class="form-hint">Ajusta los precios de venta activos a centenas bajo $20.000 y a miles desde $20.000 (mitades hacia arriba), sin recalcular márgenes ni cambiar costos. Omite afiliados.</p>
     <form method="POST" action="/precios/redondear-actuales" onsubmit="return confirm('¿Redondear los precios de venta actuales?')">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <button type="submit" class="btn btn-primary">Redondear precios actuales</button>

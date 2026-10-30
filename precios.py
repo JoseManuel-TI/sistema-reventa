@@ -16,9 +16,13 @@ _DOLAR_TTL = 3600  # segundos: refrescamos la cotización como mucho 1 vez por h
 
 
 def redondear_precio_venta(precio: float) -> float:
-    """Redondea un precio de venta a la centena más cercana (50 hacia arriba)."""
-    redondeado = (Decimal(str(precio)) / 100).quantize(Decimal("1"), rounding=ROUND_HALF_UP) * 100
-    return float(max(Decimal("100"), redondeado)) if precio > 0 else 0.0
+    """Redondea a centenas bajo $20.000 y a miles desde $20.000."""
+    if precio <= 0:
+        return 0.0
+    monto = Decimal(str(precio))
+    escala = Decimal("1000") if monto >= 20000 else Decimal("100")
+    redondeado = (monto / escala).quantize(Decimal("1"), rounding=ROUND_HALF_UP) * escala
+    return float(max(Decimal("100"), redondeado))
 
 
 def get_dolar_blue():
