@@ -79,6 +79,21 @@ def test_redondear_precios_actuales_conserva_costos_y_omite_afiliados(client):
     assert db.get_producto(afiliado)["precio_venta"] == 17567
 
 
+def test_calculadoras_de_precios_usen_40_por_defecto(client):
+    pid = crear_producto(nombre="Calculadora", costo=1000, precio=1200)
+    _login(client)
+
+    pagina = client.get("/precios").data
+    assert b'id="margen_deseado" name="margen_deseado" class="form-control" step="0.1" value="40"' in pagina
+    assert b'id="margen_todos" name="margen_deseado" class="form-control" step="0.1" value="40"' in pagina
+    assert b'value="40"' in client.get(f"/precios/producto/{pid}").data
+
+    r = client.post("/precios", data={"csrf_token": _csrf(client), "costo": "1000"})
+    assert r.status_code == 200
+    assert b"40.0%" in r.data
+    assert b"$ 1.400" in r.data
+
+
 def test_gracias_sin_permiso_no_muestra_pedido(client):
     r = client.get("/gracias/1")
     assert r.status_code == 302

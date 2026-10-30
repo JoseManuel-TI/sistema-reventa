@@ -836,7 +836,7 @@ def precios():
     if request.method == "POST":
         try:
             costo = _parsear_numero_form(request.form.get("costo"), default=0)
-            margen = _parsear_numero_form(request.form.get("margen_deseado"), default=35)
+            margen = _parsear_numero_form(request.form.get("margen_deseado"), default=40)
             datos = {"costo": costo, "margen_deseado": margen}
             params = pcalc.ParametrosPrecio(**datos)
             resultado = pcalc.calcular_precio_final(params)
@@ -849,7 +849,7 @@ def precios():
 @login_required
 def precios_recalcular_todos():
     try:
-        margen = _parsear_numero_form(request.form.get("margen_deseado"), default=35)
+        margen = _parsear_numero_form(request.form.get("margen_deseado"), default=40)
         actualizados = omitidos = 0
         for p in db.get_productos(activos=True):
             if p.get("es_afiliado") or p.get("tipo_producto") in ("amazon_affiliate", "afiliado_digital"):
@@ -899,11 +899,11 @@ def precios_producto(id):
     if not p:
         flash("Producto no encontrado.", "error")
         return redirect(url_for("productos_listar"))
-    datos = {"margen_deseado": 35}
+    datos = {"margen_deseado": 40}
     resultado = None
     if request.method == "POST":
         try:
-            datos["margen_deseado"] = _parsear_numero_form(request.form.get("margen_deseado"), default=35)
+            datos["margen_deseado"] = _parsear_numero_form(request.form.get("margen_deseado"), default=40)
             params = pcalc.ParametrosPrecio(
                 costo=p["costo"],
                 margen_deseado=datos["margen_deseado"],
