@@ -476,8 +476,9 @@ def test_inventario_proveedor_y_costo_desconocido_no_inflan_inversion(client):
     }).status_code == 302
     assert db.get_producto(proveedor)["stock_fisico"] is None
     html = client.get("/inventario").data
-    assert b"Faltan costos reales en 1 productos" in html
-    assert b"Inversi\xc3\xb3n con costo cargado" in html
+    assert b'id="faltantes-costos">1</span>' in html
+    assert b"Inversi\xc3\xb3n: unidades" in html
+    assert b"Venta potencial: unidades" in html
     assert b"2" in html
 
 
@@ -505,7 +506,7 @@ def test_inventario_muestra_todo_el_catalogo_sin_contar_afiliados(client):
     assert b"Hay 2 productos activos en el cat\xc3\xa1logo" in html
     assert b"Afiliados y externos" in html
     assert b"Externo: no integra stock propio" in html
-    assert html.count(b'name="origen"') == 1
+    assert html.count(b'<select name="origen"') == 1
     assert client.post(f"/inventario/{externo}/registrar", data={
         "csrf_token": _csrf(client), "origen": "propio", "cantidad": "1",
     }).status_code == 404

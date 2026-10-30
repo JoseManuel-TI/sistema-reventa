@@ -4,23 +4,25 @@
     <h2>🧮 Inventario físico</h2>
     <a href="/dashboard" class="btn btn-outline">Ver dashboard</a>
 </div>
-<p>Hay {{ productos|length }} productos activos en el catálogo. Los {{ resumen.externos }} afiliados o externos se muestran para completar la lista, pero no forman parte de tu inventario físico. Para los productos locales, contá las unidades en mano y cargá el costo que efectivamente pagaste por unidad en pesos. Si se consiguen después de recibir un pedido, marcá «Proveedor». Dejá el costo vacío cuando aún no lo sepas.</p>
+<p>Hay {{ productos|length }} productos activos en el catálogo. Los {{ resumen.externos }} afiliados o externos se muestran para completar la lista, pero no forman parte de tu inventario físico. En cada producto local ingresá solo las unidades que tenés y lo que pagaste por unidad. ClickYa suma las unidades y calcula los totales automáticamente. Si lo conseguís después de recibir un pedido, marcá «Proveedor».</p>
 <div class="stats">
-    <div class="stat-card"><div class="label">Sin clasificar</div><div class="value orange">{{ resumen.pendientes }}</div></div>
-    <div class="stat-card"><div class="label">Unidades propias contadas</div><div class="value blue">{{ resumen.unidades }}</div></div>
-    <div class="stat-card"><div class="label">Publicaciones de proveedor</div><div class="value">{{ resumen.proveedor }}</div></div>
+    <div class="stat-card"><div class="label">Sin clasificar</div><div class="value orange" id="total-pendientes">{{ resumen.pendientes }}</div></div>
+    <div class="stat-card"><div class="label">Unidades propias contadas</div><div class="value blue" id="total-unidades">{{ resumen.unidades }}</div></div>
+    <div class="stat-card"><div class="label">Publicaciones de proveedor</div><div class="value" id="total-proveedor">{{ resumen.proveedor }}</div></div>
     <div class="stat-card"><div class="label">Afiliados y externos</div><div class="value">{{ resumen.externos }}</div></div>
-    <div class="stat-card"><div class="label">Inversión con costo cargado</div><div class="value orange">{% if resumen.propios %}$ {{ resumen.inversion|fmt_pesos }}{% else %}—{% endif %}</div></div>
-    <div class="stat-card"><div class="label">Margen bruto potencial</div><div class="value green">{% if resumen.propios %}$ {{ resumen.margen_bruto_potencial|fmt_pesos }}{% else %}—{% endif %}</div></div>
+    <div class="stat-card"><div class="label">Inversión: unidades × costo unitario</div><div class="value orange" id="total-inversion">{% if resumen.propios %}$ {{ resumen.inversion|fmt_pesos }}{% else %}—{% endif %}</div></div>
+    <div class="stat-card"><div class="label">Venta potencial: unidades × precio público</div><div class="value blue" id="total-venta">{% if resumen.propios %}$ {{ resumen.venta_potencial|fmt_pesos }}{% else %}—{% endif %}</div></div>
+    <div class="stat-card"><div class="label">Margen bruto potencial</div><div class="value green" id="total-margen">{% if resumen.propios %}$ {{ resumen.margen_bruto_potencial|fmt_pesos }}{% else %}—{% endif %}</div></div>
 </div>
-<p style="color:#64748b;margin:12px 0 20px;">Faltan costos reales en {{ resumen.sin_costo }} productos con unidades y precios de venta en {{ resumen.sin_precio }}. Las cifras son parciales hasta completar el conteo. El margen potencial supone vender al precio actual y todavía no descuenta comisiones, envíos ni impuestos. La ganancia realizada requiere registrar ventas y gastos efectivos.</p>
+<p id="inventario-preview-state" style="color:#2563eb;margin:0 0 8px;">Totales guardados. Al escribir verás una vista previa; guardá cada producto para conservarla.</p>
+<p style="color:#64748b;margin:12px 0 20px;">Faltan costos reales en <span id="faltantes-costos">{{ resumen.sin_costo }}</span> productos con unidades y precios de venta en <span id="faltantes-precios">{{ resumen.sin_precio }}</span>. Las cifras son parciales hasta completar el conteo. El margen potencial supone vender al precio actual y todavía no descuenta comisiones, envíos ni impuestos. La ganancia realizada requiere registrar ventas y gastos efectivos.</p>
 <div class="card">
     <div class="table-wrap">
         <table>
             <thead><tr><th>Producto</th><th>Publicado</th><th>Stock tienda</th><th>Clasificación</th><th>Conteo físico</th><th>Costo real por unidad (ARS)</th><th>Último conteo</th><th></th></tr></thead>
             <tbody>
             {% for p in productos %}
-                <tr>
+                <tr{% if not p.inventario_externo %} class="inventario-producto" data-precio="{{ p.precio_venta or 0 }}"{% endif %}>
                     <td><a href="/productos/{{ p.id }}">{{ p.nombre }}</a><div style="font-size:12px;color:#64748b;">{{ p.proveedor_nombre or 'Sin proveedor' }} · Precio $ {{ p.precio_venta|fmt_pesos }}</div></td>
                     <td>{{ 'Sí' if p.publicar else 'No' }}</td>
                     <td>{{ p.stock or 0 }}{% if p.inventario_origen == 'propio' and p.stock_fisico is not none and (p.stock or 0) > p.stock_fisico %}<div style="color:#b45309;font-size:12px;">Supera el conteo; <a href="/productos/{{ p.id }}/editar">revisar</a></div>{% endif %}</td>
@@ -39,6 +41,7 @@
                             <input type="text" name="costo_real_unitario" inputmode="decimal" value="{{ p.costo_real_unitario if p.costo_real_unitario is not none else '' }}" placeholder="Costo real $" aria-label="Costo real unitario de {{ p.nombre }}" style="width:120px;">
                             <span style="font-size:12px;color:#64748b;min-width:116px;">{{ (p.inventario_verificado_at|string)[:16] if p.inventario_verificado_at else 'Sin conteo' }}</span>
                             <button type="submit" class="btn btn-primary btn-sm">Guardar</button>
+                            <span class="calculo-fila" aria-live="polite" style="width:100%;font-size:12px;color:#475569;">Ingresá unidades y costo para ver el total.</span>
                         </form>
                         {% endif %}
                     </td>
@@ -51,4 +54,67 @@
     </div>
 </div>
 <p style="color:#64748b;margin-top:16px;">El stock de tienda controla los pedidos y se mantiene separado de este conteo. Revisá su disponibilidad publicada cuando clasifiques un producto de proveedor o detectes diferencias.</p>
+<script>
+function costoInventario(texto) {
+    let s = (texto || '').trim().replace(/[$\s]/g, '');
+    if (!s) return null;
+    if (/^\d{1,3}(\.\d{3})+(,\d{1,2})?$/.test(s) || s.includes(',')) {
+        s = s.replace(/\./g, '').replace(',', '.');
+    }
+    const n = Number(s);
+    return Number.isFinite(n) && n >= 0 ? n : null;
+}
+
+function pesosInventario(n) {
+    return '$ ' + n.toLocaleString('es-AR', {maximumFractionDigits: 2});
+}
+
+function actualizarInventario(vistaPrevia) {
+    const total = {pendientes: 0, proveedor: 0, propios: 0, unidades: 0,
+                   inversion: 0, venta: 0, margen: 0, sinCosto: 0, sinPrecio: 0};
+    document.querySelectorAll('.inventario-producto').forEach(function(fila) {
+        const form = fila.querySelector('form');
+        const origen = form.querySelector('[name="origen"]').value;
+        const cantidadTexto = form.querySelector('[name="cantidad"]').value.trim();
+        const cantidad = /^\d+$/.test(cantidadTexto) ? Number(cantidadTexto) : null;
+        const costo = costoInventario(form.querySelector('[name="costo_real_unitario"]').value);
+        const precio = Number(fila.dataset.precio);
+        const calculo = fila.querySelector('.calculo-fila');
+        if (origen === 'proveedor') {
+            total.proveedor++;
+            calculo.textContent = 'Proveedor: no suma a tu inversión física.';
+        } else if (origen !== 'propio' || cantidad === null) {
+            total.pendientes++;
+            calculo.textContent = origen === 'propio' ? 'Ingresá las unidades físicas de este producto.' : 'Elegí Propio o Proveedor.';
+        } else {
+            total.propios++;
+            total.unidades += cantidad;
+            if (cantidad > 0 && costo === null) total.sinCosto++;
+            if (cantidad > 0 && precio <= 0) total.sinPrecio++;
+            if (costo !== null) total.inversion += cantidad * costo;
+            if (precio > 0) total.venta += cantidad * precio;
+            if (costo !== null && precio > 0) total.margen += cantidad * (precio - costo);
+            calculo.textContent = 'Inversión: ' + (costo === null ? 'falta costo' : pesosInventario(cantidad * costo)) +
+                ' · Venta potencial: ' + (precio > 0 ? pesosInventario(cantidad * precio) : 'falta precio') +
+                ' · Margen bruto: ' + (costo !== null && precio > 0 ? pesosInventario(cantidad * (precio - costo)) : 'pendiente');
+        }
+    });
+    document.getElementById('total-pendientes').textContent = total.pendientes;
+    document.getElementById('total-proveedor').textContent = total.proveedor;
+    document.getElementById('total-unidades').textContent = total.unidades;
+    document.getElementById('total-inversion').textContent = total.propios ? pesosInventario(total.inversion) : '—';
+    document.getElementById('total-venta').textContent = total.propios ? pesosInventario(total.venta) : '—';
+    document.getElementById('total-margen').textContent = total.propios ? pesosInventario(total.margen) : '—';
+    document.getElementById('faltantes-costos').textContent = total.sinCosto;
+    document.getElementById('faltantes-precios').textContent = total.sinPrecio;
+    if (vistaPrevia) document.getElementById('inventario-preview-state').textContent =
+        'Vista previa sin guardar. Guardá cada producto para conservar estos totales.';
+}
+
+document.querySelectorAll('.inventario-producto input, .inventario-producto select').forEach(function(campo) {
+    campo.addEventListener('input', function() { actualizarInventario(true); });
+    campo.addEventListener('change', function() { actualizarInventario(true); });
+});
+actualizarInventario(false);
+</script>
 {% endblock %}
