@@ -365,6 +365,11 @@ def init_db():
                          ("tipo_producto", "TEXT DEFAULT 'fisico_local'"), ("moneda", "TEXT DEFAULT 'ARS'"),
                          ("external_url", "TEXT DEFAULT ''"), ("beneficios", "TEXT DEFAULT ''")]:
             add_column("productos", col, typ)
+        for col, typ in [("inventario_origen", "TEXT DEFAULT 'pendiente'"),
+                         ("stock_fisico", "INTEGER"),
+                         ("costo_real_unitario", "REAL"),
+                         ("inventario_verificado_at", "TEXT")]:
+            add_column("productos", col, typ)
         if USE_POSTGRES:
             column = conn.execute("SELECT data_type FROM information_schema.columns WHERE table_schema=current_schema() AND table_name='productos' AND column_name='es_afiliado'").fetchone()
             if column and column["data_type"] == "boolean":
@@ -620,6 +625,32 @@ def update_producto(producto_id, **kwargs):
         conn.execute(f"UPDATE productos SET {set_clause} WHERE id = ?", values)
         conn.commit()
         return True
+    finally:
+        conn.close()
+
+
+def registrar_inventario_fisico(producto_id, origen, cantidad=None, costo_unitario=None):
+    """Registra un conteo propio o clasifica una publicación como de proveedor."""
+    if origen not in ("propio", "proveedor"):
+        raise ValueError("Origen de inventario inválido")
+    if origen == "propio":
+        if cantidad is None or isinstance(cantidad, bool) or cantidad < 0:
+            raise ValueError("La cantidad física debe ser cero o mayor")
+        if costo_unitario is not None and (not 0 <= costo_unitario < float("inf")):
+            raise ValueError("El costo real debe ser cero o mayor")
+    else:
+        cantidad = None
+        costo_unitario = None
+    conn = get_connection()
+    try:
+        cur = conn.execute(_sql("""UPDATE productos SET inventario_origen = ?,
+            stock_fisico = ?, costo_real_unitario = ?, inventario_verificado_at = ?,
+            updated_at = ? WHERE id = ? AND activo = 1"""),
+            (origen, cantidad, costo_unitario,
+             datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+             datetime.now().strftime("%Y-%m-%d %H:%M:%S"), producto_id))
+        conn.commit()
+        return cur.rowcount > 0
     finally:
         conn.close()
 

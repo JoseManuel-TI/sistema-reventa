@@ -32,7 +32,8 @@
                     <th>Costo</th>
                     <th>USD</th>
                     <th>Precio venta</th>
-                    <th>Stock</th>
+                    <th>Stock tienda</th>
+                    <th>Inventario físico</th>
                     <th></th>
                 </tr>
             </thead>
@@ -50,11 +51,12 @@
                     <td class="precio">{% if p.costo_usd %}USD {{ p.costo_usd|fmt_num }}{% else %}—{% endif %}</td>
                     <td class="precio">$ {{ p.precio_venta|fmt_pesos }}</td>
                     <td><span class="badge badge-stock">{{ p.stock or 0 }} uds</span></td>
+                    <td>{% if p.inventario_origen == 'proveedor' %}Proveedor{% elif p.inventario_origen == 'propio' and p.stock_fisico is not none %}{{ p.stock_fisico }} uds contadas{% else %}Sin clasificar{% endif %}</td>
                     <td></td>
                 </tr>
                 {% endfor %}
                 {% if not productos %}
-                <tr id="empty-row"><td colspan="11" style="text-align:center;padding:32px;color:#94a3b8;">No hay productos. <a href="/productos/nuevo">Agregá el primero</a></td></tr>
+                <tr id="empty-row"><td colspan="12" style="text-align:center;padding:32px;color:#94a3b8;">No hay productos. <a href="/productos/nuevo">Agregá el primero</a></td></tr>
                 {% endif %}
             </tbody>
         </table>
@@ -118,7 +120,7 @@ function filtrarProductos() {
         var tbody = document.getElementById('prod-tbody');
         var tr = document.createElement('tr');
         tr.id = 'empty-row';
-        tr.innerHTML = '<td colspan="11" style="text-align:center;padding:32px;color:#94a3b8;">Sin resultados para esta búsqueda.</td>';
+        tr.innerHTML = '<td colspan="12" style="text-align:center;padding:32px;color:#94a3b8;">Sin resultados para esta búsqueda.</td>';
         tbody.appendChild(tr); e = tr;
     }
     if (e) e.style.display = visibles === 0 ? '' : 'none';

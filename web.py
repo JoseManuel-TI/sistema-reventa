@@ -354,7 +354,6 @@ def dashboard():
 
     mes_actual = datetime.now().strftime("%Y-%m")
     publicados = stock_bajo = sin_precio = 0
-    inversion_total = venta_potencial = 0
     for p in productos:
         stock = p.get("stock") or 0
         precio = p.get("precio_venta") or 0
@@ -367,8 +366,7 @@ def dashboard():
             stock_bajo += 1
         if not precio:
             sin_precio += 1
-        inversion_total += (p.get("costo") or 0) * stock
-        venta_potencial += precio * stock
+    inventario = _resumen_inventario(productos)
 
     clicks_af = db.get_clicks_afiliados_resumen()
     comisiones = db.get_comisiones_por_mes(limite=12)
@@ -414,9 +412,7 @@ def dashboard():
         "pedidos_activos": pedidos_activos,
         "ventas_mes": ventas_mes,
         "a_cobrar": a_cobrar,
-        "inversion_total": inversion_total,
-        "venta_potencial": venta_potencial,
-        "ganancia_estimada": max(0, venta_potencial - inversion_total),
+        "inventario": inventario,
         "clicks_afiliados_7d": clicks_af.get("ultimos_7_dias") or 0,
         "clicks_afiliados_hoy": clicks_af.get("hoy") or 0,
         "clicks_afiliados_total": clicks_af.get("total") or 0,
@@ -433,6 +429,92 @@ def dashboard():
 
 
 # ─── Productos ────────────────────────────────────────────────────
+
+def _productos_para_conteo(productos):
+    return [p for p in productos if not p.get("es_afiliado")
+            and not itgr.es_externo(p.get("tipo_producto"))]
+
+
+def _resumen_inventario(productos):
+    resumen = dict(pendientes=0, proveedor=0, propios=0, externos=0, unidades=0,
+                   sin_costo=0, sin_precio=0, inversion=0,
+                   venta_potencial=0, margen_bruto_potencial=0)
+    resumen["externos"] = len(productos) - len(_productos_para_conteo(productos))
+    for p in _productos_para_conteo(productos):
+        origen = p.get("inventario_origen") or "pendiente"
+        if origen == "proveedor":
+            resumen["proveedor"] += 1
+            continue
+        if origen != "propio" or p.get("stock_fisico") is None:
+            resumen["pendientes"] += 1
+            continue
+        resumen["propios"] += 1
+        cantidad = p["stock_fisico"]
+        resumen["unidades"] += cantidad
+        if not cantidad:
+            continue
+        costo = p.get("costo_real_unitario")
+        precio = p.get("precio_venta")
+        if costo is None:
+            resumen["sin_costo"] += 1
+        else:
+            resumen["inversion"] += costo * cantidad
+        if not precio or precio <= 0:
+            resumen["sin_precio"] += 1
+        else:
+            resumen["venta_potencial"] += precio * cantidad
+        if costo is not None and precio and precio > 0:
+            resumen["margen_bruto_potencial"] += (precio - costo) * cantidad
+    return resumen
+
+
+@app.route("/inventario")
+@login_required
+def inventario():
+    productos = db.get_productos()
+    for p in productos:
+        p["inventario_externo"] = bool(p.get("es_afiliado")) or itgr.es_externo(p.get("tipo_producto"))
+    productos.sort(key=lambda p: (p["inventario_externo"],
+                                  p.get("inventario_origen") != "pendiente",
+                                  (p.get("nombre") or "").lower()))
+    return render_template("inventario.html", productos=productos,
+                           resumen=_resumen_inventario(productos), **_ruta("/inventario"))
+
+
+@app.route("/inventario/<int:id>/registrar", methods=["POST"])
+@login_required
+def inventario_registrar(id):
+    p = db.get_producto(id)
+    if not p or not p.get("activo") or p.get("es_afiliado") or itgr.es_externo(p.get("tipo_producto")):
+        abort(404)
+    origen = request.form.get("origen", "")
+    cantidad = None
+    costo = None
+    if origen == "propio":
+        cantidad_texto = request.form.get("cantidad", "").strip()
+        if not re.fullmatch(r"\d+", cantidad_texto):
+            flash("Ingresá una cantidad física entera, incluso 0 si no tenés unidades.", "error")
+            return redirect(url_for("inventario"))
+        cantidad = int(cantidad_texto)
+        costo_texto = request.form.get("costo_real_unitario", "").strip()
+        if costo_texto:
+            try:
+                if re.fullmatch(r"\d{1,3}(?:\.\d{3})+(?:,\d{1,2})?", costo_texto):
+                    costo_texto = costo_texto.replace(".", "")
+                costo = _parsear_numero_form(costo_texto, default=None)
+            except ValueError:
+                costo = None
+                flash("Costo real inválido. No se guardó el conteo.", "error")
+                return redirect(url_for("inventario"))
+            if costo is None or not math.isfinite(costo) or costo < 0:
+                flash("El costo real debe ser un número positivo o cero.", "error")
+                return redirect(url_for("inventario"))
+    elif origen != "proveedor":
+        flash("Elegí si tenés el producto físicamente o si se consigue por proveedor.", "error")
+        return redirect(url_for("inventario"))
+    db.registrar_inventario_fisico(id, origen, cantidad, costo)
+    flash(f"Inventario de {p['nombre']} registrado.", "success")
+    return redirect(url_for("inventario"))
 
 @app.route("/productos")
 @login_required

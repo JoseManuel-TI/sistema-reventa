@@ -4,6 +4,7 @@
     <h2>📊 Dashboard</h2>
     <div class="btn-group">
         <a href="/productos/nuevo" class="btn btn-primary">+ Nuevo producto</a>
+        <a href="/inventario" class="btn btn-outline">Contar inventario físico</a>
         <a href="/tienda" target="_blank" class="btn btn-outline">🛍️ Ver tienda</a>
     </div>
 </div>
@@ -51,19 +52,21 @@
         <div class="label">A cobrar (contra entrega)</div>
         <div class="value orange">$ {{ stats.a_cobrar|fmt_pesos }}</div>
     </div>
-    <div class="stat-card" title="Precio de venta × stock actual">
-        <div class="label">Venta potencial del stock</div>
-        <div class="value blue">$ {{ stats.venta_potencial|fmt_pesos }}</div>
+    <div class="stat-card" title="Solo unidades propias contadas; precio de catálogo, antes de gastos">
+        <div class="label">Venta potencial de lo contado</div>
+        <div class="value blue">{% if stats.inventario.propios %}$ {{ stats.inventario.venta_potencial|fmt_pesos }}{% else %}—{% endif %}</div>
     </div>
-    <div class="stat-card" title="Costo de compra × stock actual">
-        <div class="label">Invertido en stock</div>
-        <div class="value orange">$ {{ stats.inversion_total|fmt_pesos }}</div>
+    <div class="stat-card" title="Unidades físicas contadas × costo real pagado por unidad">
+        <div class="label">Inversión verificada</div>
+        <div class="value orange">{% if stats.inventario.propios %}$ {{ stats.inventario.inversion|fmt_pesos }}{% else %}—{% endif %}</div>
     </div>
-    <div class="stat-card">
-        <div class="label">Ganancia estimada</div>
-        <div class="value green">$ {{ stats.ganancia_estimada|fmt_pesos }}</div>
+    <div class="stat-card" title="Solo artículos con conteo, costo real y precio. Antes de comisiones, envíos e impuestos; no es ganancia realizada.">
+        <div class="label">Margen bruto potencial</div>
+        <div class="value green">{% if stats.inventario.propios %}$ {{ stats.inventario.margen_bruto_potencial|fmt_pesos }}{% else %}—{% endif %}</div>
     </div>
 </div>
+
+<p style="margin:8px 0 24px;color:#64748b;">Inventario físico: {{ stats.inventario.propios }} productos contados ({{ stats.inventario.unidades }} unidades), {{ stats.inventario.proveedor }} de proveedor y {{ stats.inventario.pendientes }} sin clasificar. {% if stats.inventario.sin_costo or stats.inventario.sin_precio %}Faltan {{ stats.inventario.sin_costo }} costos reales y {{ stats.inventario.sin_precio }} precios en productos contados; los totales son parciales.{% endif %} <a href="/inventario">Revisar conteo</a></p>
 
 <div class="dash-cols">
     <div class="card">
@@ -169,6 +172,7 @@
     <div class="btn-group" style="flex-wrap:wrap;">
         <a href="/productos/nuevo" class="btn btn-success">📦 Nuevo producto</a>
         <a href="/productos" class="btn btn-outline">📦 Productos</a>
+        <a href="/inventario" class="btn btn-outline">🧮 Inventario físico</a>
         <a href="/pedidos" class="btn btn-outline">📋 Pedidos</a>
         <a href="/precios" class="btn btn-outline">💰 Precios</a>
         <a href="/categorias" class="btn btn-outline">🏷️ Categorías</a>

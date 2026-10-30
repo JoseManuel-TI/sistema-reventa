@@ -435,17 +435,80 @@ def test_pedidos_filtro_cancelado(client):
     assert f'/{atendido}"'.encode() not in r.data
 
 
-def test_dashboard_muestra_invertido_en_stock(client):
-    crear_producto(nombre="Inv", stock=3, precio=2500, costo=1000)
+def test_inventario_fisico_separa_publicado_de_lo_invertido(client):
+    import db
+
+    pid = crear_producto(nombre="Inv", stock=3, precio=2500, costo=1000)
     _login(client)
 
     r = client.get("/dashboard")
-
     assert r.status_code == 200
-    assert b"Venta potencial del stock" in r.data
-    assert b"$ 7.500" in r.data
-    assert b"Invertido en stock" in r.data
-    assert b"$ 3.000" in r.data
+    assert b"Inversi\xc3\xb3n verificada" in r.data
+    assert b"1 sin clasificar" in r.data
+
+    r = client.post(f"/inventario/{pid}/registrar", data={
+        "csrf_token": _csrf(client), "origen": "propio",
+        "cantidad": "2", "costo_real_unitario": "1.200",
+    })
+    assert r.status_code == 302
+    p = db.get_producto(pid)
+    assert p["stock"] == 3
+    assert p["stock_fisico"] == 2
+    assert p["costo_real_unitario"] == 1200
+    html = client.get("/dashboard").data
+    assert b"$ 2.400" in html
+    assert b"$ 5.000" in html
+    assert b"$ 2.600" in html
+
+
+def test_inventario_proveedor_y_costo_desconocido_no_inflan_inversion(client):
+    import db
+
+    propio = crear_producto(nombre="Propio", stock=9, precio=3000, costo=1000)
+    proveedor = crear_producto(nombre="Proveedor", stock=20, precio=5000, costo=2500)
+    _login(client)
+    token = _csrf(client)
+    assert client.post(f"/inventario/{propio}/registrar", data={
+        "csrf_token": token, "origen": "propio", "cantidad": "2",
+    }).status_code == 302
+    assert client.post(f"/inventario/{proveedor}/registrar", data={
+        "csrf_token": token, "origen": "proveedor",
+    }).status_code == 302
+    assert db.get_producto(proveedor)["stock_fisico"] is None
+    html = client.get("/inventario").data
+    assert b"Faltan costos reales en 1 productos" in html
+    assert b"Inversi\xc3\xb3n con costo cargado" in html
+    assert b"2" in html
+
+
+def test_inventario_rechaza_conteo_invalido(client):
+    import db
+
+    pid = crear_producto(stock=4, precio=1000)
+    _login(client)
+    r = client.post(f"/inventario/{pid}/registrar", data={
+        "csrf_token": _csrf(client), "origen": "propio", "cantidad": "-1",
+    })
+    assert r.status_code == 302
+    assert db.get_producto(pid)["inventario_origen"] == "pendiente"
+
+
+def test_inventario_muestra_todo_el_catalogo_sin_contar_afiliados(client):
+    import db
+
+    crear_producto(nombre="Local", stock=1, precio=1000)
+    externo = crear_producto(nombre="Amazon", stock=0, precio=0)
+    db.update_producto(externo, es_afiliado=1, tipo_producto="amazon_affiliate")
+    _login(client)
+
+    html = client.get("/inventario").data
+    assert b"Hay 2 productos activos en el cat\xc3\xa1logo" in html
+    assert b"Afiliados y externos" in html
+    assert b"Externo: no integra stock propio" in html
+    assert html.count(b'name="origen"') == 1
+    assert client.post(f"/inventario/{externo}/registrar", data={
+        "csrf_token": _csrf(client), "origen": "propio", "cantidad": "1",
+    }).status_code == 404
 
 
 def _stat(client, label):
