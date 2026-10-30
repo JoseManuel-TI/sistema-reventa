@@ -136,6 +136,40 @@ def test_programar_dos_diarias_es_idempotente():
     assert contenido.programar_dos_diarias(dias=2, por_dia=2) == []
 
 
+def test_rotacion_alterna_precios_accesibles_y_altos():
+    productos = [
+        {"id": 1, "precio_venta": 30000},
+        {"id": 2, "precio_venta": 45000},
+        {"id": 3, "precio_venta": 100000},
+        {"id": 4, "precio_venta": 500000},
+    ]
+    assert [p["id"] for p in contenido._alternar_precios(productos)] == [1, 3, 2, 4]
+
+
+def test_reorganizar_cola_futura_conserva_perfume_y_fechas():
+    altos = [_producto("Alto A", "Audio", 200000), _producto("Alto B", "Hogar", 300000)]
+    bajos = [_producto("Bajo A", "Audio", 20000), _producto("Bajo B", "Hogar", 30000)]
+    perfume = _producto("Perfume A", "Perfumes", 70000)
+    conn = _conn()
+    for i, pid in enumerate([altos[0], perfume, altos[1], bajos[0], bajos[1]], 1):
+        conn.execute(
+            "INSERT INTO publicaciones (producto_id, programada_para, caption) "
+            "VALUES (?, date('now', ?), ?)",
+            (pid, f"+{i} day", f"texto {pid}"),
+        )
+    conn.commit()
+    conn.close()
+
+    assert contenido.alternar_precios_pendientes() == 4
+    conn = _conn()
+    filas = conn.execute("SELECT producto_id, programada_para, caption FROM publicaciones ORDER BY id").fetchall()
+    conn.close()
+    assert [f[0] for f in filas] == [bajos[0], perfume, altos[0], bajos[1], altos[1]]
+    assert len({f[1] for f in filas}) == 5
+    assert all(f[2] == f"texto {f[0]}" for f in filas)
+    assert contenido.alternar_precios_pendientes() == 0
+
+
 def test_republicar_instagram_sin_configurar(monkeypatch):
     monkeypatch.setattr(contenido.instagram_api, "configurado", lambda: False)
     ok, fallidos, detalle = contenido.republicar_instagram()

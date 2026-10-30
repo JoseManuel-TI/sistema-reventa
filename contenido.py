@@ -278,6 +278,7 @@ def programar_dos_diarias(
     normales = [p for p in publicables if (p.get("categoria") or "").strip().lower() != cat]
     destacados.sort(key=_score_producto, reverse=True)
     normales.sort(key=_score_producto, reverse=True)
+    normales = _alternar_precios(normales)
 
     conn = _get_conn()
     creadas = []
@@ -450,6 +451,50 @@ def _score_producto(producto):
     if precio and precio <= 400000:
         score += 8
     return score
+
+
+def _alternar_precios(productos, umbral_accesible=50000):
+    """Mezcla artículos accesibles y de mayor valor conservando prioridad interna."""
+    accesibles = [p for p in productos if (p.get("precio_venta") or 0) <= umbral_accesible]
+    mayores = [p for p in productos if (p.get("precio_venta") or 0) > umbral_accesible]
+    alternados = []
+    for indice in range(max(len(accesibles), len(mayores))):
+        if indice < len(accesibles):
+            alternados.append(accesibles[indice])
+        if indice < len(mayores):
+            alternados.append(mayores[indice])
+    return alternados
+
+
+def alternar_precios_pendientes():
+    """Reordena los próximos espacios generales; conserva fechas y perfumes."""
+    _init_db()
+    conn = _get_conn()
+    try:
+        filas = conn.execute(
+            "SELECT id, producto_id, caption FROM publicaciones "
+            "WHERE estado='pendiente' AND date(programada_para) >= date('now') "
+            "ORDER BY programada_para ASC, id ASC"
+        ).fetchall()
+        espacios = []
+        for pub_id, prod_id, caption in filas:
+            producto = app_db.get_producto(prod_id)
+            if producto and (producto.get("categoria") or "").strip().lower() != "perfumes":
+                espacios.append((pub_id, {**producto, "_caption_programado": caption}))
+        ordenados = _alternar_precios([p for _, p in espacios])
+        cambiados = 0
+        for (pub_id, anterior), nuevo in zip(espacios, ordenados):
+            if anterior["id"] == nuevo["id"]:
+                continue
+            conn.execute(
+                "UPDATE publicaciones SET producto_id=?, caption=? WHERE id=? AND estado='pendiente'",
+                (nuevo["id"], nuevo["_caption_programado"], pub_id),
+            )
+            cambiados += 1
+        conn.commit()
+        return cambiados
+    finally:
+        conn.close()
 
 
 def _fechas_pendientes(conn):

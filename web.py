@@ -1347,6 +1347,14 @@ def contenido_programar_dos():
     return redirect(url_for("contenido_calendario"))
 
 
+@app.route("/contenido/alternar-precios", methods=["POST"])
+@login_required
+def contenido_alternar_precios():
+    cambiadas = cnt.alternar_precios_pendientes()
+    flash(f"Reorganicé {cambiadas} publicaciones futuras para alternar artículos accesibles y de mayor valor.", "success")
+    return redirect(url_for("contenido_calendario"))
+
+
 @app.route("/contenido/publicar-pendientes", methods=["POST"])
 @login_required
 def contenido_publicar_pendientes():

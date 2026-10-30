@@ -177,9 +177,6 @@ def _es_externo(producto):
 def construir_caption(producto):
     """Arma el texto del posteo de Instagram (gancho, beneficios, CTA, hashtags)."""
     nombre = producto["nombre"]
-    public_url = (config.get("PUBLIC_URL") or "https://clickya.net").rstrip("/")
-    bio_url = public_url.replace("https://", "")
-
     beneficios = marketing.lineas_beneficios(producto)
     bloque_benef = "".join(f"✅ {b}\n" for b in beneficios)
     if bloque_benef:
@@ -197,7 +194,7 @@ def construir_caption(producto):
             f"🛒 {nombre}\n\n"
             f"{bloque_benef}"
             f"👉 Disponible en {destino}\n"
-            f"🔗 Enlace en la bio ({bio_url}/bio)\n"
+            "🔗 Enlace en la bio\n"
             f"📲 o mandanos un DM «QUIERO»\n\n"
             f"Enlace de afiliado: podemos recibir una comisión sin costo extra para vos.\n"
             f"La compra y la garantía las gestiona {destino}.\n\n"
@@ -205,20 +202,12 @@ def construir_caption(producto):
             f"{marketing.hashtags_producto(producto)} #Publicidad"
         )
 
-    pv = producto.get("precio_venta") or 0
-    if pv:
-        precio = "$ " + f"{pv:,.0f}".replace(",", ".")
-        linea_precio = f"💰 Precio: {precio}"
-    else:
-        linea_precio = "💰 Precio: consultanos por DM"
-
     return (
         f"🛒 {nombre}\n\n"
         f"{bloque_benef}"
-        f"{linea_precio}\n"
-        f"🚚 {marketing.ENVIO_TEXTO}\n"
-        f"✅ Stock disponible\n\n"
-        f"👉 Todos los productos en el link de la bio ({bio_url}/bio)\n"
+        "💰 Mirá el precio actualizado en la tienda\n"
+        "🚚 Envíos en AMBA · consultá disponibilidad\n\n"
+        "👉 Comprá desde el link de la bio\n"
         f"📲 o mandanos un DM «QUIERO»\n\n"
         f".\n.\n.\n"
         f"{marketing.hashtags_producto(producto)}"

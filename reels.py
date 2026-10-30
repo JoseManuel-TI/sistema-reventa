@@ -13,7 +13,6 @@ import tempfile
 
 import config
 import db
-import marketing
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = config.DATA_DIR
@@ -26,7 +25,7 @@ REELS_DIR = os.path.join(IMAGENES_DIR, "reels")
 
 ANCHO, ALTO = 1080, 1920
 DURACION = 8
-_VERSION_FRAME = "3"
+_VERSION_FRAME = "4"
 
 _NO_DIBUJABLES = re.compile(r"[^\x20-\x7E\xA0-\xFF\u2010-\u203A\u20AC\u00A3\u00A5\u20BF]+")
 
@@ -93,17 +92,6 @@ def _fuente_archivo(archivo):
     return os.path.join(BASE_DIR, archivo)
 
 
-def _cover(img, ancho, alto):
-    from PIL import Image
-
-    ratio = max(ancho / img.width, alto / img.height)
-    nueva = (max(1, int(img.width * ratio)), max(1, int(img.height * ratio)))
-    img = img.resize(nueva, Image.LANCZOS)
-    x = (img.width - ancho) // 2
-    y = (img.height - alto) // 2
-    return img.crop((x, y, x + ancho, y + alto))
-
-
 def _fit(img, max_ancho, max_alto):
     from PIL import Image
 
@@ -114,7 +102,7 @@ def _fit(img, max_ancho, max_alto):
 
 def _envolver(draw, texto, fuente, max_ancho, max_lineas=3):
     palabras = str(texto or "").split()
-    lineas, actual = [], ""
+    lineas, actual, truncado = [], "", False
     for palabra in palabras:
         prueba = f"{actual} {palabra}".strip()
         if draw.textlength(prueba, font=fuente) <= max_ancho or not actual:
@@ -123,73 +111,58 @@ def _envolver(draw, texto, fuente, max_ancho, max_lineas=3):
             lineas.append(actual)
             actual = palabra
             if len(lineas) == max_lineas:
+                truncado = True
                 break
     if actual and len(lineas) < max_lineas:
         lineas.append(actual)
-    if len(lineas) == max_lineas and palabras:
+    if truncado:
         ultima = lineas[-1]
         while ultima and draw.textlength(ultima + "…", font=fuente) > max_ancho:
             ultima = ultima[:-1]
-        if ultima != lineas[-1]:
-            lineas[-1] = ultima.rstrip() + "…"
+        lineas[-1] = ultima.rstrip() + "…"
     return lineas
 
 
-def _pesos(valor):
-    return "$ " + f"{float(valor or 0):,.0f}".replace(",", ".")
-
-
 def componer_frame(producto, imagen_path, salida):
-    """Dibuja el frame 1080x1920 del reel y lo guarda en `salida`."""
-    from PIL import Image, ImageDraw, ImageFilter
+    """Dibuja una plantilla de marca uniforme en 1080x1920."""
+    from PIL import Image, ImageDraw
 
     base = Image.open(imagen_path).convert("RGB")
-
-    fondo = _cover(base, ANCHO, ALTO).filter(ImageFilter.GaussianBlur(28))
-    fondo = Image.eval(fondo, lambda v: int(v * 0.42))
-    lienzo = fondo.convert("RGBA")
-
-    producto_img = _fit(base, 1000, 1000)
-    px = (ANCHO - producto_img.width) // 2
-    py = 250 + (1000 - producto_img.height) // 2
-    lienzo.paste(producto_img, (px, py))
-
+    lienzo = Image.new("RGB", (ANCHO, ALTO), (15, 23, 42))
     draw = ImageDraw.Draw(lienzo)
+    azul, amarillo, blanco = (37, 99, 235), (245, 158, 11), (255, 255, 255)
+    draw.rectangle((0, 0, ANCHO, 18), fill=azul)
 
-    f_marca = _fuente(58, True)
-    f_sub = _fuente(32, False)
-    f_titulo = _fuente(60, True)
-    f_precio = _fuente(100, True)
-    f_cta = _fuente(46, True)
-    f_pie = _fuente(30, False)
+    f_marca = _fuente(78, True)
+    f_sub = _fuente(38, False)
+    f_titulo = _fuente(66, True)
+    f_precio = _fuente(48, True)
+    f_cta = _fuente(53, True)
+    f_pie = _fuente(32, False)
 
     def centrado(texto, y, fuente, color):
         ancho = draw.textlength(texto, font=fuente)
         draw.text(((ANCHO - ancho) / 2, y), texto, font=fuente, fill=color)
 
-    centrado("ClickYa", 80, f_marca, (255, 255, 255))
-    centrado(marketing.ENVIO_TEXTO, 160, f_sub, (209, 213, 219))
+    centrado("ClickYa", 64, f_marca, blanco)
+    centrado("Tecnología · Hogar · Perfumes", 160, f_sub, (203, 213, 225))
 
-    y = 1310
+    draw.rounded_rectangle((68, 268, 1012, 1110), radius=48, fill=blanco)
+    producto_img = _fit(base, 880, 780)
+    px = (ANCHO - producto_img.width) // 2
+    py = 298 + (780 - producto_img.height) // 2
+    lienzo.paste(producto_img, (px, py))
+
     titulo = _limpiar_texto(producto.get("nombre"))
-    for linea in _envolver(draw, titulo, f_titulo, 960, 3):
-        centrado(linea, y, f_titulo, (255, 255, 255))
-        y += 72
+    for i, linea in enumerate(_envolver(draw, titulo, f_titulo, 940, 2)):
+        centrado(linea, 1170 + i * 82, f_titulo, blanco)
 
-    y += 10
-    centrado(_pesos(producto.get("precio_venta")), y, f_precio, (52, 211, 153))
-    y += 130
+    centrado("Precio actualizado en la tienda", 1410, f_precio, amarillo)
+    draw.rounded_rectangle((90, 1545, 990, 1670), radius=60, fill=azul)
+    centrado("Comprá en clickya.net", 1574, f_cta, blanco)
+    centrado("Envíos en AMBA · Consultá disponibilidad", 1824, f_pie, (203, 213, 225))
 
-    texto_cta = "Pedilo en clickya.net"
-    ancho_cta = draw.textlength(texto_cta, font=f_cta) + 100
-    x0 = (ANCHO - ancho_cta) / 2
-    draw.rounded_rectangle((x0, y, x0 + ancho_cta, y + 92), radius=46, fill=(16, 185, 129))
-    cta_x = (ANCHO - draw.textlength(texto_cta, font=f_cta)) / 2
-    draw.text((cta_x, y + 18), texto_cta, font=f_cta, fill=(255, 255, 255))
-
-    centrado("Stock disponible · Link en bio", 1855, f_pie, (156, 163, 175))
-
-    lienzo.convert("RGB").save(salida, "PNG", optimize=True)
+    lienzo.save(salida, "PNG", optimize=True)
     return salida
 
 

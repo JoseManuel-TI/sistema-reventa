@@ -45,8 +45,10 @@ def test_lineas_beneficios_vacio():
 def test_caption_instagram_no_dice_envio_gratis():
     caption = instagram_api.construir_caption(_producto())
     assert "Envío gratis" not in caption
-    assert marketing.ENVIO_TEXTO in caption
-    assert "33.750" in caption
+    assert "Envíos en AMBA" in caption
+    assert "33.750" not in caption
+    assert "precio actualizado" in caption
+    assert "Stock disponible" not in caption
     assert "Resistente al agua" in caption
     assert "link de la bio" in caption
     assert "#clickya" in caption
@@ -54,7 +56,7 @@ def test_caption_instagram_no_dice_envio_gratis():
 
 def test_caption_instagram_sin_precio():
     caption = instagram_api.construir_caption(_producto(precio_venta=0))
-    assert "consultanos por DM" in caption
+    assert "precio actualizado" in caption
     assert "Precio: $" not in caption
 
 
