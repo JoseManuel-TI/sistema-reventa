@@ -465,6 +465,11 @@ def _resumen_inventario(productos):
             resumen["venta_potencial"] += precio * cantidad
         if costo is not None and precio and precio > 0:
             resumen["margen_bruto_potencial"] += (precio - costo) * cantidad
+    resumen["ganancia_sobre_costo_porcentaje"] = (
+        resumen["margen_bruto_potencial"] / resumen["inversion"] * 100
+        if resumen["inversion"] > 0 and not resumen["sin_costo"] and not resumen["sin_precio"]
+        else None
+    )
     return resumen
 
 
@@ -472,13 +477,22 @@ def _resumen_inventario(productos):
 @login_required
 def inventario():
     productos = db.get_productos()
+    precios_pendientes_40 = sum(
+        p.get("inventario_origen") == "propio"
+        and (p.get("stock_fisico") or 0) > 0
+        and (p.get("costo_real_unitario") or 0) > 0
+        and p.get("precio_venta") != pcalc.calcular_precio_venta_rapido(p["costo_real_unitario"], margen=40)
+        for p in _productos_para_conteo(productos)
+    )
     for p in productos:
         p["inventario_externo"] = bool(p.get("es_afiliado")) or itgr.es_externo(p.get("tipo_producto"))
     productos.sort(key=lambda p: (p["inventario_externo"],
                                   p.get("inventario_origen") != "pendiente",
                                   (p.get("nombre") or "").lower()))
     return render_template("inventario.html", productos=productos,
-                           resumen=_resumen_inventario(productos), **_ruta("/inventario"))
+                           resumen=_resumen_inventario(productos),
+                           precios_pendientes_40=precios_pendientes_40,
+                           **_ruta("/inventario"))
 
 
 @app.route("/inventario/<int:id>/registrar", methods=["POST"])
@@ -512,8 +526,30 @@ def inventario_registrar(id):
     elif origen != "proveedor":
         flash("Elegí si tenés el producto físicamente o si se consigue por proveedor.", "error")
         return redirect(url_for("inventario"))
-    db.registrar_inventario_fisico(id, origen, cantidad, costo)
-    flash(f"Inventario de {p['nombre']} registrado.", "success")
+    nuevo_precio = (pcalc.calcular_precio_venta_rapido(costo, margen=40)
+                    if origen == "propio" and cantidad and costo else None)
+    db.registrar_inventario_fisico(id, origen, cantidad, costo,
+                                  precio_venta=nuevo_precio,
+                                  margen_porcentaje=40 if nuevo_precio is not None else None)
+    detalle = (f" Precio público al 40%: $ {nuevo_precio:,.0f}.".replace(",", ".")
+               if nuevo_precio is not None else "")
+    flash(f"Inventario de {p['nombre']} registrado.{detalle}", "success")
+    return redirect(url_for("inventario"))
+
+
+@app.route("/inventario/recalcular-precios-40", methods=["POST"])
+@login_required
+def inventario_recalcular_precios_40():
+    actualizados = 0
+    for p in _productos_para_conteo(db.get_productos(activos=True)):
+        if (p.get("inventario_origen") != "propio" or not p.get("stock_fisico")
+                or not p.get("costo_real_unitario")):
+            continue
+        precio = pcalc.calcular_precio_venta_rapido(p["costo_real_unitario"], margen=40)
+        if p.get("precio_venta") != precio or p.get("margen_porcentaje") != 40:
+            db.update_producto(p["id"], precio_venta=precio, margen_porcentaje=40)
+            actualizados += 1
+    flash(f"Actualicé {actualizados} precios públicos de productos físicos al 40% sobre el costo real.", "success")
     return redirect(url_for("inventario"))
 
 @app.route("/productos")
@@ -629,11 +665,11 @@ def productos_nuevo():
             if costo_usd is not None and costo_usd > 0:
                 db.update_producto(pid, costo_usd=costo_usd)
                 if not precio_venta:
-                    calc = pcalc.calcular_precio_desde_usd(costo_usd, margen=35)
+                    calc = pcalc.calcular_precio_desde_usd(costo_usd, margen=40)
                     precio_venta = calc["precio_final"]
                     db.update_producto(pid, costo=calc["costo_ars"])
             elif costo and not precio_venta:
-                precio_venta = pcalc.calcular_precio_venta_rapido(costo, margen=35)
+                precio_venta = pcalc.calcular_precio_venta_rapido(costo, margen=40)
 
             if precio_venta:
                 db.update_producto(pid, precio_venta=precio_venta)
@@ -729,7 +765,7 @@ def productos_editar(id):
             pv_cambiado_manualmente = (precio_venta is not None and
                                        abs(precio_venta - (pv_original or 0)) > 0.001)
 
-            margen = 35
+            margen = 40
             if costo_usd is not None and costo_usd > 0 and costo_usd_cambiado and not pv_cambiado_manualmente:
                 calc = pcalc.calcular_precio_desde_usd(costo_usd, margen=margen)
                 precio_venta = calc["precio_final"]
@@ -937,7 +973,12 @@ def precios_recalcular_todos():
             if p.get("es_afiliado") or p.get("tipo_producto") in ("amazon_affiliate", "afiliado_digital"):
                 omitidos += 1
                 continue
-            if p.get("costo_usd"):
+            if (p.get("inventario_origen") == "propio" and (p.get("stock_fisico") or 0) > 0
+                    and (p.get("costo_real_unitario") or 0) > 0):
+                precio = pcalc.calcular_precio_venta_rapido(p["costo_real_unitario"], margen=margen)
+                db.update_producto(p["id"], precio_venta=precio, margen_porcentaje=margen)
+                actualizados += 1
+            elif p.get("costo_usd"):
                 calc = pcalc.calcular_precio_desde_usd(p["costo_usd"], margen=margen)
                 db.update_producto(p["id"], costo=calc["costo_ars"],
                                    precio_venta=calc["precio_final"],
@@ -981,19 +1022,23 @@ def precios_producto(id):
     if not p:
         flash("Producto no encontrado.", "error")
         return redirect(url_for("productos_listar"))
+    costo_para_precio = (p["costo_real_unitario"]
+                         if p.get("inventario_origen") == "propio" and (p.get("stock_fisico") or 0) > 0
+                         and (p.get("costo_real_unitario") or 0) > 0 else p["costo"])
     datos = {"margen_deseado": 40}
     resultado = None
     if request.method == "POST":
         try:
             datos["margen_deseado"] = _parsear_numero_form(request.form.get("margen_deseado"), default=40)
             params = pcalc.ParametrosPrecio(
-                costo=p["costo"],
+                costo=costo_para_precio,
                 margen_deseado=datos["margen_deseado"],
             )
             resultado = pcalc.calcular_precio_final(params)
         except ValueError:
             flash("Ingresá un margen válido para calcular el precio.", "error")
-    return render_template("precios_producto.html", p=p, datos=datos, resultado=resultado,
+    return render_template("precios_producto.html", p=p, costo_para_precio=costo_para_precio,
+                           datos=datos, resultado=resultado,
                            **_ruta("/precios"))
 
 

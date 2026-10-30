@@ -7,7 +7,7 @@
 
 <div class="card" style="max-width:400px;">
     <div style="margin-bottom:16px;">
-        <strong>Costo actual:</strong> $ {{ p.costo|fmt_pesos }}<br>
+        <strong>{{ 'Costo real del inventario' if costo_para_precio != p.costo else 'Costo actual' }}:</strong> $ {{ costo_para_precio|fmt_pesos }}<br>
         <strong>Precio actual:</strong> {{ '$ ' + (p.precio_venta|fmt_pesos) if p.precio_venta else 'Sin definir' }}
     </div>
 

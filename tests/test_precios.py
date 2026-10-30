@@ -10,6 +10,8 @@ def test_calcular_precio_final_margen_sobre_costo():
 
 def test_calcular_precio_venta_rapido():
     assert precios.calcular_precio_venta_rapido(1000, margen=35) == 1400.00
+    assert precios.calcular_precio_venta_rapido(1000) == 1400.00
+    assert precios.ParametrosPrecio(costo=1000).margen_deseado == 40
 
 
 def test_redondeo_precio_venta_a_centenas():
@@ -43,6 +45,5 @@ def test_precio_desde_usd(monkeypatch):
 
 def test_precio_sugerido_ml_incluye_comision():
     r = precios.precio_sugerido_ml(costo=1000, comision=20.5)
-    # markup 35% sobre el costo, cubriendo la comisión de ML
-    # 1000 * 1.35 = 1350 ; 1350 / (1 - 0.205) = 1698.11, redondeado a centenas
-    assert r["precio_final"] == 1700.00
+    # 40% sobre el costo, cubriendo la comisión de ML y redondeando a centenas.
+    assert r["precio_final"] == 1800.00

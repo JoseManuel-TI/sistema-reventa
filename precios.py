@@ -63,7 +63,7 @@ def get_dolar_blue():
 @dataclass
 class ParametrosPrecio:
     costo: float
-    margen_deseado: float = 35.0
+    margen_deseado: float = 40.0
 
     def __post_init__(self):
         for field_name in self.__dataclass_fields__:
@@ -99,7 +99,7 @@ def calcular_precio_final(params: ParametrosPrecio) -> dict:
     return desglose
 
 
-def calcular_precio_desde_usd(costo_usd: float, margen: float = 35) -> dict:
+def calcular_precio_desde_usd(costo_usd: float, margen: float = 40) -> dict:
     dolar = get_dolar_blue()
     costo_ars = round(costo_usd * dolar, 2)
     params = ParametrosPrecio(costo=costo_ars, margen_deseado=margen)
@@ -110,13 +110,13 @@ def calcular_precio_desde_usd(costo_usd: float, margen: float = 35) -> dict:
     return resultado
 
 
-def calcular_precio_venta_rapido(costo: float, margen: float = 35) -> float:
+def calcular_precio_venta_rapido(costo: float, margen: float = 40) -> float:
     return calcular_precio_final(ParametrosPrecio(costo, margen))["precio_final"]
 
 
 def precio_sugerido_ml(costo: float, comision: float = 20.5) -> dict:
-    """Precio para Mercado Libre que, tras la comisión, deja un markup del 35%."""
-    margen = 35.0
+    """Precio para Mercado Libre que, tras la comisión, deja un markup del 40%."""
+    margen = 40.0
     base = costo * (1 + margen / 100)
     precio_final = redondear_precio_venta(base / (1 - comision / 100))
     return {

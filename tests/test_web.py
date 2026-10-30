@@ -455,10 +455,31 @@ def test_inventario_fisico_separa_publicado_de_lo_invertido(client):
     assert p["stock"] == 3
     assert p["stock_fisico"] == 2
     assert p["costo_real_unitario"] == 1200
+    assert p["precio_venta"] == 1700
+    assert p["margen_porcentaje"] == 40
     html = client.get("/dashboard").data
     assert b"$ 2.400" in html
-    assert b"$ 5.000" in html
-    assert b"$ 2.600" in html
+    assert b"$ 3.400" in html
+    assert b"$ 1.000" in html
+    inventario = client.get("/inventario").data
+    assert b"Ganancia bruta potencial con precios actuales" in inventario
+    assert b"41,67% sobre la inversi\xc3\xb3n" in inventario
+
+
+def test_inventario_recalcula_precios_anteriores_solo_de_stock_propio(client):
+    import db
+
+    propio = crear_producto(nombre="Propio", stock=2, precio=21000, costo=1000)
+    proveedor = crear_producto(nombre="Proveedor", stock=2, precio=21000, costo=1000)
+    db.registrar_inventario_fisico(propio, "propio", 2, 15650)
+    db.registrar_inventario_fisico(proveedor, "proveedor")
+    _login(client)
+    assert b"Actualizar 1 precios p\xc3\xbablicos al 40%" in client.get("/inventario").data
+    r = client.post("/inventario/recalcular-precios-40", data={"csrf_token": _csrf(client)})
+    assert r.status_code == 302
+    assert db.get_producto(propio)["precio_venta"] == 22000
+    assert db.get_producto(propio)["margen_porcentaje"] == 40
+    assert db.get_producto(proveedor)["precio_venta"] == 21000
 
 
 def test_inventario_proveedor_y_costo_desconocido_no_inflan_inversion(client):

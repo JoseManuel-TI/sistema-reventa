@@ -12,10 +12,15 @@
     <div class="stat-card"><div class="label">Afiliados y externos</div><div class="value">{{ resumen.externos }}</div></div>
     <div class="stat-card"><div class="label">Inversión: unidades × costo unitario</div><div class="value orange" id="total-inversion">{% if resumen.propios %}$ {{ resumen.inversion|fmt_pesos }}{% else %}—{% endif %}</div></div>
     <div class="stat-card"><div class="label">Venta potencial: unidades × precio público</div><div class="value blue" id="total-venta">{% if resumen.propios %}$ {{ resumen.venta_potencial|fmt_pesos }}{% else %}—{% endif %}</div></div>
-    <div class="stat-card"><div class="label">Margen bruto potencial</div><div class="value green" id="total-margen">{% if resumen.propios %}$ {{ resumen.margen_bruto_potencial|fmt_pesos }}{% else %}—{% endif %}</div></div>
+    <div class="stat-card"><div class="label">Ganancia bruta potencial con precios actuales</div><div class="value green" id="total-margen">{% if resumen.propios %}$ {{ resumen.margen_bruto_potencial|fmt_pesos }}{% else %}—{% endif %}</div><div id="porcentaje-ganancia" style="font-size:12px;color:#475569;">{% if resumen.ganancia_sobre_costo_porcentaje is not none %}{{ '%.2f'|format(resumen.ganancia_sobre_costo_porcentaje)|replace('.', ',') }}% sobre la inversión{% else %}Porcentaje pendiente de costos y precios completos{% endif %}</div></div>
 </div>
-<p id="inventario-preview-state" style="color:#2563eb;margin:0 0 8px;">Totales guardados. Al escribir verás una vista previa; guardá cada producto para conservarla.</p>
-<p style="color:#64748b;margin:12px 0 20px;">Faltan costos reales en <span id="faltantes-costos">{{ resumen.sin_costo }}</span> productos con unidades y precios de venta en <span id="faltantes-precios">{{ resumen.sin_precio }}</span>. Las cifras son parciales hasta completar el conteo. El margen potencial supone vender al precio actual y todavía no descuenta comisiones, envíos ni impuestos. La ganancia realizada requiere registrar ventas y gastos efectivos.</p>
+<p id="inventario-preview-state" style="color:#2563eb;margin:0 0 8px;">Totales guardados. Al escribir verás una vista previa; guardá cada producto para conservarla. Al guardar unidades propias con costo real, el precio público se actualiza al 40% sobre ese costo.</p>
+<p style="color:#64748b;margin:12px 0 20px;">Faltan costos reales en <span id="faltantes-costos">{{ resumen.sin_costo }}</span> productos con unidades y precios de venta en <span id="faltantes-precios">{{ resumen.sin_precio }}</span>. Las cifras son parciales hasta completar el conteo. Esta ganancia es venta potencial menos inversión, usando los precios públicos actuales. El redondeo por producto puede hacer que el porcentaje efectivo difiera levemente del 40%. Todavía no descuenta comisiones, envíos ni impuestos. La ganancia realizada requiere registrar ventas y gastos efectivos.</p>
+{% if precios_pendientes_40 %}<form method="POST" action="/inventario/recalcular-precios-40" style="margin:0 0 20px;">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button type="submit" class="btn btn-primary">Actualizar {{ precios_pendientes_40 }} precios públicos al 40%</button>
+    <span style="font-size:12px;color:#64748b;">Solo productos propios con unidades y costo real cargados.</span>
+</form>{% endif %}
 <div class="card">
     <div class="table-wrap">
         <table>
@@ -69,6 +74,12 @@ function pesosInventario(n) {
     return '$ ' + n.toLocaleString('es-AR', {maximumFractionDigits: 2});
 }
 
+function precioInventario40(costo) {
+    const base = costo * 1.4;
+    const escala = base >= 20000 ? 1000 : 100;
+    return Math.max(100, Math.round(base / escala) * escala);
+}
+
 function actualizarInventario(vistaPrevia) {
     const total = {pendientes: 0, proveedor: 0, propios: 0, unidades: 0,
                    inversion: 0, venta: 0, margen: 0, sinCosto: 0, sinPrecio: 0};
@@ -78,7 +89,9 @@ function actualizarInventario(vistaPrevia) {
         const cantidadTexto = form.querySelector('[name="cantidad"]').value.trim();
         const cantidad = /^\d+$/.test(cantidadTexto) ? Number(cantidadTexto) : null;
         const costo = costoInventario(form.querySelector('[name="costo_real_unitario"]').value);
-        const precio = Number(fila.dataset.precio);
+        const precioActual = Number(fila.dataset.precio);
+        const precio = fila.dataset.editado === '1' && cantidad > 0 && costo > 0
+            ? precioInventario40(costo) : precioActual;
         const calculo = fila.querySelector('.calculo-fila');
         if (origen === 'proveedor') {
             total.proveedor++;
@@ -94,7 +107,9 @@ function actualizarInventario(vistaPrevia) {
             if (costo !== null) total.inversion += cantidad * costo;
             if (precio > 0) total.venta += cantidad * precio;
             if (costo !== null && precio > 0) total.margen += cantidad * (precio - costo);
-            calculo.textContent = 'Inversión: ' + (costo === null ? 'falta costo' : pesosInventario(cantidad * costo)) +
+            calculo.textContent = (fila.dataset.editado === '1' && cantidad > 0 && costo > 0
+                ? 'Precio público al guardar: ' + pesosInventario(precio) + ' · ' : '') +
+                'Inversión: ' + (costo === null ? 'falta costo' : pesosInventario(cantidad * costo)) +
                 ' · Venta potencial: ' + (precio > 0 ? pesosInventario(cantidad * precio) : 'falta precio') +
                 ' · Margen bruto: ' + (costo !== null && precio > 0 ? pesosInventario(cantidad * (precio - costo)) : 'pendiente');
         }
@@ -105,6 +120,10 @@ function actualizarInventario(vistaPrevia) {
     document.getElementById('total-inversion').textContent = total.propios ? pesosInventario(total.inversion) : '—';
     document.getElementById('total-venta').textContent = total.propios ? pesosInventario(total.venta) : '—';
     document.getElementById('total-margen').textContent = total.propios ? pesosInventario(total.margen) : '—';
+    document.getElementById('porcentaje-ganancia').textContent =
+        total.inversion > 0 && !total.sinCosto && !total.sinPrecio
+            ? (total.margen / total.inversion * 100).toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + '% sobre la inversión'
+            : 'Porcentaje pendiente de costos y precios completos';
     document.getElementById('faltantes-costos').textContent = total.sinCosto;
     document.getElementById('faltantes-precios').textContent = total.sinPrecio;
     if (vistaPrevia) document.getElementById('inventario-preview-state').textContent =
@@ -112,8 +131,8 @@ function actualizarInventario(vistaPrevia) {
 }
 
 document.querySelectorAll('.inventario-producto input, .inventario-producto select').forEach(function(campo) {
-    campo.addEventListener('input', function() { actualizarInventario(true); });
-    campo.addEventListener('change', function() { actualizarInventario(true); });
+    campo.addEventListener('input', function() { campo.closest('.inventario-producto').dataset.editado = '1'; actualizarInventario(true); });
+    campo.addEventListener('change', function() { campo.closest('.inventario-producto').dataset.editado = '1'; actualizarInventario(true); });
 });
 actualizarInventario(false);
 </script>

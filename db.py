@@ -622,14 +622,15 @@ def update_producto(producto_id, **kwargs):
     values = list(updates.values()) + [producto_id]
     conn = get_connection()
     try:
-        conn.execute(f"UPDATE productos SET {set_clause} WHERE id = ?", values)
+        conn.execute(_sql(f"UPDATE productos SET {set_clause} WHERE id = ?"), values)
         conn.commit()
         return True
     finally:
         conn.close()
 
 
-def registrar_inventario_fisico(producto_id, origen, cantidad=None, costo_unitario=None):
+def registrar_inventario_fisico(producto_id, origen, cantidad=None, costo_unitario=None,
+                               precio_venta=None, margen_porcentaje=None):
     """Registra un conteo propio o clasifica una publicación como de proveedor."""
     if origen not in ("propio", "proveedor"):
         raise ValueError("Origen de inventario inválido")
@@ -641,14 +642,18 @@ def registrar_inventario_fisico(producto_id, origen, cantidad=None, costo_unitar
     else:
         cantidad = None
         costo_unitario = None
+    if precio_venta is not None and (origen != "propio" or cantidad == 0 or costo_unitario is None):
+        raise ValueError("El precio requiere unidades propias y costo real")
     conn = get_connection()
     try:
-        cur = conn.execute(_sql("""UPDATE productos SET inventario_origen = ?,
-            stock_fisico = ?, costo_real_unitario = ?, inventario_verificado_at = ?,
-            updated_at = ? WHERE id = ? AND activo = 1"""),
-            (origen, cantidad, costo_unitario,
-             datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-             datetime.now().strftime("%Y-%m-%d %H:%M:%S"), producto_id))
+        updates = "inventario_origen = ?, stock_fisico = ?, costo_real_unitario = ?, inventario_verificado_at = ?, updated_at = ?"
+        ahora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        values = [origen, cantidad, costo_unitario, ahora, ahora]
+        if precio_venta is not None:
+            updates += ", precio_venta = ?, margen_porcentaje = ?"
+            values.extend([precio_venta, margen_porcentaje])
+        values.append(producto_id)
+        cur = conn.execute(_sql(f"UPDATE productos SET {updates} WHERE id = ? AND activo = 1"), values)
         conn.commit()
         return cur.rowcount > 0
     finally:

@@ -5,7 +5,7 @@ Uso:
     python app.py proveedores listar
     python app.py productos listar
     python app.py productos agregar
-    python app.py precios calcular --costo 1000 --margen 35
+    python app.py precios calcular --costo 1000 --margen 40
     python app.py importar whatsapp --proveedor "Proveedor X"
     python app.py exportar ml
     python app.py exportar catalogo
@@ -104,7 +104,7 @@ def cmd_productos_agregar(args):
     if hasattr(args, 'precio_venta') and args.precio_venta is not None:
         db.update_producto(pid, precio_venta=args.precio_venta, margen_porcentaje=args.margen)
     else:
-        margen = getattr(args, 'margen', 35)
+        margen = getattr(args, 'margen', 40)
         pv = pcalc.calcular_precio_venta_rapido(args.costo, margen=margen)
         db.update_producto(pid, precio_venta=pv, margen_porcentaje=margen)
     print(f"Producto '{args.nombre}' creado (ID {pid}).")
@@ -461,7 +461,7 @@ def cmd_precios_producto(args):
         return
     params = pcalc.ParametrosPrecio(
         costo=p["costo"],
-        margen_deseado=args.margen or 35,
+        margen_deseado=args.margen if args.margen is not None else 40,
     )
     resultado = pcalc.calcular_precio_final(params)
     print(f"\n  Producto: {p['nombre']}")
@@ -576,7 +576,7 @@ Ejemplos:
   python app.py init
   python app.py proveedores agregar "Distribuidora X"
   python app.py productos agregar --proveedor 1
-  python app.py precios calcular --costo 1500 --margen 35
+  python app.py precios calcular --costo 1500 --margen 40
   python app.py precios producto 1 --guardar
   python app.py exportar ml
   python app.py exportar instagram
@@ -624,7 +624,7 @@ Ejemplos:
     p2.add_argument("--stock", type=int, default=0, help="Stock inicial")
     p2.add_argument("--iva", type=float, default=21, help="IVA %% (default: 21)")
     p2.add_argument("--precio-venta", type=float, help="Precio de venta (omitir para calcular automático)")
-    p2.add_argument("--margen", type=float, default=35, help="Margen de ganancia %% (default: 35)")
+    p2.add_argument("--margen", type=float, default=40, help="Margen de ganancia %% (default: 40)")
     p2.set_defaults(func=cmd_productos_agregar)
 
     p2 = p_sub.add_parser("editar", help="Editar producto (interactivo)")
@@ -653,12 +653,12 @@ Ejemplos:
 
     p2 = p_sub.add_parser("calcular", help="Calcular precio desde costo")
     p2.add_argument("--costo", type=float, required=True, help="Costo del producto")
-    p2.add_argument("--margen", type=float, default=35, help="Margen de ganancia %% (default: 35)")
+    p2.add_argument("--margen", type=float, default=40, help="Margen de ganancia %% (default: 40)")
     p2.set_defaults(func=cmd_precios_calcular)
 
     p2 = p_sub.add_parser("producto", help="Calcular precio sugerido para un producto existente")
     p2.add_argument("id", type=int, help="ID del producto")
-    p2.add_argument("--margen", type=float, default=35, help="Margen de ganancia %% (default: 35)")
+    p2.add_argument("--margen", type=float, default=40, help="Margen de ganancia %% (default: 40)")
     p2.add_argument("--guardar", action="store_true", help="Guardar el precio calculado")
     p2.set_defaults(func=cmd_precios_producto)
 
