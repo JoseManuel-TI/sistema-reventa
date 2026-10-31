@@ -759,19 +759,16 @@ def productos_editar(id):
                     prov_id = prov["id"]
                 proveedor_id = prov_id
 
-            costo_cambiado = costo != p.get("costo", 0)
-            costo_usd_cambiado = costo_usd != p.get("costo_usd", 0)
-            pv_original = p.get("precio_venta")
-            pv_cambiado_manualmente = (precio_venta is not None and
-                                       abs(precio_venta - (pv_original or 0)) > 0.001)
-
             margen = 40
-            if costo_usd is not None and costo_usd > 0 and costo_usd_cambiado and not pv_cambiado_manualmente:
-                calc = pcalc.calcular_precio_desde_usd(costo_usd, margen=margen)
-                precio_venta = calc["precio_final"]
-                costo = calc["costo_ars"]
-            elif costo is not None and costo > 0 and costo_cambiado and not pv_cambiado_manualmente:
-                precio_venta = pcalc.calcular_precio_venta_rapido(costo, margen=margen)
+            # El precio escrito a mano se respeta tal cual. Solo se calcula
+            # automáticamente (sin redondeos) si el campo quedó vacío.
+            if precio_venta is None:
+                if costo_usd is not None and costo_usd > 0:
+                    calc = pcalc.calcular_precio_desde_usd(costo_usd, margen=margen)
+                    precio_venta = calc["precio_final"]
+                    costo = calc["costo_ars"]
+                elif costo is not None and costo > 0:
+                    precio_venta = pcalc.calcular_precio_venta_rapido(costo, margen=margen)
 
             db.update_producto(id,
                 nombre=nombre,
@@ -994,24 +991,6 @@ def precios_recalcular_todos():
         flash(f"Recalculé {actualizados} productos con margen {margen}% sobre el costo{detalle}.", "success")
     except ValueError:
         flash("Ingresá un margen válido.", "error")
-    return redirect(url_for("precios"))
-
-
-@app.route("/precios/redondear-actuales", methods=["POST"])
-@login_required
-def precios_redondear_actuales():
-    actualizados = 0
-    for p in db.get_productos(activos=True):
-        if p.get("es_afiliado") or p.get("tipo_producto") in ("amazon_affiliate", "afiliado_digital"):
-            continue
-        precio = p.get("precio_venta") or 0
-        if precio <= 0:
-            continue
-        redondeado = pcalc.redondear_precio_venta(precio)
-        if redondeado != precio:
-            db.update_producto(p["id"], precio_venta=redondeado)
-            actualizados += 1
-    flash(f"Redondeé el precio de {actualizados} productos: a centenas bajo $20.000 y a miles desde $20.000.", "success")
     return redirect(url_for("precios"))
 
 

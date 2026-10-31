@@ -283,12 +283,15 @@ if (btnFetchMeta) {
     });
 }
 
+let precioEditadoManualmente = precioVentaInput.value.trim() !== '';
+precioVentaInput.addEventListener('input', function () {
+    precioEditadoManualmente = precioVentaInput.value.trim() !== '';
+});
+
 function calcularPrecioVenta(costoArs) {
     const c = parseFloat(costoArs);
     if (c > 0) {
-        const base = c * (1 + MARGEN / 100);
-        const escala = base >= 20000 ? 1000 : 100;
-        return String(Math.max(100, Math.round(base / escala) * escala));
+        return (c * (1 + MARGEN / 100)).toFixed(2);
     }
     return '';
 }
@@ -298,16 +301,20 @@ function actualizarDesdeUSD() {
     if (usd > 0) {
         const costoArs = usd * DOLAR_BLUE;
         costoArsInput.value = costoArs.toFixed(2);
-        precioVentaInput.value = calcularPrecioVenta(costoArsInput.value);
+        if (!precioEditadoManualmente) {
+            precioVentaInput.value = calcularPrecioVenta(costoArsInput.value);
+        }
     } else {
         costoArsInput.value = '';
-        precioVentaInput.value = '';
+        if (!precioEditadoManualmente) precioVentaInput.value = '';
     }
 }
 
 function actualizarDesdeCostoArs() {
     if (!costoUsdInput.value || parseFloat(costoUsdInput.value) <= 0) {
-        precioVentaInput.value = calcularPrecioVenta(costoArsInput.value);
+        if (!precioEditadoManualmente) {
+            precioVentaInput.value = calcularPrecioVenta(costoArsInput.value);
+        }
     }
 }
 

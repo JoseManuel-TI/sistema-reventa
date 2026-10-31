@@ -1,4 +1,4 @@
-from helpers import crear_producto
+from helpers import crear_producto, crear_proveedor
 
 
 def _csrf(client):
@@ -57,26 +57,53 @@ def test_admin_requiere_login(client):
     assert "/login" in r.headers["Location"]
 
 
-def test_redondear_precios_actuales_conserva_costos_y_omite_afiliados(client):
+def test_precio_manual_se_respeta_al_crear_y_editar(client):
     import db
 
     _login(client)
-    primero = crear_producto(nombre="Primero", precio=17567, costo=10000)
-    segundo = crear_producto(nombre="Segundo", precio=45611, costo=30000)
-    tercero = crear_producto(nombre="Tercero", precio=76500, costo=50000)
-    cuarto = crear_producto(nombre="Cuarto", precio=76499, costo=50000)
-    afiliado = crear_producto(nombre="Afiliado", precio=17567, costo=10000)
-    db.update_producto(afiliado, es_afiliado=1)
+    proveedor_id = crear_proveedor()
 
-    r = client.post("/precios/redondear-actuales", data={"csrf_token": _csrf(client)})
-
+    r = client.post("/productos/nuevo", data={
+        "csrf_token": _csrf(client),
+        "nombre": "Precio manual",
+        "proveedor_id": str(proveedor_id),
+        "costo": "18000",
+        "precio_venta": "25600",
+        "stock": "1",
+    })
     assert r.status_code == 302
-    assert db.get_producto(primero)["precio_venta"] == 17600
-    assert db.get_producto(segundo)["precio_venta"] == 46000
-    assert db.get_producto(tercero)["precio_venta"] == 77000
-    assert db.get_producto(cuarto)["precio_venta"] == 76000
-    assert db.get_producto(primero)["costo"] == 10000
-    assert db.get_producto(afiliado)["precio_venta"] == 17567
+    p = db.get_productos()[0]
+    assert p["precio_venta"] == 25600
+
+    r = client.post(f"/productos/{p['id']}/editar", data={
+        "csrf_token": _csrf(client),
+        "nombre": "Precio manual",
+        "proveedor_id": str(proveedor_id),
+        "costo": "19000",
+        "precio_venta": "25600",
+        "stock": "1",
+    })
+    assert r.status_code == 302
+    actualizado = db.get_producto(p["id"])
+    assert actualizado["costo"] == 19000
+    assert actualizado["precio_venta"] == 25600
+
+
+def test_precio_vacio_se_calcula_sin_redondear(client):
+    import db
+
+    _login(client)
+    proveedor_id = crear_proveedor()
+
+    client.post("/productos/nuevo", data={
+        "csrf_token": _csrf(client),
+        "nombre": "Precio automático",
+        "proveedor_id": str(proveedor_id),
+        "costo": "18143",
+        "precio_venta": "",
+        "stock": "1",
+    })
+    assert db.get_productos()[0]["precio_venta"] == 25400.2
 
 
 def test_calculadoras_de_precios_usen_40_por_defecto(client):
@@ -455,15 +482,15 @@ def test_inventario_fisico_separa_publicado_de_lo_invertido(client):
     assert p["stock"] == 3
     assert p["stock_fisico"] == 2
     assert p["costo_real_unitario"] == 1200
-    assert p["precio_venta"] == 1700
+    assert p["precio_venta"] == 1680
     assert p["margen_porcentaje"] == 40
     html = client.get("/dashboard").data
     assert b"$ 2.400" in html
-    assert b"$ 3.400" in html
-    assert b"$ 1.000" in html
+    assert b"$ 3.360" in html
+    assert b"$ 960" in html
     inventario = client.get("/inventario").data
     assert b"Ganancia bruta potencial con precios actuales" in inventario
-    assert b"41,67% sobre la inversi\xc3\xb3n" in inventario
+    assert b"40,00% sobre la inversi\xc3\xb3n" in inventario
 
 
 def test_inventario_recalcula_precios_anteriores_solo_de_stock_propio(client):
@@ -477,7 +504,7 @@ def test_inventario_recalcula_precios_anteriores_solo_de_stock_propio(client):
     assert b"Actualizar 1 precios p\xc3\xbablicos al 40%" in client.get("/inventario").data
     r = client.post("/inventario/recalcular-precios-40", data={"csrf_token": _csrf(client)})
     assert r.status_code == 302
-    assert db.get_producto(propio)["precio_venta"] == 22000
+    assert db.get_producto(propio)["precio_venta"] == 21910
     assert db.get_producto(propio)["margen_porcentaje"] == 40
     assert db.get_producto(proveedor)["precio_venta"] == 21000
 
