@@ -555,6 +555,8 @@ def cmd_publicar_post(args):
         print(f"Publicaciones procesadas: {len(resumen['publicaciones'])}")
         print(f"Pendientes en cola: {resumen['pendientes']}")
         print(f"Errores acumulados: {resumen['errores']}")
+        if resumen["agotado"]:
+            print("No quedan productos físicos con existencia por publicar. Rutina en pausa.")
         print(f"Telegram resumen: {'OK' if resumen['telegram'] else 'no enviado'}")
     else:
         print("Usá --producto ID, --auto, --programar [fecha], --calendario, --diario, --reprogramar-atrasadas o --cancelar-atrasadas")

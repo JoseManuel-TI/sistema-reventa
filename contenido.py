@@ -70,6 +70,12 @@ def _init_db():
             created_at TEXT DEFAULT (datetime('now','localtime'))
         )
     """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS contenido_estado (
+            clave TEXT PRIMARY KEY,
+            valor TEXT
+        )
+    """)
     conn.commit()
     conn.close()
     return True
@@ -77,6 +83,23 @@ def _init_db():
 
 def _get_conn():
     return sqlite3.connect(SCHEDULE_DB)
+
+
+_ESTADO_CATALOGO_AGOTADO = "catalogo_agotado_notificado"
+
+
+def _estado_leer(conn, clave):
+    row = conn.execute(
+        "SELECT valor FROM contenido_estado WHERE clave=?", (clave,)
+    ).fetchone()
+    return row[0] if row else None
+
+
+def _estado_guardar(conn, clave, valor):
+    conn.execute(
+        "INSERT OR REPLACE INTO contenido_estado (clave, valor) VALUES (?, ?)",
+        (clave, valor),
+    )
 
 
 # ─── Generar caption ────────────────────────────────────────────────
@@ -213,30 +236,26 @@ def programar_publicacion(producto_id, fecha=None):
 
 def programar_todos(fecha_inicio=None):
     _init_db()
-    productos = app_db.get_productos(publicado_only=True)
-    productos = [p for p in productos
-                 if itgr.es_externo(p.get("tipo_producto")) or p.get("es_afiliado")
-                 or (p.get("precio_venta") and p["precio_venta"] > 0)]
+    productos = [
+        p for p in app_db.get_productos(publicado_only=True)
+        if _producto_publicable(p)
+    ]
     random.shuffle(productos)
 
     conn = _get_conn()
     now = datetime.now()
     count = 0
     try:
-        for i, p in enumerate(productos):
+        usados = _productos_ya_programados(conn)
+        for i, p in enumerate(p for p in productos if p["id"] not in usados):
             fecha = (now + timedelta(days=i)).strftime("%Y-%m-%d") if not fecha_inicio else (
                 datetime.strptime(fecha_inicio, "%Y-%m-%d") + timedelta(days=i)
             ).strftime("%Y-%m-%d")
-            existing = conn.execute(
-                "SELECT id FROM publicaciones WHERE producto_id=? AND date(programada_para)=?",
-                (p["id"], fecha),
-            ).fetchone()
-            if not existing:
-                conn.execute(
-                    "INSERT INTO publicaciones (producto_id, programada_para, caption) VALUES (?,?,?)",
-                    (p["id"], fecha, generar_caption(p)),
-                )
-                count += 1
+            conn.execute(
+                "INSERT INTO publicaciones (producto_id, programada_para, caption) VALUES (?,?,?)",
+                (p["id"], fecha, generar_caption(p)),
+            )
+            count += 1
         conn.commit()
     finally:
         conn.close()
@@ -285,8 +304,8 @@ def programar_dos_diarias(
     now = datetime.now()
     try:
         usados = _productos_ya_programados(conn)
-        cola_dest = [p for p in destacados if p["id"] not in usados] or destacados
-        cola_norm = [p for p in normales if p["id"] not in usados] or normales
+        cola_dest = [p for p in destacados if p["id"] not in usados]
+        cola_norm = [p for p in normales if p["id"] not in usados]
 
         for offset in range(dias):
             fecha = (now + timedelta(days=offset + 1)).strftime("%Y-%m-%d")
@@ -297,11 +316,6 @@ def programar_dos_diarias(
             ).fetchone()[0]
             if existentes >= por_dia:
                 continue
-
-            if not cola_dest:
-                cola_dest = list(destacados)
-            if not cola_norm:
-                cola_norm = list(normales)
 
             if cola_dest and not _hay_categoria_pendiente(conn, fecha, categoria_destacada):
                 producto = cola_dest.pop(0)
@@ -425,6 +439,21 @@ def reprogramar_atrasadas(desde=None, cantidad_diaria=1):
         conn.close()
 
 
+def _tiene_existencia_fisica(producto):
+    """True solo si el producto está físicamente disponible.
+
+    Los artículos marcados como «proveedor» no se tienen en existencia; los
+    contados como «propio» requieren unidades en el conteo físico. Los que aún
+    no se clasificaron usan el stock de la tienda.
+    """
+    origen = (producto.get("inventario_origen") or "").strip().lower()
+    if origen == "proveedor":
+        return False
+    if origen == "propio":
+        return (producto.get("stock_fisico") or 0) > 0
+    return (producto.get("stock") or 0) > 0
+
+
 def _producto_publicable(producto, incluir_externos=False):
     es_externo = itgr.es_externo(producto.get("tipo_producto")) or bool(producto.get("es_afiliado"))
     if es_externo:
@@ -432,7 +461,7 @@ def _producto_publicable(producto, incluir_externos=False):
     return bool(
         producto.get("publicar")
         and producto.get("activo", 1)
-        and (producto.get("stock") or 0) > 0
+        and _tiene_existencia_fisica(producto)
         and (producto.get("precio_venta") or 0) > 0
     )
 
@@ -511,6 +540,21 @@ def _productos_ya_programados(conn):
     return {r[0] for r in rows}
 
 
+def productos_disponibles(incluir_externos=False):
+    """Productos físicos con existencia que todavía no se programaron ni publicaron."""
+    _init_db()
+    conn = _get_conn()
+    try:
+        usados = _productos_ya_programados(conn)
+    finally:
+        conn.close()
+    return [
+        p for p in app_db.get_productos(publicado_only=True)
+        if p["id"] not in usados
+        and _producto_publicable(p, incluir_externos=incluir_externos)
+    ]
+
+
 def programar_automatico(dias=7, cantidad_diaria=1, incluir_externos=False):
     """Completa la cola de publicaciones con productos de venta directa.
 
@@ -529,7 +573,7 @@ def programar_automatico(dias=7, cantidad_diaria=1, incluir_externos=False):
     try:
         fechas_ocupadas = _fechas_pendientes(conn)
         usados = _productos_ya_programados(conn)
-        candidatos = [p for p in productos if p["id"] not in usados] or productos
+        candidatos = [p for p in productos if p["id"] not in usados]
         now = datetime.now()
 
         for offset in range(dias):
@@ -561,17 +605,26 @@ def publicar_pendientes(base_url="http://localhost:5000", limite=None, incluir_a
             f"WHERE p.estado='pendiente' AND date(p.programada_para) {operador_fecha} date('now') "
             "ORDER BY p.programada_para ASC"
         )
-        params = []
-        if limite:
-            query += " LIMIT ?"
-            params.append(int(limite))
-        pendientes = conn.execute(query, params).fetchall()
+        pendientes = conn.execute(query, []).fetchall()
 
         result = []
         for pub_id, prod_id, caption in pendientes:
+            if limite and len(result) >= int(limite):
+                break
+
             producto = app_db.get_producto(prod_id)
             if not producto:
                 conn.execute("UPDATE publicaciones SET estado='cancelado' WHERE id=?", (pub_id,))
+                continue
+
+            # Solo se publican productos físicos (no externos) con existencia.
+            if not _producto_publicable(producto):
+                conn.execute("UPDATE publicaciones SET estado='cancelado' WHERE id=?", (pub_id,))
+                conn.execute(
+                    "INSERT INTO contenido_log (producto_id, canal, resultado) "
+                    "VALUES (?, 'filtro', 'Omitido: sin stock o producto externo')",
+                    (prod_id,),
+                )
                 continue
 
             # Telegram
@@ -769,27 +822,58 @@ def rutina_diaria(base_url="https://clickya.net", dias_programados=7):
     diag = diagnostico_comercial()
     proxima = proxima_publicacion()
 
+    disponibles = productos_disponibles()
+    conn = _get_conn()
+    try:
+        publicados_historicos = conn.execute(
+            "SELECT COUNT(*) FROM publicaciones WHERE estado='publicado'"
+        ).fetchone()[0]
+        agotado = not disponibles and pendientes == 0 and publicados_historicos > 0
+        ya_avisado = _estado_leer(conn, _ESTADO_CATALOGO_AGOTADO) == "1"
+        if not agotado:
+            if ya_avisado:
+                _estado_guardar(conn, _ESTADO_CATALOGO_AGOTADO, "0")
+            aviso_agotado = False
+        else:
+            aviso_agotado = not ya_avisado
+            if aviso_agotado:
+                _estado_guardar(conn, _ESTADO_CATALOGO_AGOTADO, "1")
+        conn.commit()
+    finally:
+        conn.close()
+
     ok_publicados = sum(1 for _, ok, _ in publicados if ok)
     err_publicados = sum(1 for _, ok, _ in publicados if not ok)
     top = "\n".join(
         f"  • #{p['id']} {p['nombre'][:45]} (stock {p['stock']})"
         for p in diag["top"]
     ) or "  • Sin productos publicables"
-    mensaje = (
-        f"🤖 <b>Rutina diaria ClickYa</b>\n\n"
-        f"Programadas nuevas: {len(nuevas)}\n"
-        f"Publicadas hoy: {ok_publicados}\n"
-        f"Errores de publicación: {err_publicados}\n"
-        f"Pendientes en cola: {pendientes}\n"
-        f"Errores acumulados: {errores}\n\n"
-        f"Productos locales publicables: {diag['locales_publicables']}\n"
-        f"Sin stock: {diag['sin_stock']} · Sin precio: {diag['sin_precio']} · Sin imagen: {diag['sin_imagen']}\n\n"
-        f"<b>Prioridad comercial</b>\n{top}"
-    )
-    if proxima:
-        mensaje += f"\n\nPróxima publicación: producto #{proxima['producto_id']} el {proxima['fecha']}"
 
-    notificado = notificaciones.telegram(mensaje)
+    if aviso_agotado:
+        mensaje = (
+            "✅ <b>Catálogo sin pendientes</b>\n\n"
+            "No quedan productos físicos con existencia por publicar.\n"
+            "No voy a repetir publicaciones.\n\n"
+            "Subí contenido nuevo y la rutina se reanuda automáticamente."
+        )
+    elif agotado:
+        mensaje = None
+    else:
+        mensaje = (
+            f"🤖 <b>Rutina diaria ClickYa</b>\n\n"
+            f"Programadas nuevas: {len(nuevas)}\n"
+            f"Publicadas hoy: {ok_publicados}\n"
+            f"Errores de publicación: {err_publicados}\n"
+            f"Pendientes en cola: {pendientes}\n"
+            f"Errores acumulados: {errores}\n\n"
+            f"Productos locales publicables: {diag['locales_publicables']}\n"
+            f"Sin stock: {diag['sin_stock']} · Sin precio: {diag['sin_precio']} · Sin imagen: {diag['sin_imagen']}\n\n"
+            f"<b>Prioridad comercial</b>\n{top}"
+        )
+        if proxima:
+            mensaje += f"\n\nPróxima publicación: producto #{proxima['producto_id']} el {proxima['fecha']}"
+
+    notificado = notificaciones.telegram(mensaje) if mensaje else False
     return {
         "programadas": nuevas,
         "publicaciones": publicados,
@@ -797,5 +881,7 @@ def rutina_diaria(base_url="https://clickya.net", dias_programados=7):
         "errores": errores,
         "diagnostico": diag,
         "proxima": proxima,
+        "agotado": agotado,
+        "aviso_agotado": aviso_agotado,
         "telegram": notificado,
     }

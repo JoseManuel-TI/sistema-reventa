@@ -1314,7 +1314,10 @@ def contenido_republicar_instagram():
 @login_required
 def contenido_programar_todos():
     count = cnt.programar_todos()
-    flash(f"Programadas {count} publicaciones.", "success")
+    if count:
+        flash(f"Programadas {count} publicaciones.", "success")
+    else:
+        flash("No quedan productos físicos con existencia por programar.", "info")
     return redirect(url_for("contenido_calendario"))
 
 
@@ -1322,7 +1325,10 @@ def contenido_programar_todos():
 @login_required
 def contenido_programar_dos():
     creadas = cnt.programar_dos_diarias()
-    flash(f"Programadas {len(creadas)} publicaciones (2/día con un perfume).", "success")
+    if creadas:
+        flash(f"Programadas {len(creadas)} publicaciones (2/día con un perfume).", "success")
+    else:
+        flash("No quedan productos físicos con existencia por programar.", "info")
     return redirect(url_for("contenido_calendario"))
 
 
@@ -1350,10 +1356,13 @@ def contenido_rutina_diaria():
     resumen = cnt.rutina_diaria(base_url=request.host_url.rstrip("/"))
     ok = sum(1 for _, r, _ in resumen["publicaciones"] if r)
     err = sum(1 for _, r, _ in resumen["publicaciones"] if not r)
-    flash(
-        f"Rutina diaria: {len(resumen['programadas'])} programadas, {ok} publicadas, {err} errores.",
-        "success" if err == 0 else "warning",
-    )
+    if resumen["agotado"]:
+        flash("No quedan productos físicos con existencia por publicar.", "info")
+    else:
+        flash(
+            f"Rutina diaria: {len(resumen['programadas'])} programadas, {ok} publicadas, {err} errores.",
+            "success" if err == 0 else "warning",
+        )
     return redirect(url_for("contenido_calendario"))
 
 
@@ -1400,6 +1409,7 @@ def contenido_cron():
         "publicadas": sum(1 for p in publicaciones if p["ok"]),
         "errores": sum(1 for p in publicaciones if not p["ok"]),
         "pendientes": resumen["pendientes"],
+        "agotado": resumen["agotado"],
         "telegram": resumen["telegram"],
         "publicaciones": publicaciones,
     })

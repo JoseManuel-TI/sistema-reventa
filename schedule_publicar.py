@@ -32,7 +32,10 @@ if __name__ == "__main__":
 
     if "--setup" in sys.argv:
         count = contenido.programar_todos()
-        print(f"Programadas {count} publicaciones.")
+        if count:
+            print(f"Programadas {count} publicaciones.")
+        else:
+            print("No quedan productos físicos con existencia por programar.")
     elif "--solo-publicar" in sys.argv:
         result = contenido.publicar_pendientes(base_url=base_url)
         for pid, ok, msg in result:
@@ -47,4 +50,6 @@ if __name__ == "__main__":
         for pid, ok, msg in resumen["publicaciones"]:
             status = "✅" if ok else "❌"
             print(f"{status} Prod#{pid}: {msg}")
+        if resumen["agotado"]:
+            print("No quedan productos físicos con existencia por publicar. Rutina en pausa.")
         print(f"Pendientes: {resumen['pendientes']} | Errores: {resumen['errores']} | Telegram resumen: {'OK' if resumen['telegram'] else 'no enviado'}")
